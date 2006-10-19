@@ -1,0 +1,20 @@
+AC_PREREQ(2.60)
+
+AC_INIT([gstpeaq], [0.1], [martin.holters@hsuhh.de])
+AC_CONFIG_AUX_DIR([aux])
+AC_CONFIG_MACRO_DIR([aux])
+AM_INIT_AUTOMAKE([1.9 foreign])
+
+AC_PROG_CC
+AC_DISABLE_STATIC
+AC_PROG_LIBTOOL
+
+
+AC_HEADER_STDC
+
+AC_FUNC_MALLOC
+
+PKG_CHECK_MODULES(PKGCONF, [gstreamer-0.10 gstreamer-base-0.10 ])
+
+AC_CONFIG_FILES([Makefile])
+AC_OUTPUT
