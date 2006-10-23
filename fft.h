@@ -12,5 +12,6 @@ FFTData *create_fft_data (unsigned int N);
 void free_fft_data (FFTData * data);
 void compute_fft (FFTData * data, double *xr, double *xi, double *yr,
 		  double *yi);
+void compute_real_fft (FFTData * data, double *x, double *yr, double *yi);
 
 #endif
