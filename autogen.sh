@@ -1,6 +1,7 @@
 mkdir -p aux
 libtoolize
 aclocal
+autoheader
 autoconf
 automake --add-missing
-./configure --enable-maintainer-mode
+CFLAGS="-Wall -g" ./configure --enable-maintainer-mode

@@ -16,5 +16,6 @@ AC_FUNC_MALLOC
 
 PKG_CHECK_MODULES(PKGCONF, [gstreamer-0.10 gstreamer-base-0.10 ])
 
+AC_CONFIG_HEADER([config.h])
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
