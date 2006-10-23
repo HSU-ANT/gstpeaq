@@ -46,7 +46,6 @@ G_BEGIN_DECLS;
 							    GST_TYPE_PEAQ, \
 							    GstPeaqClass))
 
-#define FRAMESIZE 2048
 #define SAMPLINGRATE 48000
 
 typedef struct _GstPeaq GstPeaq;
