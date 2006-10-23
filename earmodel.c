@@ -204,49 +204,49 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
   gdouble *windowed_data = g_newa (gdouble, FRAMESIZE);
   gdouble *real_fft = g_newa (gdouble, FRAMESIZE);
   gdouble *imag_fft = g_newa (gdouble, FRAMESIZE);
-  gdouble *abs_fft = g_newa (gdouble, FRAMESIZE / 2 + 1);
-  gdouble *weighted_fft = g_newa (gdouble, FRAMESIZE / 2 + 1);
-  gdouble *band_power = g_newa (gdouble, CRITICAL_BAND_COUNT);
   gdouble *noisy_band_power = g_newa (gdouble, CRITICAL_BAND_COUNT);
-  gdouble *unsmeared_excitation = g_newa (gdouble, CRITICAL_BAND_COUNT);
-  gdouble *excitation = g_newa (gdouble, CRITICAL_BAND_COUNT);
+
+  g_assert (output);
 
   for (k = 0; k < FRAMESIZE; k++)
     windowed_data[k] = ear_class->hann_window[k] * sample_data[k];
 
   compute_real_fft (ear_class->fft_data, windowed_data, real_fft, imag_fft);
   for (k = 0; k < FRAMESIZE / 2 + 1; k++) {
-    abs_fft[k] = hypot (real_fft[k], imag_fft[k]) * ear->level_factor /
-      FRAMESIZE;
-    weighted_fft[k] = abs_fft[k] * ear_class->outer_middle_ear_weight[k];
+    output->absolute_spectrum[k] = 
+      hypot (real_fft[k], imag_fft[k]) * ear->level_factor / FRAMESIZE;
+    output->weighted_fft[k] = 
+      output->absolute_spectrum[k] * ear_class->outer_middle_ear_weight[k];
   }
 
   /* group into bands */
   for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
-    band_power[i] =
+    output->band_power[i] =
       (ear_class->band_lower_weight[i] *
-       weighted_fft[ear_class->band_lower_end[i]] *
-       weighted_fft[ear_class->band_lower_end[i]]) +
+       output->weighted_fft[ear_class->band_lower_end[i]] *
+       output->weighted_fft[ear_class->band_lower_end[i]]) +
       (ear_class->band_upper_weight[i] *
-       weighted_fft[ear_class->band_upper_end[i]] *
-       weighted_fft[ear_class->band_upper_end[i]]);
+       output->weighted_fft[ear_class->band_upper_end[i]] *
+       output->weighted_fft[ear_class->band_upper_end[i]]);
     for (k = ear_class->band_lower_end[i] + 1;
 	 k < ear_class->band_upper_end[i]; k++)
-      band_power[i] += weighted_fft[k] * weighted_fft[k];
-    if (band_power[i] < 1e-12)
-      band_power[i] = 1e-12;
-    noisy_band_power[i] = band_power[i] + ear_class->internal_noise_level[i];
+      output->band_power[i] += 
+	output->weighted_fft[k] * output->weighted_fft[k];
+    if (output->band_power[i] < 1e-12)
+      output->band_power[i] = 1e-12;
+    noisy_band_power[i] = 
+      output->band_power[i] + ear_class->internal_noise_level[i];
   }
 
-  do_spreading (ear_class, noisy_band_power, unsmeared_excitation);
+  do_spreading (ear_class, noisy_band_power, &output->unsmeared_excitation);
 
   for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
     ear->filtered_excitation[i] = ear_class->ear_time_constants[i] *
       ear->filtered_excitation[i] + (1 - ear_class->ear_time_constants[i]) *
-      unsmeared_excitation[i];
-    excitation[i] =
-      ear->filtered_excitation[i] > unsmeared_excitation[i] ? 
-      ear->filtered_excitation[i] : unsmeared_excitation[i];
+      output->unsmeared_excitation[i];
+    output->excitation[i] =
+      ear->filtered_excitation[i] > output->unsmeared_excitation[i] ? 
+      ear->filtered_excitation[i] : output->unsmeared_excitation[i];
   }
 }
 

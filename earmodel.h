@@ -38,8 +38,15 @@
 #define PEAQ_EARMODEL_GET_CLASS(obj) \
   (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_EARMODEL, PeaqEarModelClass))
 
+#define FRAMESIZE 2048
+#define CRITICAL_BAND_COUNT 109
 
 typedef struct _EarModelOutput {
+  gdouble absolute_spectrum[FRAMESIZE / 2 + 1];
+  gdouble weighted_fft[FRAMESIZE / 2 + 1];
+  gdouble band_power[CRITICAL_BAND_COUNT];
+  gdouble unsmeared_excitation[CRITICAL_BAND_COUNT];
+  gdouble excitation[CRITICAL_BAND_COUNT];
 } EarModelOutput;
 
 typedef struct _PeaqEarModelClass PeaqEarModelClass;

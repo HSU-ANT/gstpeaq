@@ -171,13 +171,15 @@ gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
 
   while (gst_adapter_available (peaq->ref_adapter) >= BLOCKSIZE_BYTES
 	 && gst_adapter_available (peaq->test_adapter) >= BLOCKSIZE_BYTES) {
+    EarModelOutput ref_output;
+    EarModelOutput test_output;
     gfloat *refframe = (gfloat *) gst_adapter_peek (peaq->ref_adapter,
 						    BLOCKSIZE_BYTES);
     gfloat *testframe = (gfloat *) gst_adapter_peek (peaq->test_adapter,
 						     BLOCKSIZE_BYTES);
     g_printf ("Processing frame...\n");
-    peaq_earmodel_process (peaq->ref_ear_model, refframe, NULL);
-    peaq_earmodel_process (peaq->test_ear_model, testframe, NULL);
+    peaq_earmodel_process (peaq->ref_ear_model, refframe, &ref_output);
+    peaq_earmodel_process (peaq->test_ear_model, testframe, &test_output);
 
     gst_adapter_flush (peaq->ref_adapter, STEPSIZE_BYTES);
     gst_adapter_flush (peaq->test_adapter, STEPSIZE_BYTES);
