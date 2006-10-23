@@ -220,6 +220,7 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
   }
 
   /* group into bands */
+#if 0
   for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
     output->band_power[i] =
       (ear_class->band_lower_weight[i] *
@@ -237,6 +238,12 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
     noisy_band_power[i] = 
       output->band_power[i] + ear_class->internal_noise_level[i];
   }
+#endif
+  peaq_earmodel_group_into_bands (ear_class, output->weighted_fft, 
+				  output->band_power);
+  for (i = 0; i < CRITICAL_BAND_COUNT; i++)
+    noisy_band_power[i] = 
+      output->band_power[i] + ear_class->internal_noise_level[i];
 
   do_spreading (ear_class, noisy_band_power, &output->unsmeared_excitation);
 
@@ -247,6 +254,28 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
     output->excitation[i] =
       ear->filtered_excitation[i] > output->unsmeared_excitation[i] ? 
       ear->filtered_excitation[i] : output->unsmeared_excitation[i];
+  }
+}
+
+static void
+peaq_earmodel_group_into_bands (PeaqEarModelClass * ear_class, 
+				gdouble *spectrum, gdouble *band_power)
+{
+  guint i;
+  guint k;
+  for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
+    band_power[i] =
+      (ear_class->band_lower_weight[i] *
+       spectrum[ear_class->band_lower_end[i]] *
+       spectrum[ear_class->band_lower_end[i]]) +
+      (ear_class->band_upper_weight[i] *
+       spectrum[ear_class->band_upper_end[i]] *
+       spectrum[ear_class->band_upper_end[i]]);
+    for (k = ear_class->band_lower_end[i] + 1;
+	 k < ear_class->band_upper_end[i]; k++)
+      band_power[i] += spectrum[k] * spectrum[k];
+    if (band_power[i] < 1e-12)
+      band_power[i] = 1e-12;
   }
 }
 
