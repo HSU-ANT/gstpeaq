@@ -23,6 +23,8 @@
 #ifndef __GST_PEAQ_H__
 #define __GST_PEAQ_H__
 
+#include "earmodel.h"
+
 #include <gst/gst.h>
 #include <gst/base/gstcollectpads.h>
 #include <gst/base/gstadapter.h>
@@ -40,6 +42,13 @@ G_BEGIN_DECLS;
 							     GST_TYPE_PEAQ))
 #define GST_IS_PEAQ_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass), \
 							  GST_TYPE_PEAQ))
+#define GST_PEAQ_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS(obj, \
+							    GST_TYPE_PEAQ, \
+							    GstPeaqClass))
+
+#define FRAMESIZE 2048
+#define SAMPLINGRATE 48000
+
 typedef struct _GstPeaq GstPeaq;
 typedef struct _GstPeaqClass GstPeaqClass;
 
@@ -52,12 +61,18 @@ struct _GstPeaq
   GstAdapter *ref_adapter;
   GstAdapter *test_adapter;
   guint bytes_read;
+  PeaqEarModel *ref_ear_model;
+  PeaqEarModel *test_ear_model;
 };
 
 struct _GstPeaqClass
 {
   GstElementClass parent_class;
+  guint window_length;
+  guint sampling_rate;
 };
+
+GType gst_peaq_get_type();
 
 G_END_DECLS;
 

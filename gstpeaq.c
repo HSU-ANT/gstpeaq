@@ -24,6 +24,12 @@
 #endif
 
 #include "gstpeaq.h"
+#include "earmodel.h"
+
+#define BLOCKSIZE 2048
+#define STEPSIZE (BLOCKSIZE/2)
+#define BLOCKSIZE_BYTES (BLOCKSIZE * sizeof(gfloat))
+#define STEPSIZE_BYTES (STEPSIZE * sizeof(gfloat))
 
 static const GstElementDetails peaq_details =
 GST_ELEMENT_DETAILS ("Perceptual evaluation of audio quality",
@@ -64,6 +70,7 @@ static GstStateChangeReturn gst_peaq_change_state (GstElement * element,
 static void
 gst_peaq_base_init (gpointer g_class)
 {
+  GstPeaqClass *peaq_class = GST_PEAQ_CLASS (g_class);
   GstElementClass *element_class = GST_ELEMENT_CLASS (g_class);
   GObjectClass *gobject_class = G_OBJECT_CLASS (g_class);
 
@@ -77,6 +84,9 @@ gst_peaq_base_init (gpointer g_class)
 
   element_class->change_state = gst_peaq_change_state;
   gobject_class->finalize = gst_peaq_finalize;
+
+  peaq_class->window_length = BLOCKSIZE;
+  peaq_class->sampling_rate = 48000;
 }
 
 static void
@@ -110,6 +120,9 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   gst_element_add_pad (GST_ELEMENT (peaq), peaq->testpad);
 
   peaq->bytes_read = 0;
+
+  peaq->ref_ear_model = g_object_new (PEAQ_TYPE_EARMODEL, NULL);
+  peaq->test_ear_model = g_object_new (PEAQ_TYPE_EARMODEL, NULL);
 }
 
 static void
@@ -121,9 +134,6 @@ gst_peaq_finalize (GObject * object)
   g_object_unref (peaq->test_adapter);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
-
-#define BLOCKSIZE 2048
-#define STEPSIZE 1024
 
 static GstFlowReturn
 gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
@@ -159,18 +169,25 @@ gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
     }
   }
 
-  while (gst_adapter_available (peaq->ref_adapter) >= BLOCKSIZE
-	 && gst_adapter_available (peaq->test_adapter) >= BLOCKSIZE) {
+  while (gst_adapter_available (peaq->ref_adapter) >= BLOCKSIZE_BYTES
+	 && gst_adapter_available (peaq->test_adapter) >= BLOCKSIZE_BYTES) {
+    gfloat *refframe = (gfloat *) gst_adapter_peek (peaq->ref_adapter,
+						    BLOCKSIZE_BYTES);
+    gfloat *testframe = (gfloat *) gst_adapter_peek (peaq->test_adapter,
+						     BLOCKSIZE_BYTES);
     g_printf ("Processing frame...\n");
-    gst_adapter_flush (peaq->ref_adapter, STEPSIZE);
-    gst_adapter_flush (peaq->test_adapter, STEPSIZE);
+    peaq_earmodel_process (peaq->ref_ear_model, refframe, NULL);
+    peaq_earmodel_process (peaq->test_ear_model, testframe, NULL);
+
+    gst_adapter_flush (peaq->ref_adapter, STEPSIZE_BYTES);
+    gst_adapter_flush (peaq->test_adapter, STEPSIZE_BYTES);
   }
 
   if (!data_received) {
     gst_element_post_message (GST_ELEMENT_CAST (peaq),
 			      gst_message_new_eos (GST_OBJECT_CAST (peaq)));
   }
-  
+
   return GST_FLOW_OK;
 }
 
