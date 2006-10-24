@@ -355,7 +355,7 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat *refdata, gfloat *testdata)
   nmr /= CRITICAL_BAND_COUNT;
 
   /* probability of detection */
-  detection_probability = 0.;
+  detection_probability = 1.;
   detection_steps = 0.;
   for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
     gdouble eref_db = 10 * log10(ref_ear_output.excitation[i]);
@@ -371,6 +371,7 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat *refdata, gfloat *testdata)
     detection_probability *= 1 - pc;
     detection_steps += qc;
   }
+  detection_probability = 1 - detection_probability;
 
   /* error harmonic structure */
   energy = 0.;
