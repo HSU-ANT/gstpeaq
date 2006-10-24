@@ -69,6 +69,8 @@ static GstFlowReturn gst_peaq_collected (GstCollectPads * pads,
 					 gpointer user_data);
 static GstStateChangeReturn gst_peaq_change_state (GstElement * element,
 						   GstStateChange transition);
+static void gst_peaq_process_block (GstPeaq * peaq, gfloat *refdata, 
+				    gfloat *testdata);
 
 static void
 gst_peaq_base_init (gpointer g_class)
@@ -182,35 +184,12 @@ gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
 
   while (gst_adapter_available (peaq->ref_adapter) >= BLOCKSIZE_BYTES
 	 && gst_adapter_available (peaq->test_adapter) >= BLOCKSIZE_BYTES) {
-    guint i;
-    EarModelOutput ref_output;
-    EarModelOutput test_output;
-    LevelAdapterOutput level_output;
-    ModulationProcessorOutput ref_mod_output;
-    ModulationProcessorOutput test_mod_output;
-    gdouble noise_spectrum[FRAMESIZE / 2 + 1];
-    gdouble noise_in_bands[CRITICAL_BAND_COUNT];
     gfloat *refframe = (gfloat *) gst_adapter_peek (peaq->ref_adapter,
 						    BLOCKSIZE_BYTES);
     gfloat *testframe = (gfloat *) gst_adapter_peek (peaq->test_adapter,
 						     BLOCKSIZE_BYTES);
     g_printf ("Processing frame...\n");
-    peaq_earmodel_process (peaq->ref_ear_model, refframe, &ref_output);
-    peaq_earmodel_process (peaq->test_ear_model, testframe, &test_output);
-    for (i = 0; i < FRAMESIZE / 2 + 1; i++)
-      noise_spectrum[i] = 
-	ABS(ref_output.weighted_fft[i] - test_output.weighted_fft[i]);
-    peaq_earmodel_group_into_bands (PEAQ_EARMODEL_GET_CLASS(peaq->ref_ear_model),
-				    noise_spectrum, noise_in_bands);
-    peaq_leveladapter_process (peaq->level_adapter, ref_output.excitation,
-			       test_output.excitation, &level_output);
-    peaq_modulationprocessor_process (peaq->ref_modulation_processor,
-				      ref_output.unsmeared_excitation,
-				      &ref_mod_output);
-    peaq_modulationprocessor_process (peaq->test_modulation_processor,
-				      test_output.unsmeared_excitation,
-				      &test_mod_output);
-
+    gst_peaq_process_block (peaq, refframe, testframe);
     gst_adapter_flush (peaq->ref_adapter, STEPSIZE_BYTES);
     gst_adapter_flush (peaq->test_adapter, STEPSIZE_BYTES);
   }
@@ -251,3 +230,33 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
 
   return GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
 }
+
+static void 
+gst_peaq_process_block (GstPeaq * peaq, gfloat *refdata, gfloat *testdata)
+{
+  guint i;
+  EarModelOutput ref_ear_output;
+  EarModelOutput test_ear_output;
+  LevelAdapterOutput level_output;
+  ModulationProcessorOutput ref_mod_output;
+  ModulationProcessorOutput test_mod_output;
+  gdouble noise_spectrum[FRAMESIZE / 2 + 1];
+  gdouble noise_in_bands[CRITICAL_BAND_COUNT];
+
+  peaq_earmodel_process (peaq->ref_ear_model, refdata, &ref_ear_output);
+  peaq_earmodel_process (peaq->test_ear_model, testdata, &test_ear_output);
+  for (i = 0; i < FRAMESIZE / 2 + 1; i++)
+    noise_spectrum[i] = 
+      ABS(ref_ear_output.weighted_fft[i] - test_ear_output.weighted_fft[i]);
+  peaq_earmodel_group_into_bands (PEAQ_EARMODEL_GET_CLASS(peaq->ref_ear_model),
+				  noise_spectrum, noise_in_bands);
+  peaq_leveladapter_process (peaq->level_adapter, ref_ear_output.excitation,
+			     test_ear_output.excitation, &level_output);
+  peaq_modulationprocessor_process (peaq->ref_modulation_processor,
+				    ref_ear_output.unsmeared_excitation,
+				    &ref_mod_output);
+  peaq_modulationprocessor_process (peaq->test_modulation_processor,
+				    test_ear_output.unsmeared_excitation,
+				    &test_mod_output);
+}
+

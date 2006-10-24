@@ -247,11 +247,11 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
   output->overall_loudness = 0;
   for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
     gdouble loudness = LOUDNESS_SCALE * 
-      pow(ear_class->excitation_threshold[k] / (1e4 * ear_class->threshold[k]),
+      pow(ear_class->excitation_threshold[i] / (1e4 * ear_class->threshold[i]),
 	  0.23) * 
-      (pow(1 - ear_class->threshold[k] + ear_class->threshold[k] *
-		       output->excitation[k] / 
-		       ear_class->excitation_threshold[k], 0.23) - 1);
+      (pow(1 - ear_class->threshold[i] + ear_class->threshold[k] *
+		       output->excitation[i] / 
+		       ear_class->excitation_threshold[i], 0.23) - 1);
     output->overall_loudness += loudness;
   }
 }
