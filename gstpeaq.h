@@ -26,6 +26,7 @@
 #include "earmodel.h"
 #include "leveladapter.h"
 #include "modpatt.h"
+#include "fft.h"
 
 #include <gst/gst.h>
 #include <gst/base/gstcollectpads.h>
@@ -74,6 +75,9 @@ struct _GstPeaqClass
   GstElementClass parent_class;
   guint window_length;
   guint sampling_rate;
+  gdouble *masking_difference;
+  gdouble *correlation_window;
+  FFTData *correlation_fft_data;
 };
 
 GType gst_peaq_get_type();
