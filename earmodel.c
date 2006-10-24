@@ -245,7 +245,7 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
     noisy_band_power[i] = 
       output->band_power[i] + ear_class->internal_noise_level[i];
 
-  do_spreading (ear_class, noisy_band_power, &output->unsmeared_excitation);
+  do_spreading (ear_class, noisy_band_power, output->unsmeared_excitation);
 
   for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
     ear->filtered_excitation[i] = ear_class->ear_time_constants[i] *
@@ -257,7 +257,7 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
   }
 }
 
-static void
+void
 peaq_earmodel_group_into_bands (PeaqEarModelClass * ear_class, 
 				gdouble *spectrum, gdouble *band_power)
 {

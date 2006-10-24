@@ -77,8 +77,7 @@ struct _PeaqEarModel {
 GType peaq_earmodel_get_type ();
 void peaq_earmodel_process (PeaqEarModel * ear, gfloat *sample_data, 
 				EarModelOutput * output);
-static void peaq_earmodel_group_into_bands (PeaqEarModelClass * ear_class, 
-					    gdouble *spectrum, 
-					    gdouble *band_power);
+ void peaq_earmodel_group_into_bands (PeaqEarModelClass * ear_class, 
+				      gdouble *spectrum, gdouble *band_power);
 gdouble peaq_earmodel_get_band_center_frequency (guint band);
 #endif

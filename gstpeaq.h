@@ -24,6 +24,7 @@
 #define __GST_PEAQ_H__
 
 #include "earmodel.h"
+#include "leveladapter.h"
 
 #include <gst/gst.h>
 #include <gst/base/gstcollectpads.h>
@@ -62,6 +63,7 @@ struct _GstPeaq
   guint bytes_read;
   PeaqEarModel *ref_ear_model;
   PeaqEarModel *test_ear_model;
+  PeaqLevelAdapter *level_adapter;
 };
 
 struct _GstPeaqClass

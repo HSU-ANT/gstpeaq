@@ -4,4 +4,4 @@ aclocal
 autoheader
 autoconf
 automake --add-missing
-CFLAGS="-Wall -g" ./configure --enable-maintainer-mode
+CFLAGS="-Wall -Werror -g" ./configure --enable-maintainer-mode

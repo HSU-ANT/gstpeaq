@@ -23,8 +23,11 @@
 #include "config.h"
 #endif
 
+#include <glib/gprintf.h>
+
 #include "gstpeaq.h"
 #include "earmodel.h"
+#include "leveladapter.h"
 
 #define BLOCKSIZE 2048
 #define STEPSIZE (BLOCKSIZE/2)
@@ -123,6 +126,7 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
 
   peaq->ref_ear_model = g_object_new (PEAQ_TYPE_EARMODEL, NULL);
   peaq->test_ear_model = g_object_new (PEAQ_TYPE_EARMODEL, NULL);
+  peaq->level_adapter = g_object_new (PEAQ_TYPE_LEVELADAPTER, NULL);
 }
 
 static void
@@ -171,8 +175,12 @@ gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
 
   while (gst_adapter_available (peaq->ref_adapter) >= BLOCKSIZE_BYTES
 	 && gst_adapter_available (peaq->test_adapter) >= BLOCKSIZE_BYTES) {
+    guint i;
     EarModelOutput ref_output;
     EarModelOutput test_output;
+    LevelAdapterOutput level_output;
+    gdouble noise_spectrum[FRAMESIZE / 2 + 1];
+    gdouble noise_in_bands[CRITICAL_BAND_COUNT];
     gfloat *refframe = (gfloat *) gst_adapter_peek (peaq->ref_adapter,
 						    BLOCKSIZE_BYTES);
     gfloat *testframe = (gfloat *) gst_adapter_peek (peaq->test_adapter,
@@ -180,6 +188,13 @@ gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
     g_printf ("Processing frame...\n");
     peaq_earmodel_process (peaq->ref_ear_model, refframe, &ref_output);
     peaq_earmodel_process (peaq->test_ear_model, testframe, &test_output);
+    for (i = 0; i < FRAMESIZE / 2 + 1; i++)
+      noise_spectrum[i] = 
+	ABS(ref_output.weighted_fft[i] - test_output.weighted_fft[i]);
+    peaq_earmodel_group_into_bands (PEAQ_EARMODEL_GET_CLASS(peaq->ref_ear_model),
+				    noise_spectrum, noise_in_bands);
+    peaq_leveladapter_process (peaq->level_adapter, ref_output.excitation,
+			       test_output.excitation, &level_output);
 
     gst_adapter_flush (peaq->ref_adapter, STEPSIZE_BYTES);
     gst_adapter_flush (peaq->test_adapter, STEPSIZE_BYTES);
