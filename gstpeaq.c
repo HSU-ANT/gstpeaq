@@ -127,6 +127,10 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   peaq->ref_ear_model = g_object_new (PEAQ_TYPE_EARMODEL, NULL);
   peaq->test_ear_model = g_object_new (PEAQ_TYPE_EARMODEL, NULL);
   peaq->level_adapter = g_object_new (PEAQ_TYPE_LEVELADAPTER, NULL);
+  peaq->ref_modulation_processor = 
+    g_object_new (PEAQ_TYPE_MODULATIONPROCESSOR, NULL);
+  peaq->test_modulation_processor = 
+    g_object_new (PEAQ_TYPE_MODULATIONPROCESSOR, NULL);
 }
 
 static void
@@ -136,6 +140,9 @@ gst_peaq_finalize (GObject * object)
   g_object_unref (peaq->collect);
   g_object_unref (peaq->ref_adapter);
   g_object_unref (peaq->test_adapter);
+  g_object_unref (peaq->level_adapter);
+  g_object_unref (peaq->ref_modulation_processor);
+  g_object_unref (peaq->test_modulation_processor);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -179,6 +186,8 @@ gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
     EarModelOutput ref_output;
     EarModelOutput test_output;
     LevelAdapterOutput level_output;
+    ModulationProcessorOutput ref_mod_output;
+    ModulationProcessorOutput test_mod_output;
     gdouble noise_spectrum[FRAMESIZE / 2 + 1];
     gdouble noise_in_bands[CRITICAL_BAND_COUNT];
     gfloat *refframe = (gfloat *) gst_adapter_peek (peaq->ref_adapter,
@@ -195,6 +204,12 @@ gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
 				    noise_spectrum, noise_in_bands);
     peaq_leveladapter_process (peaq->level_adapter, ref_output.excitation,
 			       test_output.excitation, &level_output);
+    peaq_modulationprocessor_process (peaq->ref_modulation_processor,
+				      ref_output.unsmeared_excitation,
+				      &ref_mod_output);
+    peaq_modulationprocessor_process (peaq->test_modulation_processor,
+				      test_output.unsmeared_excitation,
+				      &test_mod_output);
 
     gst_adapter_flush (peaq->ref_adapter, STEPSIZE_BYTES);
     gst_adapter_flush (peaq->test_adapter, STEPSIZE_BYTES);
