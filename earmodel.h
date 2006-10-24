@@ -47,6 +47,7 @@ typedef struct _EarModelOutput {
   gdouble band_power[CRITICAL_BAND_COUNT];
   gdouble unsmeared_excitation[CRITICAL_BAND_COUNT];
   gdouble excitation[CRITICAL_BAND_COUNT];
+  gdouble overall_loudness;
 } EarModelOutput;
 
 typedef struct _PeaqEarModelClass PeaqEarModelClass;
@@ -66,6 +67,8 @@ struct _PeaqEarModelClass {
   gdouble lower_spreading_exponantiated;
   gdouble *spreading_normalization;
   gdouble *ear_time_constants;
+  gdouble *threshold;
+  gdouble *excitation_threshold;
 };
 
 struct _PeaqEarModel {

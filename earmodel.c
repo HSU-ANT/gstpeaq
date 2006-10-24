@@ -31,6 +31,7 @@
 
 #define DELTAZ 0.25
 #define GAMMA 0.84971762641205
+#define LOUDNESS_SCALE 1.07664
 
 enum {
   PROP_0,
@@ -141,6 +142,8 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
   ear_class->internal_noise_level = g_new (gdouble, CRITICAL_BAND_COUNT);
   ear_class->ear_time_constants = g_new (gdouble, CRITICAL_BAND_COUNT);
   ear_class->spreading_normalization = g_new (gdouble, CRITICAL_BAND_COUNT);
+  ear_class->threshold = g_new (gdouble, CRITICAL_BAND_COUNT);
+  ear_class->excitation_threshold = g_new (gdouble, CRITICAL_BAND_COUNT);
   for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
     gdouble curr_fc;
     gdouble tau;
@@ -151,6 +154,11 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
     ear_class->ear_time_constants[k] =
       exp (-(gdouble) N / (2 * SAMPLINGRATE) / tau);
     ear_class->spreading_normalization[k] = 1.;
+    ear_class->excitation_threshold[k] = 
+      pow(10, 0.364 * pow(curr_fc / 1000, -0.8));
+    ear_class->threshold[k] = 
+      pow (10, 0.1 * (-2 - 2.05 * atan (curr_fc / 4000) - 
+		      0.75 * atan (curr_fc / 1600 * curr_fc / 1600)));
   }
   spread = g_newa (gdouble, CRITICAL_BAND_COUNT);
   do_spreading (ear_class, ear_class->spreading_normalization, spread);
@@ -219,26 +227,6 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
       output->absolute_spectrum[k] * ear_class->outer_middle_ear_weight[k];
   }
 
-  /* group into bands */
-#if 0
-  for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
-    output->band_power[i] =
-      (ear_class->band_lower_weight[i] *
-       output->weighted_fft[ear_class->band_lower_end[i]] *
-       output->weighted_fft[ear_class->band_lower_end[i]]) +
-      (ear_class->band_upper_weight[i] *
-       output->weighted_fft[ear_class->band_upper_end[i]] *
-       output->weighted_fft[ear_class->band_upper_end[i]]);
-    for (k = ear_class->band_lower_end[i] + 1;
-	 k < ear_class->band_upper_end[i]; k++)
-      output->band_power[i] += 
-	output->weighted_fft[k] * output->weighted_fft[k];
-    if (output->band_power[i] < 1e-12)
-      output->band_power[i] = 1e-12;
-    noisy_band_power[i] = 
-      output->band_power[i] + ear_class->internal_noise_level[i];
-  }
-#endif
   peaq_earmodel_group_into_bands (ear_class, output->weighted_fft, 
 				  output->band_power);
   for (i = 0; i < CRITICAL_BAND_COUNT; i++)
@@ -254,6 +242,17 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
     output->excitation[i] =
       ear->filtered_excitation[i] > output->unsmeared_excitation[i] ? 
       ear->filtered_excitation[i] : output->unsmeared_excitation[i];
+  }
+
+  output->overall_loudness = 0;
+  for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
+    gdouble loudness = LOUDNESS_SCALE * 
+      pow(ear_class->excitation_threshold[k] / (1e4 * ear_class->threshold[k]),
+	  0.23) * 
+      (pow(1 - ear_class->threshold[k] + ear_class->threshold[k] *
+		       output->excitation[k] / 
+		       ear_class->excitation_threshold[k], 0.23) - 1);
+    output->overall_loudness += loudness;
   }
 }
 
