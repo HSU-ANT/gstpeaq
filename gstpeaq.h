@@ -53,6 +53,7 @@ G_BEGIN_DECLS;
 
 typedef struct _GstPeaq GstPeaq;
 typedef struct _GstPeaqClass GstPeaqClass;
+typedef struct _GstPeaqAggregatedData GstPeaqAggregatedData;
 
 struct _GstPeaq
 {
@@ -68,6 +69,8 @@ struct _GstPeaq
   PeaqLevelAdapter *level_adapter;
   PeaqModulationProcessor *ref_modulation_processor;
   PeaqModulationProcessor *test_modulation_processor;
+  GstPeaqAggregatedData *current_aggregated_data;
+  GstPeaqAggregatedData *saved_aggregated_data;
 };
 
 struct _GstPeaqClass

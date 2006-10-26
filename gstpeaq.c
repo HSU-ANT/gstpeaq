@@ -25,6 +25,7 @@
 
 #include <glib/gprintf.h>
 #include <math.h>
+#include <string.h>
 
 #include "gstpeaq.h"
 #include "earmodel.h"
@@ -36,6 +37,14 @@
 #define STEPSIZE_BYTES (STEPSIZE * sizeof(gfloat))
 #define EHS_ENERGY_THRESHOLD 7.442401884276241e-6
 #define MAXLAG 256
+
+struct _GstPeaqAggregatedData {
+  guint frame_count;
+  gdouble ref_bandwidth_sum;
+  gdouble test_bandwidth_sum;
+  guint bandwidth_frame_count;
+  gdouble nmr_sum;
+};
 
 static const GstElementDetails peaq_details =
 GST_ELEMENT_DETAILS ("Perceptual evaluation of audio quality",
@@ -74,6 +83,7 @@ static GstStateChangeReturn gst_peaq_change_state (GstElement * element,
 						   GstStateChange transition);
 static void gst_peaq_process_block (GstPeaq * peaq, gfloat *refdata, 
 				    gfloat *testdata);
+static gboolean is_frame_above_threshold (gfloat *framedata);
 
 static void
 gst_peaq_base_init (gpointer g_class)
@@ -146,6 +156,9 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
     g_object_new (PEAQ_TYPE_MODULATIONPROCESSOR, NULL);
   peaq->test_modulation_processor = 
     g_object_new (PEAQ_TYPE_MODULATIONPROCESSOR, NULL);
+
+  peaq->current_aggregated_data = NULL;
+  peaq->saved_aggregated_data = NULL;
 }
 
 static void
@@ -219,10 +232,16 @@ static GstStateChangeReturn
 gst_peaq_change_state (GstElement * element, GstStateChange transition)
 {
   GstPeaq *peaq;
+  guint ref_data_left_count, test_data_left_count;
+  GstPeaqAggregatedData *agg_data;
 
   peaq = GST_PEAQ (element);
 
   g_printf ("State transition...\n");
+  if (peaq->saved_aggregated_data)
+    agg_data = peaq->saved_aggregated_data;
+  else
+    agg_data = peaq->current_aggregated_data;
 
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
@@ -233,9 +252,46 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
+      ref_data_left_count = gst_adapter_available (peaq->ref_adapter);
+      test_data_left_count = gst_adapter_available (peaq->test_adapter);
+      if (ref_data_left_count  || test_data_left_count) {
+	gfloat padded_ref_frame[BLOCKSIZE];
+	gfloat padded_test_frame[BLOCKSIZE];
+	gfloat *refframe = 
+	  (gfloat *) gst_adapter_peek (peaq->ref_adapter,
+				       MIN (ref_data_left_count, 
+					    BLOCKSIZE_BYTES));
+	gfloat *testframe = 
+	  (gfloat *) gst_adapter_peek (peaq->test_adapter,
+				       MIN (test_data_left_count,
+					    BLOCKSIZE_BYTES));
+	g_memmove (padded_ref_frame, refframe, BLOCKSIZE_BYTES);
+	memset (((char *) padded_ref_frame) + ref_data_left_count, 0, 
+		BLOCKSIZE_BYTES - ref_data_left_count);
+	g_memmove (padded_test_frame, testframe, BLOCKSIZE_BYTES);
+	memset (((char *) padded_test_frame) + test_data_left_count, 0, 
+		BLOCKSIZE_BYTES - test_data_left_count);
+	gst_peaq_process_block (peaq, padded_ref_frame, padded_test_frame);
+	gst_adapter_flush (peaq->ref_adapter, ref_data_left_count);
+	gst_adapter_flush (peaq->test_adapter, test_data_left_count);
+      }
       /* need to unblock the collectpads before calling the
        * parent change_state so that streaming can finish */
       gst_collect_pads_stop (peaq->collect);
+      if (agg_data) {
+	gdouble bw_ref_b = 
+	  agg_data->ref_bandwidth_sum / agg_data->bandwidth_frame_count;
+	gdouble bw_test_b = 
+	  agg_data->test_bandwidth_sum / agg_data->bandwidth_frame_count;
+	gdouble total_nmr_b = 
+	  10 * log10 (agg_data->nmr_sum / agg_data->frame_count);
+
+	g_printf ("   BandwidthRefB: %f\n"
+		  "  BandwidthTestB: %f\n"
+		  "      Total NMRB: %f\n",
+		  bw_ref_b, bw_test_b, total_nmr_b);
+      }
+
       break;
     default:
       break;
@@ -443,5 +499,51 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat *refdata, gfloat *testdata)
 	   nmr, nmr_max, 
 	   detection_probability, detection_steps,
 	   1000 * ehs);
+
+  if (is_frame_above_threshold (refdata)) {
+    if (peaq->current_aggregated_data == NULL) {
+      peaq->current_aggregated_data = g_new (GstPeaqAggregatedData, 1);
+      peaq->current_aggregated_data->frame_count = 0;
+      peaq->current_aggregated_data->ref_bandwidth_sum = 0;
+      peaq->current_aggregated_data->test_bandwidth_sum = 0;
+      peaq->current_aggregated_data->bandwidth_frame_count = 0;
+      peaq->current_aggregated_data->nmr_sum = 0;
+    }
+    if (peaq->saved_aggregated_data != NULL)
+      g_free (peaq->saved_aggregated_data);
+  } else {
+    if (peaq->saved_aggregated_data == NULL) {
+      peaq->saved_aggregated_data = g_memdup (peaq->current_aggregated_data, 
+					      sizeof (GstPeaqAggregatedData));
+    }
+  }
+
+  if (peaq->current_aggregated_data != NULL) {
+    peaq->current_aggregated_data->frame_count++;
+    if (bw_ref > 346) {
+      peaq->current_aggregated_data->ref_bandwidth_sum += bw_ref;
+      peaq->current_aggregated_data->test_bandwidth_sum += bw_test;
+      peaq->current_aggregated_data->bandwidth_frame_count++;
+    }
+    peaq->current_aggregated_data->nmr_sum += nmr;
+  }
+}
+
+static gboolean
+is_frame_above_threshold (gfloat *framedata)
+{
+  gfloat sum;
+  guint i;
+  
+  sum = 0;
+  for (i = 0; i < 5; i++)
+    sum += ABS (framedata[i]);
+  while (i < FRAMESIZE) {
+    sum += ABS (framedata[i]) - ABS (framedata[i - 5]);
+    if (sum >= 200. / 32768)
+      return TRUE;
+    i++;
+  }
+  return FALSE;
 }
 
