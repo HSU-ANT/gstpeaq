@@ -40,10 +40,26 @@
 
 struct _GstPeaqAggregatedData {
   guint frame_count;
+  guint delayed_frame_count;
+  guint distorted_frame_count;
+  guint ehs_frame_count;
+  guint noise_loud_frame_count;
+  guint bandwidth_frame_count;
+  guint disturbed_frame_count;
+  gboolean loudness_reached;
   gdouble ref_bandwidth_sum;
   gdouble test_bandwidth_sum;
-  guint bandwidth_frame_count;
   gdouble nmr_sum;
+  gdouble past_mod_diff1[3];
+  gdouble win_mod_diff1;
+  gdouble avg_mod_diff1;
+  gdouble avg_mod_diff2;
+  gdouble temp_weight;
+  gdouble detection_steps;
+  gdouble ehs;
+  gdouble noise_loudness;
+  gdouble filtered_detection_probability;
+  gdouble max_filtered_detection_probability;
 };
 
 static const GstElementDetails peaq_details =
@@ -147,7 +163,7 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
 			    sizeof (GstCollectData));
   gst_element_add_pad (GST_ELEMENT (peaq), peaq->testpad);
 
-  peaq->bytes_read = 0;
+  peaq->frame_counter = 0;
 
   peaq->ref_ear_model = g_object_new (PEAQ_TYPE_EARMODEL, NULL);
   peaq->test_ear_model = g_object_new (PEAQ_TYPE_EARMODEL, NULL);
@@ -285,11 +301,36 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
 	  agg_data->test_bandwidth_sum / agg_data->bandwidth_frame_count;
 	gdouble total_nmr_b = 
 	  10 * log10 (agg_data->nmr_sum / agg_data->frame_count);
+	gdouble win_mod_diff1_b =
+	  sqrt (agg_data->win_mod_diff1 / (agg_data->delayed_frame_count - 3));
+	gdouble adb_b = agg_data->distorted_frame_count > 0 ?
+	  log10 (agg_data->detection_steps / agg_data->distorted_frame_count) :
+	  -0.5;
+	gdouble ehs_b = 1000 * agg_data->ehs / agg_data->ehs_frame_count;
+	gdouble avg_mod_diff1_b = 
+	  agg_data->avg_mod_diff1 / agg_data->temp_weight;
+	gdouble avg_mod_diff2_b = 
+	  agg_data->avg_mod_diff2 / agg_data->temp_weight;
+	gdouble rms_noise_loud_b = 
+	  sqrt (agg_data->noise_loudness / agg_data->noise_loud_frame_count);
+	gdouble mfpd_b = agg_data->max_filtered_detection_probability;
+	gdouble rel_dist_frames_b = 
+	  (gdouble) agg_data->disturbed_frame_count / agg_data->frame_count;
 
 	g_printf ("   BandwidthRefB: %f\n"
 		  "  BandwidthTestB: %f\n"
-		  "      Total NMRB: %f\n",
-		  bw_ref_b, bw_test_b, total_nmr_b);
+		  "      Total NMRB: %f\n"
+		  "    WinModDiff1B: %f\n"
+		  "            ADBB: %f\n"
+		  "            EHSB: %f\n"
+		  "    AvgModDiff1B: %f\n"
+		  "    AvgModDiff2B: %f\n"
+		  "   RmsNoiseLoudB: %f\n"
+		  "           MFPDB: %f\n"
+		  "  RelDistFramesB: %f\n",
+		  bw_ref_b, bw_test_b, total_nmr_b, win_mod_diff1_b, adb_b,
+		  ehs_b, avg_mod_diff1_b, avg_mod_diff2_b, rms_noise_loud_b,
+		  mfpd_b, rel_dist_frames_b);
       }
 
       break;
@@ -504,10 +545,25 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat *refdata, gfloat *testdata)
     if (peaq->current_aggregated_data == NULL) {
       peaq->current_aggregated_data = g_new (GstPeaqAggregatedData, 1);
       peaq->current_aggregated_data->frame_count = 0;
+      peaq->current_aggregated_data->delayed_frame_count = 0;
+      peaq->current_aggregated_data->distorted_frame_count = 0;
+      peaq->current_aggregated_data->ehs_frame_count = 0;
+      peaq->current_aggregated_data->bandwidth_frame_count = 0;
+      peaq->current_aggregated_data->noise_loud_frame_count = 0;
+      peaq->current_aggregated_data->disturbed_frame_count = 0;
+      peaq->current_aggregated_data->loudness_reached = FALSE;
       peaq->current_aggregated_data->ref_bandwidth_sum = 0;
       peaq->current_aggregated_data->test_bandwidth_sum = 0;
-      peaq->current_aggregated_data->bandwidth_frame_count = 0;
       peaq->current_aggregated_data->nmr_sum = 0;
+      peaq->current_aggregated_data->win_mod_diff1 = 0;
+      peaq->current_aggregated_data->avg_mod_diff1 = 0;
+      peaq->current_aggregated_data->avg_mod_diff2 = 0;
+      peaq->current_aggregated_data->temp_weight = 0;
+      peaq->current_aggregated_data->detection_steps = 0;
+      peaq->current_aggregated_data->ehs = 0;
+      peaq->current_aggregated_data->noise_loudness = 0;
+      peaq->current_aggregated_data->filtered_detection_probability = 0;
+      peaq->current_aggregated_data->max_filtered_detection_probability = 0;
     }
     if (peaq->saved_aggregated_data != NULL)
       g_free (peaq->saved_aggregated_data);
@@ -526,7 +582,51 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat *refdata, gfloat *testdata)
       peaq->current_aggregated_data->bandwidth_frame_count++;
     }
     peaq->current_aggregated_data->nmr_sum += nmr;
+    if (ref_ear_output.overall_loudness > 0.1 || 
+	test_ear_output.overall_loudness > 0.1)
+      peaq->current_aggregated_data->loudness_reached = TRUE;
+    if (peaq->frame_counter >= 24) {
+      gdouble winsum;
+      peaq->current_aggregated_data->delayed_frame_count++;
+      winsum = sqrt (mod_diff_1b);
+      for (i = 0; i < 3; i++) {
+	winsum += sqrt (peaq->current_aggregated_data->past_mod_diff1[i]);
+      }
+      for (i = 0; i < 2; i++) {
+	peaq->current_aggregated_data->past_mod_diff1[i] = 
+	  peaq->current_aggregated_data->past_mod_diff1[i + 1];
+      }
+      peaq->current_aggregated_data->past_mod_diff1[2] = mod_diff_1b;
+      if (peaq->frame_counter >= 27)
+	peaq->current_aggregated_data->win_mod_diff1 += pow (winsum / 4, 4);
+      peaq->current_aggregated_data->avg_mod_diff1 += temp_wt * mod_diff_1b;
+      peaq->current_aggregated_data->avg_mod_diff2 += temp_wt * mod_diff_2b;
+      peaq->current_aggregated_data->temp_weight += temp_wt;
+      if (peaq->current_aggregated_data->loudness_reached) {
+	peaq->current_aggregated_data->noise_loud_frame_count++;
+	peaq->current_aggregated_data->noise_loudness += 
+	  noise_loudness * noise_loudness;
+      }
+    }
+    if (detection_probability > 0.5) {
+      peaq->current_aggregated_data->distorted_frame_count++;
+      peaq->current_aggregated_data->detection_steps += detection_steps;
+    }
+    if (ehs_valid) {
+      peaq->current_aggregated_data->ehs_frame_count++;
+      peaq->current_aggregated_data->ehs += ehs;
+    }
+    peaq->current_aggregated_data->filtered_detection_probability =
+      0.9 * peaq->current_aggregated_data->filtered_detection_probability +
+      0.1 * detection_probability;
+    if (peaq->current_aggregated_data->filtered_detection_probability >
+	peaq->current_aggregated_data->max_filtered_detection_probability)
+      peaq->current_aggregated_data->max_filtered_detection_probability =
+	peaq->current_aggregated_data->filtered_detection_probability;
+    if (nmr_max > 1.41253754462275)
+      peaq->current_aggregated_data->disturbed_frame_count++;
   }
+  peaq->frame_counter++;
 }
 
 static gboolean

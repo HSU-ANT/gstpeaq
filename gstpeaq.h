@@ -63,7 +63,7 @@ struct _GstPeaq
   GstCollectPads *collect;
   GstAdapter *ref_adapter;
   GstAdapter *test_adapter;
-  guint bytes_read;
+  guint frame_counter;
   PeaqEarModel *ref_ear_model;
   PeaqEarModel *test_ear_model;
   PeaqLevelAdapter *level_adapter;
