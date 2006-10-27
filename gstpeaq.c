@@ -91,6 +91,32 @@ GST_STATIC_PAD_TEMPLATE ("test",
 			 GST_PAD_SINK,
 			 GST_PAD_ALWAYS,
 			 STATIC_CAPS);
+static gdouble amin[] = { 
+  393.916656, 361.965332, -24.045116, 1.110661, -0.206623, 0.074318, 1.113683,
+  0.950345, 0.029985, 0.000101, 0 
+};
+
+static gdouble amax[] = { 
+  921, 881.131226, 16.212030, 107.137772, 2.886017, 13.933351, 63.257874, 
+  1145.018555, 14.819740, 1, 1 
+};
+
+static gdouble wx[11][3] = { 
+  { -0.502657, 0.436333, 1.219602 },
+  { 4.307481, 3.246017, 1.123743 },
+  { 4.984241, -2.211189, -0.192096 },
+  { 0.051056, -1.762424, 4.331315 },
+  { 2.321580, 1.789971, -0.754560 },
+  { -5.303901, -3.452257, -10.814982 },
+  { 2.730991, -6.111805, 1.519223 },
+  { 0.624950, -1.331523, -5.955151 },
+  { 3.102889, 0.871260, -5.922878 },
+  { -1.051468, -0.939882, -0.142913 },
+  { -1.804679, -0.503610, -0.620456 }
+};
+
+static double wxb[] = { -2.518254, 0.654841, -2.207228 };
+static double wy[] = { -3.817048, 4.107138, 4.629582, -0.307594 };
 
 static void gst_peaq_finalize (GObject * object);
 static GstFlowReturn gst_peaq_collected (GstCollectPads * pads,
@@ -295,10 +321,17 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
        * parent change_state so that streaming can finish */
       gst_collect_pads_stop (peaq->collect);
       if (agg_data) {
+	guint i;
+	gdouble movs[11];
+	gdouble x[3];
+	gdouble distortion_index;
+	gdouble odg;
 	gdouble bw_ref_b = 
-	  agg_data->ref_bandwidth_sum / agg_data->bandwidth_frame_count;
+	  agg_data->bandwidth_frame_count ?
+	  agg_data->ref_bandwidth_sum / agg_data->bandwidth_frame_count : 0;
 	gdouble bw_test_b = 
-	  agg_data->test_bandwidth_sum / agg_data->bandwidth_frame_count;
+	  agg_data->bandwidth_frame_count ?
+	  agg_data->test_bandwidth_sum / agg_data->bandwidth_frame_count : 0;
 	gdouble total_nmr_b = 
 	  10 * log10 (agg_data->nmr_sum / agg_data->frame_count);
 	gdouble win_mod_diff1_b =
@@ -316,6 +349,29 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
 	gdouble mfpd_b = agg_data->max_filtered_detection_probability;
 	gdouble rel_dist_frames_b = 
 	  (gdouble) agg_data->disturbed_frame_count / agg_data->frame_count;
+	movs[0] = bw_ref_b;
+	movs[1] = bw_test_b;
+	movs[2] = total_nmr_b;
+	movs[3] = win_mod_diff1_b;
+	movs[4] = adb_b;
+	movs[5] = ehs_b;
+	movs[6] = avg_mod_diff1_b;
+	movs[7] = avg_mod_diff2_b;
+	movs[8] = rms_noise_loud_b;
+	movs[9] = mfpd_b;
+	movs[10] = rel_dist_frames_b;
+	for (i = 0; i < 3; i++)
+	  x[i] = 0;
+	for (i = 0; i <= 10; i++) {
+	  guint j;
+	  gdouble m = (movs[i] - amin[i]) / (amax[i] - amin[i]);
+	  for (j = 0; j < 3; j++)
+	    x[j] += wx[i][j] * m;
+	}
+	distortion_index = -0.307594;
+	for (i = 0; i < 3; i++)
+	  distortion_index += wy[i] / (1 + exp(-(wxb[i] + x[i])));
+	odg = -3.98 + 4.2 / (1 + exp(-distortion_index));
 
 	g_printf ("   BandwidthRefB: %f\n"
 		  "  BandwidthTestB: %f\n"
@@ -327,10 +383,11 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
 		  "    AvgModDiff2B: %f\n"
 		  "   RmsNoiseLoudB: %f\n"
 		  "           MFPDB: %f\n"
-		  "  RelDistFramesB: %f\n",
+		  "  RelDistFramesB: %f\n"
+		  "Objective Difference Grade: %.3f\n",
 		  bw_ref_b, bw_test_b, total_nmr_b, win_mod_diff1_b, adb_b,
 		  ehs_b, avg_mod_diff1_b, avg_mod_diff2_b, rms_noise_loud_b,
-		  mfpd_b, rel_dist_frames_b);
+		  mfpd_b, rel_dist_frames_b, odg);
       }
 
       break;
@@ -503,6 +560,7 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat *refdata, gfloat *testdata)
     }
     for (i = 0; i < MAXLAG; i++) {
       guint k;
+      c[i] = 0;
       for (k = 0; k < MAXLAG; k++) 
 	c[i] += d[k] * d[k + i];
     }
@@ -518,6 +576,7 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat *refdata, gfloat *testdata)
     for (i = 0; i < MAXLAG; i++)
       c[i] = (c[i] - cavg) * peaq_class->correlation_window[i];
     compute_real_fft (peaq_class->correlation_fft_data, c, s_real, s_imag);
+    ehs = 0;
     for (i = 0; i < MAXLAG / 2 + 1; i++) {
       gdouble new_s = s_real[i] * s_real[i] + s_imag[i] * s_imag[i];
       if (i > 0 && new_s > s && new_s > ehs)
@@ -539,7 +598,7 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat *refdata, gfloat *testdata)
 	   bw_ref, bw_test,
 	   nmr, nmr_max, 
 	   detection_probability, detection_steps,
-	   1000 * ehs);
+	   ehs_valid ? 1000 * ehs : -1);
 
   if (is_frame_above_threshold (refdata)) {
     if (peaq->current_aggregated_data == NULL) {
@@ -556,6 +615,9 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat *refdata, gfloat *testdata)
       peaq->current_aggregated_data->test_bandwidth_sum = 0;
       peaq->current_aggregated_data->nmr_sum = 0;
       peaq->current_aggregated_data->win_mod_diff1 = 0;
+      peaq->current_aggregated_data->past_mod_diff1[0] = 0;
+      peaq->current_aggregated_data->past_mod_diff1[1] = 0;
+      peaq->current_aggregated_data->past_mod_diff1[2] = 0;
       peaq->current_aggregated_data->avg_mod_diff1 = 0;
       peaq->current_aggregated_data->avg_mod_diff2 = 0;
       peaq->current_aggregated_data->temp_weight = 0;
