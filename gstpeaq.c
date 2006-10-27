@@ -301,10 +301,10 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
 	  (gfloat *) gst_adapter_peek (peaq->test_adapter,
 				       MIN (test_data_left_count,
 					    BLOCKSIZE_BYTES));
-	g_memmove (padded_ref_frame, refframe, BLOCKSIZE_BYTES);
+	g_memmove (padded_ref_frame, refframe, ref_data_left_count);
 	memset (((char *) padded_ref_frame) + ref_data_left_count, 0, 
 		BLOCKSIZE_BYTES - ref_data_left_count);
-	g_memmove (padded_test_frame, testframe, BLOCKSIZE_BYTES);
+	g_memmove (padded_test_frame, testframe, test_data_left_count);
 	memset (((char *) padded_test_frame) + test_data_left_count, 0, 
 		BLOCKSIZE_BYTES - test_data_left_count);
 	gst_peaq_process_block (peaq, padded_ref_frame, padded_test_frame);
