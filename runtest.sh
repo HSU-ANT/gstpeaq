@@ -8,7 +8,7 @@ ODG=`LANG=LC_ALL gst-launch-0.10 --gst-disable-segtrap --gst-debug-level=2 --gst
 	convert0.src\!peaq.ref convert1.src\!peaq.test \
 | grep "Objective Difference Grade:" | cut -d " " -f4`
 echo $ODG
-if [ $ODG != 0.190 ]; then
+if [ $ODG != 0.187 ]; then
 	exit 1
 fi
 ODG=`LANG=LC_ALL gst-launch-0.10 --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=.libs/libgstpeaq.so \

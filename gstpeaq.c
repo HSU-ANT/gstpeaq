@@ -337,8 +337,9 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
 	gdouble win_mod_diff1_b =
 	  sqrt (agg_data->win_mod_diff1 / (agg_data->delayed_frame_count - 3));
 	gdouble adb_b = agg_data->distorted_frame_count > 0 ?
-	  log10 (agg_data->detection_steps / agg_data->distorted_frame_count) :
-	  -0.5;
+	  (agg_data->detection_steps == 0 ? -0.5 : 
+	   log10 (agg_data->detection_steps / agg_data->distorted_frame_count))
+	  : 0;
 	gdouble ehs_b = 1000 * agg_data->ehs / agg_data->ehs_frame_count;
 	gdouble avg_mod_diff1_b = 
 	  agg_data->avg_mod_diff1 / agg_data->temp_weight;
@@ -577,9 +578,10 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat *refdata, gfloat *testdata)
       c[i] = (c[i] - cavg) * peaq_class->correlation_window[i];
     compute_real_fft (peaq_class->correlation_fft_data, c, s_real, s_imag);
     ehs = 0;
-    for (i = 0; i < MAXLAG / 2 + 1; i++) {
+    s = s_real[0] * s_real[0] + s_imag[0] * s_imag[0];
+    for (i = 1; i < MAXLAG / 2 + 1; i++) {
       gdouble new_s = s_real[i] * s_real[i] + s_imag[i] * s_imag[i];
-      if (i > 0 && new_s > s && new_s > ehs)
+      if (new_s > s && new_s > ehs)
 	ehs = new_s;
       s = new_s;
     }
