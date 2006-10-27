@@ -426,7 +426,10 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat *refdata, gfloat *testdata)
   peaq_earmodel_process (peaq->test_ear_model, testdata, &test_ear_output);
   for (i = 0; i < FRAMESIZE / 2 + 1; i++)
     noise_spectrum[i] = 
-      ABS(ref_ear_output.weighted_fft[i] - test_ear_output.weighted_fft[i]);
+      ref_ear_output.weighted_power_spectrum[i] - 
+	  2 * sqrt(ref_ear_output.weighted_power_spectrum[i] * 
+		   test_ear_output.weighted_power_spectrum[i]) + 
+	  test_ear_output.weighted_power_spectrum[i];
   peaq_earmodel_group_into_bands (ear_class, noise_spectrum, noise_in_bands);
   peaq_leveladapter_process (peaq->level_adapter, ref_ear_output.excitation,
 			     test_ear_output.excitation, &level_output);
@@ -471,21 +474,21 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat *refdata, gfloat *testdata)
   noise_loudness *= 24. / CRITICAL_BAND_COUNT;
 
   /* bandwidth */
-  zero_threshold = test_ear_output.absolute_spectrum[921];
+  zero_threshold = test_ear_output.power_spectrum[921];
   for (i = 922; i < 1024; i++)
-    if (test_ear_output.absolute_spectrum[i] > zero_threshold)
-      zero_threshold = test_ear_output.absolute_spectrum[i];
+    if (test_ear_output.power_spectrum[i] > zero_threshold)
+      zero_threshold = test_ear_output.power_spectrum[i];
   bw_ref = 0;
   for (i = 921; i > 0; i--)
-    if (ref_ear_output.absolute_spectrum[i - 1] > 
-	3.16227766016838 * zero_threshold) {
+    if (ref_ear_output.power_spectrum[i - 1] > 
+	10 * zero_threshold) {
       bw_ref = i;
       break;
     }
   bw_test = 0;
   for (i = bw_ref; i > 0; i--)
-    if (test_ear_output.absolute_spectrum[i - 1] > 
-	1.77827941003892 * zero_threshold) {
+    if (test_ear_output.power_spectrum[i - 1] > 
+	3.16227766016838 * zero_threshold) {
       bw_test = i;
       break;
     }
@@ -546,10 +549,10 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat *refdata, gfloat *testdata)
     gdouble s_imag[MAXLAG];
     gdouble s;
     for (i = 0; i < FRAMESIZE / 2 + 1; i++) {
-      gdouble fref = ref_ear_output.absolute_spectrum[i];
-      gdouble ftest = test_ear_output.absolute_spectrum[i];
+      gdouble fref = ref_ear_output.power_spectrum[i];
+      gdouble ftest = test_ear_output.power_spectrum[i];
       if (fref > 0)
-	d[i] = log (ftest * ftest / (fref * fref));
+	d[i] = log (ftest / fref);
       else
 	d[i] = 0.;
     }

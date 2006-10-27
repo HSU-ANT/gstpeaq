@@ -610,6 +610,23 @@ assertArrayEquals (const gdouble * dut, const gdouble * ref, guint len,
   }
 }
 
+static void
+assertArrayEqualsSq (const gdouble * dut, const gdouble * ref, guint len, 
+		   gchar * var_name)
+{
+  guint i;
+  for (i = 0; i < len; i++) {
+    gdouble diff = dut[i] - ref[i] * ref[i];
+    gdouble reldiff = 2 * (dut[i] - ref[i] * ref[i]) / (dut[i] + ref[i] * ref[i]);
+    if ((diff > DELTA || diff < -DELTA) && 
+	(reldiff > RELDELTA || reldiff < -RELDELTA)) {
+      g_printf ("%s[%d] = %f != %f (diff = %f, rel = %f)\n", var_name, 
+		i, dut[i], ref[i] * ref[i], diff, reldiff);
+      exit (1);
+    }
+  }
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -642,10 +659,10 @@ test_ear()
     input_data[i] = (gfloat) (i - 1024) / 1024;
   peaq_earmodel_process (ear, input_data, &output);
 
-  assertArrayEquals (output.absolute_spectrum, fft_ref_data, 1025,
+  assertArrayEqualsSq (output.power_spectrum, fft_ref_data, 1025,
 		     "absolute_spectrum");
 
-  assertArrayEquals (output.weighted_fft, weighted_fft_ref_data, 1025,
+  assertArrayEqualsSq (output.weighted_power_spectrum, weighted_fft_ref_data, 1025,
 		     "weighted_fft");
 
   assertArrayEquals (output.band_power, band_power_ref, CRITICAL_BAND_COUNT,

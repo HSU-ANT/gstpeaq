@@ -100,7 +100,7 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
     gdouble W_dB =
       (-0.6 * 3.64 * pow (f_kHz, -0.8)) +
       (6.5 * exp (-0.6 * pow (f_kHz - 3.3, 2))) - (1e-3 * pow (f_kHz, 3.6));
-    ear_class->outer_middle_ear_weight[k] = pow (10, W_dB / 20);
+    ear_class->outer_middle_ear_weight[k] = pow (10, W_dB / 10);
   }
 
   ear_class->band_lower_end = g_new (guint, CRITICAL_BAND_COUNT);
@@ -183,7 +183,7 @@ peaq_earmodel_get_property (GObject *obj, guint id, GValue *value,
   PeaqEarModel *ear = PEAQ_EARMODEL (obj);
   switch (id) {
     case PROP_PLAYBACK_LEVEL:
-      g_value_set_double (value, 20 * log10 (ear->level_factor * 
+      g_value_set_double (value, 10 * log10 (ear->level_factor * 
 					     (GAMMA / 4 * (FRAMESIZE - 1) / 
 					      FRAMESIZE)));
       break;
@@ -197,8 +197,9 @@ peaq_earmodel_set_property (GObject *obj, guint id, const GValue *value,
   PeaqEarModel *ear = PEAQ_EARMODEL (obj);
   switch (id) {
     case PROP_PLAYBACK_LEVEL:
-      ear->level_factor = pow(10, g_value_get_double (value) / 20) /
-	(GAMMA / 4 * (FRAMESIZE - 1) / FRAMESIZE);
+      ear->level_factor = pow(10, g_value_get_double (value) / 10) /
+	((GAMMA / 4 * (FRAMESIZE - 1) / FRAMESIZE) * 
+	 (GAMMA / 4 * (FRAMESIZE - 1) / FRAMESIZE));
       break;
   }
 }
@@ -221,13 +222,14 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
 
   compute_real_fft (ear_class->fft_data, windowed_data, real_fft, imag_fft);
   for (k = 0; k < FRAMESIZE / 2 + 1; k++) {
-    output->absolute_spectrum[k] = 
-      hypot (real_fft[k], imag_fft[k]) * ear->level_factor / FRAMESIZE;
-    output->weighted_fft[k] = 
-      output->absolute_spectrum[k] * ear_class->outer_middle_ear_weight[k];
+    output->power_spectrum[k] = 
+      (real_fft[k] * real_fft[k] + imag_fft[k] * imag_fft[k]) * 
+      ear->level_factor / (FRAMESIZE * FRAMESIZE);
+    output->weighted_power_spectrum[k] = 
+      output->power_spectrum[k] * ear_class->outer_middle_ear_weight[k];
   }
 
-  peaq_earmodel_group_into_bands (ear_class, output->weighted_fft, 
+  peaq_earmodel_group_into_bands (ear_class, output->weighted_power_spectrum, 
 				  output->band_power);
   for (i = 0; i < CRITICAL_BAND_COUNT; i++)
     noisy_band_power[i] = 
@@ -266,14 +268,12 @@ peaq_earmodel_group_into_bands (PeaqEarModelClass * ear_class,
   for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
     band_power[i] =
       (ear_class->band_lower_weight[i] *
-       spectrum[ear_class->band_lower_end[i]] *
        spectrum[ear_class->band_lower_end[i]]) +
       (ear_class->band_upper_weight[i] *
-       spectrum[ear_class->band_upper_end[i]] *
        spectrum[ear_class->band_upper_end[i]]);
     for (k = ear_class->band_lower_end[i] + 1;
 	 k < ear_class->band_upper_end[i]; k++)
-      band_power[i] += spectrum[k] * spectrum[k];
+      band_power[i] += spectrum[k];
     if (band_power[i] < 1e-12)
       band_power[i] = 1e-12;
   }

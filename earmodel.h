@@ -42,8 +42,8 @@
 #define CRITICAL_BAND_COUNT 109
 
 typedef struct _EarModelOutput {
-  gdouble absolute_spectrum[FRAMESIZE / 2 + 1];
-  gdouble weighted_fft[FRAMESIZE / 2 + 1];
+  gdouble power_spectrum[FRAMESIZE / 2 + 1];
+  gdouble weighted_power_spectrum[FRAMESIZE / 2 + 1];
   gdouble band_power[CRITICAL_BAND_COUNT];
   gdouble unsmeared_excitation[CRITICAL_BAND_COUNT];
   gdouble excitation[CRITICAL_BAND_COUNT];
