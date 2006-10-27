@@ -237,15 +237,11 @@ gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
     while (buf != NULL) {
       data_received = TRUE;
       len = GST_BUFFER_SIZE (buf);
-      g_printf ("Got buffer of size %d ", len);
       if (data->pad == peaq->refpad) {
-	g_printf ("for reference pad.\n");
 	gst_adapter_push (peaq->ref_adapter, buf);
       } else if (data->pad == peaq->testpad) {
-	g_printf ("for test pad.\n");
 	gst_adapter_push (peaq->test_adapter, buf);
-      } else
-	g_printf ("for unknown pad.\n");
+      }
       buf = gst_collect_pads_pop (pads, data);
     }
   }
@@ -256,7 +252,6 @@ gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
 						    BLOCKSIZE_BYTES);
     gfloat *testframe = (gfloat *) gst_adapter_peek (peaq->test_adapter,
 						     BLOCKSIZE_BYTES);
-    g_printf ("Processing frame...\n");
     gst_peaq_process_block (peaq, refframe, testframe);
     gst_adapter_flush (peaq->ref_adapter, STEPSIZE_BYTES);
     gst_adapter_flush (peaq->test_adapter, STEPSIZE_BYTES);
@@ -279,7 +274,6 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
 
   peaq = GST_PEAQ (element);
 
-  g_printf ("State transition...\n");
   if (peaq->saved_aggregated_data)
     agg_data = peaq->saved_aggregated_data;
   else
