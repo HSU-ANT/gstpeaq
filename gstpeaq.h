@@ -63,6 +63,7 @@ struct _GstPeaq
   GstCollectPads *collect;
   GstAdapter *ref_adapter;
   GstAdapter *test_adapter;
+  gboolean console_output;
   guint frame_counter;
   PeaqEarModel *ref_ear_model;
   PeaqEarModel *test_ear_model;

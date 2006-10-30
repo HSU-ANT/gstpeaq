@@ -41,7 +41,8 @@
 enum
 {
   PROP_0,
-  PROP_ODG
+  PROP_ODG,
+  PROP_CONSOLE_OUTPUT
 };
 
 struct _GstPeaqAggregatedData
@@ -128,6 +129,8 @@ static double wy[] = { -3.817048, 4.107138, 4.629582, -0.307594 };
 static void gst_peaq_finalize (GObject * object);
 static void gst_peaq_get_property (GObject * obj, guint id, GValue * value,
 				   GParamSpec * pspec);
+static void gst_peaq_set_property (GObject * obj, guint id,
+				   const GValue * value, GParamSpec * pspec);
 static GstFlowReturn gst_peaq_collected (GstCollectPads * pads,
 					 gpointer user_data);
 static GstStateChangeReturn gst_peaq_change_state (GstElement * element,
@@ -176,6 +179,7 @@ gst_peaq_class_init (GstPeaqClass * peaq_class)
   peaq_class->correlation_fft_data = create_fft_data (MAXLAG);
 
   object_class->get_property = gst_peaq_get_property;
+  object_class->set_property = gst_peaq_set_property;
   g_object_class_install_property (object_class,
 				   PROP_ODG,
 				   g_param_spec_double ("odg",
@@ -183,6 +187,14 @@ gst_peaq_class_init (GstPeaqClass * peaq_class)
 							"Objective Difference Grade",
 							-4, 0, 0,
 							G_PARAM_READABLE));
+  g_object_class_install_property (object_class,
+				   PROP_CONSOLE_OUTPUT,
+				   g_param_spec_boolean ("console-output",
+							 "console output",
+							 "Enable od disable console output",
+							 TRUE,
+							 G_PARAM_READWRITE |
+							 G_PARAM_CONSTRUCT));
 }
 
 static void
@@ -245,6 +257,23 @@ gst_peaq_get_property (GObject * obj, guint id, GValue * value,
   switch (id) {
     case PROP_ODG:
       g_value_set_double (value, gst_peaq_calculate_odg (peaq));
+      break;
+    case PROP_CONSOLE_OUTPUT:
+      g_value_set_boolean (value, peaq->console_output);
+      break;
+  }
+}
+
+static void
+gst_peaq_set_property (GObject * obj, guint id, const GValue * value,
+		       GParamSpec * pspec)
+{
+  GstPeaq *peaq = GST_PEAQ (obj);
+  switch (id) {
+    case PROP_CONSOLE_OUTPUT:
+      g_printf ("Setting console output to %s\n",
+		g_value_get_boolean (value) ? "TRUE" : "FALSE");
+      peaq->console_output = g_value_get_boolean (value);
       break;
   }
 }
@@ -543,20 +572,23 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
     }
   }
 
-  g_printf ("  Ntot   : %f %f\n"
-	    "  ModDiff: %f %f\n"
-	    "  NL     : %f\n"
-	    "  BW     : %d %d\n"
-	    "  NMR    : %f %f\n"
-	    "  PD     : %f %f\n"
-	    "  EHS    : %f\n",
-	    ref_ear_output.overall_loudness, test_ear_output.overall_loudness,
-	    mod_diff_1b, mod_diff_2b,
-	    noise_loudness,
-	    bw_ref, bw_test,
-	    nmr, nmr_max,
-	    detection_probability, detection_steps,
-	    ehs_valid ? 1000 * ehs : -1);
+  if (peaq->console_output) {
+    g_printf ("  Ntot   : %f %f\n"
+	      "  ModDiff: %f %f\n"
+	      "  NL     : %f\n"
+	      "  BW     : %d %d\n"
+	      "  NMR    : %f %f\n"
+	      "  PD     : %f %f\n"
+	      "  EHS    : %f\n",
+	      ref_ear_output.overall_loudness,
+	      test_ear_output.overall_loudness,
+	      mod_diff_1b, mod_diff_2b,
+	      noise_loudness,
+	      bw_ref, bw_test,
+	      nmr, nmr_max,
+	      detection_probability, detection_steps,
+	      ehs_valid ? 1000 * ehs : -1);
+  }
 
   if (is_frame_above_threshold (refdata)) {
     if (peaq->current_aggregated_data == NULL) {
@@ -717,21 +749,23 @@ gst_peaq_calculate_odg (GstPeaq * peaq)
       distortion_index += wy[i] / (1 + exp (-(wxb[i] + x[i])));
     odg = -3.98 + 4.2 / (1 + exp (-distortion_index));
 
-    g_printf ("   BandwidthRefB: %f\n"
-	      "  BandwidthTestB: %f\n"
-	      "      Total NMRB: %f\n"
-	      "    WinModDiff1B: %f\n"
-	      "            ADBB: %f\n"
-	      "            EHSB: %f\n"
-	      "    AvgModDiff1B: %f\n"
-	      "    AvgModDiff2B: %f\n"
-	      "   RmsNoiseLoudB: %f\n"
-	      "           MFPDB: %f\n"
-	      "  RelDistFramesB: %f\n"
-	      "Objective Difference Grade: %.3f\n",
-	      bw_ref_b, bw_test_b, total_nmr_b, win_mod_diff1_b, adb_b,
-	      ehs_b, avg_mod_diff1_b, avg_mod_diff2_b, rms_noise_loud_b,
-	      mfpd_b, rel_dist_frames_b, odg);
+    if (peaq->console_output) {
+      g_printf ("   BandwidthRefB: %f\n"
+		"  BandwidthTestB: %f\n"
+		"      Total NMRB: %f\n"
+		"    WinModDiff1B: %f\n"
+		"            ADBB: %f\n"
+		"            EHSB: %f\n"
+		"    AvgModDiff1B: %f\n"
+		"    AvgModDiff2B: %f\n"
+		"   RmsNoiseLoudB: %f\n"
+		"           MFPDB: %f\n"
+		"  RelDistFramesB: %f\n"
+		"Objective Difference Grade: %.3f\n",
+		bw_ref_b, bw_test_b, total_nmr_b, win_mod_diff1_b, adb_b,
+		ehs_b, avg_mod_diff1_b, avg_mod_diff2_b, rms_noise_loud_b,
+		mfpd_b, rel_dist_frames_b, odg);
+    }
     return odg;
   }
   return 0;
