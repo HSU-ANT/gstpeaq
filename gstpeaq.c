@@ -38,6 +38,12 @@
 #define EHS_ENERGY_THRESHOLD 7.442401884276241e-6
 #define MAXLAG 256
 
+enum
+{
+  PROP_0,
+  PROP_ODG
+};
+
 struct _GstPeaqAggregatedData
 {
   guint frame_count;
@@ -120,12 +126,15 @@ static double wxb[] = { -2.518254, 0.654841, -2.207228 };
 static double wy[] = { -3.817048, 4.107138, 4.629582, -0.307594 };
 
 static void gst_peaq_finalize (GObject * object);
+static void gst_peaq_get_property (GObject * obj, guint id, GValue * value,
+				   GParamSpec * pspec);
 static GstFlowReturn gst_peaq_collected (GstCollectPads * pads,
 					 gpointer user_data);
 static GstStateChangeReturn gst_peaq_change_state (GstElement * element,
 						   GstStateChange transition);
 static void gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata,
 				    gfloat * testdata);
+static double gst_peaq_calculate_odg (GstPeaq * peaq);
 static gboolean is_frame_above_threshold (gfloat * framedata);
 
 static void
@@ -154,6 +163,8 @@ static void
 gst_peaq_class_init (GstPeaqClass * peaq_class)
 {
   guint i;
+  GObjectClass *object_class = G_OBJECT_CLASS (peaq_class);
+
   peaq_class->masking_difference = g_new (gdouble, CRITICAL_BAND_COUNT);
   peaq_class->correlation_window = g_new (gdouble, MAXLAG);
   for (i = 0; i < CRITICAL_BAND_COUNT; i++)
@@ -163,6 +174,15 @@ gst_peaq_class_init (GstPeaqClass * peaq_class)
     peaq_class->correlation_window[i] = 0.81649658092773 *
       (1 - cos (2 * M_PI * i / (MAXLAG - 1))) / MAXLAG;
   peaq_class->correlation_fft_data = create_fft_data (MAXLAG);
+
+  object_class->get_property = gst_peaq_get_property;
+  g_object_class_install_property (object_class,
+				   PROP_ODG,
+				   g_param_spec_double ("odg",
+							"objective differnece grade",
+							"Objective Difference Grade",
+							-4, 0, 0,
+							G_PARAM_READABLE));
 }
 
 static void
@@ -215,6 +235,18 @@ gst_peaq_finalize (GObject * object)
   g_object_unref (peaq->ref_modulation_processor);
   g_object_unref (peaq->test_modulation_processor);
   G_OBJECT_CLASS (parent_class)->finalize (object);
+}
+
+static void
+gst_peaq_get_property (GObject * obj, guint id, GValue * value,
+		       GParamSpec * pspec)
+{
+  GstPeaq *peaq = GST_PEAQ (obj);
+  switch (id) {
+    case PROP_ODG:
+      g_value_set_double (value, gst_peaq_calculate_odg (peaq));
+      break;
+  }
 }
 
 static GstFlowReturn
@@ -271,14 +303,8 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
 {
   GstPeaq *peaq;
   guint ref_data_left_count, test_data_left_count;
-  GstPeaqAggregatedData *agg_data;
 
   peaq = GST_PEAQ (element);
-
-  if (peaq->saved_aggregated_data)
-    agg_data = peaq->saved_aggregated_data;
-  else
-    agg_data = peaq->current_aggregated_data;
 
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
@@ -315,82 +341,8 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
       /* need to unblock the collectpads before calling the
        * parent change_state so that streaming can finish */
       gst_collect_pads_stop (peaq->collect);
-      if (agg_data) {
-	guint i;
-	gdouble movs[11];
-	gdouble x[3];
-	gdouble distortion_index;
-	gdouble odg;
-	gdouble bw_ref_b =
-	  agg_data->bandwidth_frame_count ?
-	  agg_data->ref_bandwidth_sum / agg_data->bandwidth_frame_count : 0;
-	gdouble bw_test_b =
-	  agg_data->bandwidth_frame_count ?
-	  agg_data->test_bandwidth_sum / agg_data->bandwidth_frame_count : 0;
-	gdouble total_nmr_b =
-	  10 * log10 (agg_data->nmr_sum / agg_data->frame_count);
-	gdouble win_mod_diff1_b =
-	  sqrt (agg_data->win_mod_diff1 /
-		(agg_data->delayed_frame_count - 3));
-	gdouble adb_b =
-	  agg_data->distorted_frame_count > 0 ? (agg_data->detection_steps ==
-						 0 ? -0.5 : log10 (agg_data->
-								   detection_steps
-								   /
-								   agg_data->
-								   distorted_frame_count))
-	  : 0;
-	gdouble ehs_b = 1000 * agg_data->ehs / agg_data->ehs_frame_count;
-	gdouble avg_mod_diff1_b =
-	  agg_data->avg_mod_diff1 / agg_data->temp_weight;
-	gdouble avg_mod_diff2_b =
-	  agg_data->avg_mod_diff2 / agg_data->temp_weight;
-	gdouble rms_noise_loud_b =
-	  sqrt (agg_data->noise_loudness / agg_data->noise_loud_frame_count);
-	gdouble mfpd_b = agg_data->max_filtered_detection_probability;
-	gdouble rel_dist_frames_b =
-	  (gdouble) agg_data->disturbed_frame_count / agg_data->frame_count;
-	movs[0] = bw_ref_b;
-	movs[1] = bw_test_b;
-	movs[2] = total_nmr_b;
-	movs[3] = win_mod_diff1_b;
-	movs[4] = adb_b;
-	movs[5] = ehs_b;
-	movs[6] = avg_mod_diff1_b;
-	movs[7] = avg_mod_diff2_b;
-	movs[8] = rms_noise_loud_b;
-	movs[9] = mfpd_b;
-	movs[10] = rel_dist_frames_b;
-	for (i = 0; i < 3; i++)
-	  x[i] = 0;
-	for (i = 0; i <= 10; i++) {
-	  guint j;
-	  gdouble m = (movs[i] - amin[i]) / (amax[i] - amin[i]);
-	  for (j = 0; j < 3; j++)
-	    x[j] += wx[i][j] * m;
-	}
-	distortion_index = -0.307594;
-	for (i = 0; i < 3; i++)
-	  distortion_index += wy[i] / (1 + exp (-(wxb[i] + x[i])));
-	odg = -3.98 + 4.2 / (1 + exp (-distortion_index));
 
-	g_printf ("   BandwidthRefB: %f\n"
-		  "  BandwidthTestB: %f\n"
-		  "      Total NMRB: %f\n"
-		  "    WinModDiff1B: %f\n"
-		  "            ADBB: %f\n"
-		  "            EHSB: %f\n"
-		  "    AvgModDiff1B: %f\n"
-		  "    AvgModDiff2B: %f\n"
-		  "   RmsNoiseLoudB: %f\n"
-		  "           MFPDB: %f\n"
-		  "  RelDistFramesB: %f\n"
-		  "Objective Difference Grade: %.3f\n",
-		  bw_ref_b, bw_test_b, total_nmr_b, win_mod_diff1_b, adb_b,
-		  ehs_b, avg_mod_diff1_b, avg_mod_diff2_b, rms_noise_loud_b,
-		  mfpd_b, rel_dist_frames_b, odg);
-      }
-
+      gst_peaq_calculate_odg (peaq);
       break;
     default:
       break;
@@ -633,8 +585,10 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
       peaq->current_aggregated_data->filtered_detection_probability = 0;
       peaq->current_aggregated_data->max_filtered_detection_probability = 0;
     }
-    if (peaq->saved_aggregated_data != NULL)
+    if (peaq->saved_aggregated_data != NULL) {
       g_free (peaq->saved_aggregated_data);
+      peaq->saved_aggregated_data = NULL;
+    }
   } else {
     if (peaq->saved_aggregated_data == NULL) {
       peaq->saved_aggregated_data = g_memdup (peaq->current_aggregated_data,
@@ -695,6 +649,92 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
       peaq->current_aggregated_data->disturbed_frame_count++;
   }
   peaq->frame_counter++;
+}
+
+static double
+gst_peaq_calculate_odg (GstPeaq * peaq)
+{
+  GstPeaqAggregatedData *agg_data;
+
+  if (peaq->saved_aggregated_data)
+    agg_data = peaq->saved_aggregated_data;
+  else
+    agg_data = peaq->current_aggregated_data;
+
+  if (agg_data) {
+    guint i;
+    gdouble movs[11];
+    gdouble x[3];
+    gdouble distortion_index;
+    gdouble odg;
+    gdouble bw_ref_b =
+      agg_data->bandwidth_frame_count ?
+      agg_data->ref_bandwidth_sum / agg_data->bandwidth_frame_count : 0;
+    gdouble bw_test_b =
+      agg_data->bandwidth_frame_count ?
+      agg_data->test_bandwidth_sum / agg_data->bandwidth_frame_count : 0;
+    gdouble total_nmr_b =
+      10 * log10 (agg_data->nmr_sum / agg_data->frame_count);
+    gdouble win_mod_diff1_b =
+      sqrt (agg_data->win_mod_diff1 / (agg_data->delayed_frame_count - 3));
+    gdouble adb_b =
+      agg_data->distorted_frame_count > 0 ? (agg_data->detection_steps ==
+					     0 ? -0.5 : log10 (agg_data->
+							       detection_steps
+							       /
+							       agg_data->
+							       distorted_frame_count))
+      : 0;
+    gdouble ehs_b = 1000 * agg_data->ehs / agg_data->ehs_frame_count;
+    gdouble avg_mod_diff1_b = agg_data->avg_mod_diff1 / agg_data->temp_weight;
+    gdouble avg_mod_diff2_b = agg_data->avg_mod_diff2 / agg_data->temp_weight;
+    gdouble rms_noise_loud_b =
+      sqrt (agg_data->noise_loudness / agg_data->noise_loud_frame_count);
+    gdouble mfpd_b = agg_data->max_filtered_detection_probability;
+    gdouble rel_dist_frames_b =
+      (gdouble) agg_data->disturbed_frame_count / agg_data->frame_count;
+    movs[0] = bw_ref_b;
+    movs[1] = bw_test_b;
+    movs[2] = total_nmr_b;
+    movs[3] = win_mod_diff1_b;
+    movs[4] = adb_b;
+    movs[5] = ehs_b;
+    movs[6] = avg_mod_diff1_b;
+    movs[7] = avg_mod_diff2_b;
+    movs[8] = rms_noise_loud_b;
+    movs[9] = mfpd_b;
+    movs[10] = rel_dist_frames_b;
+    for (i = 0; i < 3; i++)
+      x[i] = 0;
+    for (i = 0; i <= 10; i++) {
+      guint j;
+      gdouble m = (movs[i] - amin[i]) / (amax[i] - amin[i]);
+      for (j = 0; j < 3; j++)
+	x[j] += wx[i][j] * m;
+    }
+    distortion_index = -0.307594;
+    for (i = 0; i < 3; i++)
+      distortion_index += wy[i] / (1 + exp (-(wxb[i] + x[i])));
+    odg = -3.98 + 4.2 / (1 + exp (-distortion_index));
+
+    g_printf ("   BandwidthRefB: %f\n"
+	      "  BandwidthTestB: %f\n"
+	      "      Total NMRB: %f\n"
+	      "    WinModDiff1B: %f\n"
+	      "            ADBB: %f\n"
+	      "            EHSB: %f\n"
+	      "    AvgModDiff1B: %f\n"
+	      "    AvgModDiff2B: %f\n"
+	      "   RmsNoiseLoudB: %f\n"
+	      "           MFPDB: %f\n"
+	      "  RelDistFramesB: %f\n"
+	      "Objective Difference Grade: %.3f\n",
+	      bw_ref_b, bw_test_b, total_nmr_b, win_mod_diff1_b, adb_b,
+	      ehs_b, avg_mod_diff1_b, avg_mod_diff2_b, rms_noise_loud_b,
+	      mfpd_b, rel_dist_frames_b, odg);
+    return odg;
+  }
+  return 0;
 }
 
 static gboolean
