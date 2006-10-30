@@ -28,7 +28,8 @@
 #include "leveladapter.h"
 #include "gstpeaq.h"
 
-static void peaq_leveladapter_class_init (gpointer klass, gpointer class_data);
+static void peaq_leveladapter_class_init (gpointer klass,
+					  gpointer class_data);
 static void peaq_leveladapter_init (GTypeInstance * obj, gpointer klass);
 
 GType
@@ -63,15 +64,15 @@ peaq_leveladapter_class_init (gpointer klass, gpointer class_data)
   for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
     gdouble tau;
     gdouble curr_fc;
-    curr_fc = peaq_earmodel_get_band_center_frequency(k);
+    curr_fc = peaq_earmodel_get_band_center_frequency (k);
     tau = 0.008 + 100 / curr_fc * (0.05 - 0.008);
     level_class->ear_time_constants[k] =
       exp (-(gdouble) FRAMESIZE / (2 * SAMPLINGRATE) / tau);
   }
 }
 
-static void 
-peaq_leveladapter_init (GTypeInstance * obj, gpointer klass) 
+static void
+peaq_leveladapter_init (GTypeInstance * obj, gpointer klass)
 {
   PeaqLevelAdapter *level = PEAQ_LEVELADAPTER (obj);
   guint i;
@@ -92,8 +93,8 @@ peaq_leveladapter_init (GTypeInstance * obj, gpointer klass)
 }
 
 void
-peaq_leveladapter_process (PeaqLevelAdapter * level, gdouble *ref_exciation, 
-			   gdouble *test_exciation, 
+peaq_leveladapter_process (PeaqLevelAdapter * level, gdouble * ref_exciation,
+			   gdouble * test_exciation,
 			   LevelAdapterOutput * output)
 {
   guint k;
@@ -112,14 +113,18 @@ peaq_leveladapter_process (PeaqLevelAdapter * level, gdouble *ref_exciation,
   num = 0;
   den = 0;
   for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
-    level->ref_filtered_excitation[k] = 
+    level->ref_filtered_excitation[k] =
       level_class->ear_time_constants[k] * level->ref_filtered_excitation[k] +
       (1 - level_class->ear_time_constants[k]) * ref_exciation[k];
-    level->test_filtered_excitation[k] = 
-      level_class->ear_time_constants[k] * level->test_filtered_excitation[k] +
-      (1 - level_class->ear_time_constants[k]) * test_exciation[k];
-    num += sqrt (level->ref_filtered_excitation[k] *
-		 level->test_filtered_excitation[k]);
+    level->test_filtered_excitation[k] =
+      level_class->ear_time_constants[k] *
+      level->test_filtered_excitation[k] + (1 -
+					    level_class->
+					    ear_time_constants[k]) *
+      test_exciation[k];
+    num +=
+      sqrt (level->ref_filtered_excitation[k] *
+	    level->test_filtered_excitation[k]);
     den += level->test_filtered_excitation[k];
   }
   lev_corr = num * num / (den * den);
@@ -133,10 +138,10 @@ peaq_leveladapter_process (PeaqLevelAdapter * level, gdouble *ref_exciation,
       levcorr_test_excitation[k] = test_exciation[k] * lev_corr;
   }
   for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
-    level->filtered_num[k] = 
+    level->filtered_num[k] =
       level_class->ear_time_constants[k] * level->filtered_num[k] +
       levcorr_test_excitation[k] * levcorr_ref_excitation[k];
-    level->filtered_den[k] = 
+    level->filtered_den[k] =
       level_class->ear_time_constants[k] * level->filtered_den[k] +
       levcorr_ref_excitation[k] * levcorr_ref_excitation[k];
     if (level->filtered_num[k] > level->filtered_den[k]) {
@@ -166,9 +171,9 @@ peaq_leveladapter_process (PeaqLevelAdapter * level, gdouble *ref_exciation,
     level->pattcorr_test[k] =
       level_class->ear_time_constants[k] * level->pattcorr_test[k] +
       (1 - level_class->ear_time_constants[k]) * ra_test;
-    output->spectrally_adapted_ref_patterns[k] = 
+    output->spectrally_adapted_ref_patterns[k] =
       levcorr_ref_excitation[k] * level->pattcorr_ref[k];
-    output->spectrally_adapted_test_patterns[k] = 
+    output->spectrally_adapted_test_patterns[k] =
       levcorr_test_excitation[k] * level->pattcorr_test[k];
   }
 }

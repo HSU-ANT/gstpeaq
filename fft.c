@@ -73,7 +73,7 @@ compute_fft (FFTData * data, double *xr, double *xi, double *yr, double *yi)
 }
 
 /* TODO: This can be done faster by exploiting symmetry */
-void 
+void
 compute_real_fft (FFTData * data, double *x, double *yr, double *yi)
 {
   unsigned int i, j;

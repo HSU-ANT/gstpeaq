@@ -39,7 +39,8 @@
   (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_LEVELADAPTER, \
 			      PeaqLevelAdapterClass))
 
-typedef struct _LevelAdapterOutput {
+typedef struct _LevelAdapterOutput
+{
   gdouble spectrally_adapted_ref_patterns[CRITICAL_BAND_COUNT];
   gdouble spectrally_adapted_test_patterns[CRITICAL_BAND_COUNT];
 } LevelAdapterOutput;
@@ -47,12 +48,14 @@ typedef struct _LevelAdapterOutput {
 typedef struct _PeaqLevelAdapterClass PeaqLevelAdapterClass;
 typedef struct _PeaqLevelAdapter PeaqLevelAdapter;
 
-struct _PeaqLevelAdapterClass {
+struct _PeaqLevelAdapterClass
+{
   GObjectClass parent;
   gdouble *ear_time_constants;
 };
 
-struct _PeaqLevelAdapter {
+struct _PeaqLevelAdapter
+{
   GObjectClass parent;
   gdouble *ref_filtered_excitation;
   gdouble *test_filtered_excitation;
@@ -63,9 +66,8 @@ struct _PeaqLevelAdapter {
 };
 
 GType peaq_leveladapter_get_type ();
-void peaq_leveladapter_process (PeaqLevelAdapter * level, 
-				gdouble *ref_exciation, 
-				gdouble *test_exciation, 
+void peaq_leveladapter_process (PeaqLevelAdapter * level,
+				gdouble * ref_exciation,
+				gdouble * test_exciation,
 				LevelAdapterOutput * output);
 #endif
-

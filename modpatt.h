@@ -41,7 +41,8 @@
   (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_MODULATIONPROCESSOR, \
 			      PeaqModulationProcessorClass))
 
-typedef struct _ModulationProcessorOutput {
+typedef struct _ModulationProcessorOutput
+{
   gdouble modulation[CRITICAL_BAND_COUNT];
   const gdouble *average_loudness;
 } ModulationProcessorOutput;
@@ -49,12 +50,14 @@ typedef struct _ModulationProcessorOutput {
 typedef struct _PeaqModulationProcessorClass PeaqModulationProcessorClass;
 typedef struct _PeaqModulationProcessor PeaqModulationProcessor;
 
-struct _PeaqModulationProcessorClass {
+struct _PeaqModulationProcessorClass
+{
   GObjectClass parent;
   gdouble *ear_time_constants;
 };
 
-struct _PeaqModulationProcessor {
+struct _PeaqModulationProcessor
+{
   GObjectClass parent;
   gdouble *previous_loudness;
   gdouble *filtered_loudness;
@@ -62,9 +65,7 @@ struct _PeaqModulationProcessor {
 };
 
 GType peaq_modulationprocessor_get_type ();
-void peaq_modulationprocessor_process (PeaqModulationProcessor * level, 
-				       gdouble *unsmeared_exciation, 
+void peaq_modulationprocessor_process (PeaqModulationProcessor * level,
+				       gdouble * unsmeared_exciation,
 				       ModulationProcessorOutput * output);
 #endif
-
-

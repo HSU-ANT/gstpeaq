@@ -28,9 +28,9 @@
 #include "modpatt.h"
 #include "gstpeaq.h"
 
-static void peaq_modulationprocessor_class_init (gpointer klass, 
+static void peaq_modulationprocessor_class_init (gpointer klass,
 						 gpointer class_data);
-static void peaq_modulationprocessor_init (GTypeInstance * obj, 
+static void peaq_modulationprocessor_init (GTypeInstance * obj,
 					   gpointer klass);
 
 GType
@@ -59,28 +59,29 @@ static void
 peaq_modulationprocessor_class_init (gpointer klass, gpointer class_data)
 {
   guint k;
-  PeaqModulationProcessorClass *level_class = 
+  PeaqModulationProcessorClass *level_class =
     PEAQ_MODULATIONPROCESSOR_CLASS (klass);
 
   level_class->ear_time_constants = g_new (gdouble, CRITICAL_BAND_COUNT);
   for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
     gdouble tau;
     gdouble curr_fc;
-    curr_fc = peaq_earmodel_get_band_center_frequency(k);
+    curr_fc = peaq_earmodel_get_band_center_frequency (k);
     tau = 0.008 + 100 / curr_fc * (0.05 - 0.008);
     level_class->ear_time_constants[k] =
       exp (-(gdouble) FRAMESIZE / (2 * SAMPLINGRATE) / tau);
   }
 }
 
-static void 
-peaq_modulationprocessor_init (GTypeInstance * obj, gpointer klass) 
+static void
+peaq_modulationprocessor_init (GTypeInstance * obj, gpointer klass)
 {
   PeaqModulationProcessor *modproc = PEAQ_MODULATIONPROCESSOR (obj);
   guint i;
   modproc->previous_loudness = g_new (gdouble, CRITICAL_BAND_COUNT);
   modproc->filtered_loudness = g_new (gdouble, CRITICAL_BAND_COUNT);
-  modproc->filtered_loudness_derivative = g_new (gdouble, CRITICAL_BAND_COUNT);
+  modproc->filtered_loudness_derivative =
+    g_new (gdouble, CRITICAL_BAND_COUNT);
   for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
     modproc->previous_loudness[i] = 0;
     modproc->filtered_loudness[i] = 0;
@@ -89,25 +90,25 @@ peaq_modulationprocessor_init (GTypeInstance * obj, gpointer klass)
 }
 
 void
-peaq_modulationprocessor_process (PeaqModulationProcessor * modproc, 
-				  gdouble *unsmeared_exciation, 
+peaq_modulationprocessor_process (PeaqModulationProcessor * modproc,
+				  gdouble * unsmeared_exciation,
 				  ModulationProcessorOutput * output)
 {
   guint k;
-  PeaqModulationProcessorClass *modproc_class = 
+  PeaqModulationProcessorClass *modproc_class =
     PEAQ_MODULATIONPROCESSOR_GET_CLASS (modproc);
   for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
-    gdouble loudness = pow(unsmeared_exciation[k], 0.3);
-    gdouble loudness_derivative = (gdouble) SAMPLINGRATE / (FRAMESIZE / 2) * 
-      ABS(loudness - modproc->previous_loudness[k]);
-    modproc->filtered_loudness_derivative[k] = 
-      modproc_class->ear_time_constants[k] * 
-      modproc->filtered_loudness_derivative[k] + 
+    gdouble loudness = pow (unsmeared_exciation[k], 0.3);
+    gdouble loudness_derivative = (gdouble) SAMPLINGRATE / (FRAMESIZE / 2) *
+      ABS (loudness - modproc->previous_loudness[k]);
+    modproc->filtered_loudness_derivative[k] =
+      modproc_class->ear_time_constants[k] *
+      modproc->filtered_loudness_derivative[k] +
       (1 - modproc_class->ear_time_constants[k]) * loudness_derivative;
-    modproc->filtered_loudness[k] = 
-      modproc_class->ear_time_constants[k] * modproc->filtered_loudness[k] + 
+    modproc->filtered_loudness[k] =
+      modproc_class->ear_time_constants[k] * modproc->filtered_loudness[k] +
       (1 - modproc_class->ear_time_constants[k]) * loudness;
-    output->modulation[k] = modproc->filtered_loudness_derivative[k] / 
+    output->modulation[k] = modproc->filtered_loudness_derivative[k] /
       (1 + modproc->filtered_loudness[k] / 0.3);
     modproc->previous_loudness[k] = loudness;
   }

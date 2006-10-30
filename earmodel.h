@@ -41,7 +41,8 @@
 #define FRAMESIZE 2048
 #define CRITICAL_BAND_COUNT 109
 
-typedef struct _EarModelOutput {
+typedef struct _EarModelOutput
+{
   gdouble power_spectrum[FRAMESIZE / 2 + 1];
   gdouble weighted_power_spectrum[FRAMESIZE / 2 + 1];
   gdouble band_power[CRITICAL_BAND_COUNT];
@@ -53,7 +54,8 @@ typedef struct _EarModelOutput {
 typedef struct _PeaqEarModelClass PeaqEarModelClass;
 typedef struct _PeaqEarModel PeaqEarModel;
 
-struct _PeaqEarModelClass {
+struct _PeaqEarModelClass
+{
   GObjectClass parent;
   gdouble *hann_window;
   FFTData *fft_data;
@@ -71,16 +73,18 @@ struct _PeaqEarModelClass {
   gdouble *excitation_threshold;
 };
 
-struct _PeaqEarModel {
+struct _PeaqEarModel
+{
   GObjectClass parent;
   gdouble level_factor;
   gdouble *filtered_excitation;
 };
 
 GType peaq_earmodel_get_type ();
-void peaq_earmodel_process (PeaqEarModel * ear, gfloat *sample_data, 
-				EarModelOutput * output);
- void peaq_earmodel_group_into_bands (PeaqEarModelClass * ear_class, 
-				      gdouble *spectrum, gdouble *band_power);
+void peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
+			    EarModelOutput * output);
+void peaq_earmodel_group_into_bands (PeaqEarModelClass * ear_class,
+				     gdouble * spectrum,
+				     gdouble * band_power);
 gdouble peaq_earmodel_get_band_center_frequency (guint band);
 #endif

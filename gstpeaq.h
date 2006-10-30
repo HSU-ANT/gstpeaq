@@ -83,7 +83,7 @@ struct _GstPeaqClass
   FFTData *correlation_fft_data;
 };
 
-GType gst_peaq_get_type();
+GType gst_peaq_get_type ();
 
 G_END_DECLS;
 
