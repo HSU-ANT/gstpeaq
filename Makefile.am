@@ -1,4 +1,4 @@
-lib_LTLIBRARIES = libgstpeaq.la
+plugin_LTLIBRARIES = libgstpeaq.la
 check_PROGRAMS = testpeaq 
 EXTRA_DIST = runtest.sh
 TESTS = testpeaq runtest.sh
