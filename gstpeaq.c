@@ -271,8 +271,6 @@ gst_peaq_set_property (GObject * obj, guint id, const GValue * value,
   GstPeaq *peaq = GST_PEAQ (obj);
   switch (id) {
     case PROP_CONSOLE_OUTPUT:
-      g_printf ("Setting console output to %s\n",
-		g_value_get_boolean (value) ? "TRUE" : "FALSE");
       peaq->console_output = g_value_get_boolean (value);
       break;
   }
@@ -315,7 +313,9 @@ gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
     gfloat *testframe = (gfloat *) gst_adapter_peek (peaq->test_adapter,
 						     BLOCKSIZE_BYTES);
     gst_peaq_process_block (peaq, refframe, testframe);
+    g_assert (gst_adapter_available (peaq->ref_adapter) >= BLOCKSIZE_BYTES);
     gst_adapter_flush (peaq->ref_adapter, STEPSIZE_BYTES);
+    g_assert (gst_adapter_available (peaq->test_adapter) >= BLOCKSIZE_BYTES);
     gst_adapter_flush (peaq->test_adapter, STEPSIZE_BYTES);
   }
 
@@ -344,6 +344,10 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
+      /* need to unblock the collectpads before calling the
+       * parent change_state so that streaming can finish */
+      gst_collect_pads_stop (peaq->collect);
+
       ref_data_left_count = gst_adapter_available (peaq->ref_adapter);
       test_data_left_count = gst_adapter_available (peaq->test_adapter);
       if (ref_data_left_count || test_data_left_count) {
@@ -364,12 +368,13 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
 	memset (((char *) padded_test_frame) + test_data_left_count, 0,
 		BLOCKSIZE_BYTES - test_data_left_count);
 	gst_peaq_process_block (peaq, padded_ref_frame, padded_test_frame);
+	g_assert (gst_adapter_available (peaq->ref_adapter) >= 
+		  ref_data_left_count);
 	gst_adapter_flush (peaq->ref_adapter, ref_data_left_count);
+	g_assert (gst_adapter_available (peaq->test_adapter) >= 
+		  test_data_left_count);
 	gst_adapter_flush (peaq->test_adapter, test_data_left_count);
       }
-      /* need to unblock the collectpads before calling the
-       * parent change_state so that streaming can finish */
-      gst_collect_pads_stop (peaq->collect);
 
       gst_peaq_calculate_odg (peaq);
       break;
