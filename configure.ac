@@ -23,5 +23,5 @@ PKG_CHECK_MODULES(PKGCONF, [gstreamer-0.10 gstreamer-base-0.10 ])
 GST_SET_PLUGINDIR
 
 AC_CONFIG_HEADER([config.h])
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile])
 AC_OUTPUT
