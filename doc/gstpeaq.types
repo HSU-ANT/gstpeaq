@@ -1,0 +1,11 @@
+#include "earmodel.h"
+peaq_earmodel_get_type
+
+%#include "gstpeaq.h"
+%gst_peaq_get_type
+
+#include "leveladapter.h"
+peaq_leveladapter_get_type
+
+#include "modpatt.h"
+peaq_modulationprocessor_get_type
