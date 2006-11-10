@@ -68,7 +68,7 @@ expand_content_files=
 # e.g. INCLUDES=-I$(top_srcdir) -I$(top_builddir) $(GTK_DEBUG_FLAGS)
 # e.g. GTKDOC_LIBS=$(top_builddir)/gtk/$(gtktargetlib)
 INCLUDES=-I$(top_srcdir)/src @PKGCONF_CFLAGS@
-GTKDOC_LIBS=@PKGCONF_LIBS@ $(top_srcdir)/src/libgstpeaq.la 
+GTKDOC_LIBS=@PKGCONF_LIBS@ $(top_builddir)/src/libgstpeaq.la 
 
 # This includes the standard gtk-doc make rules, copied by gtkdocize.
 include $(top_srcdir)/gtk-doc.make
