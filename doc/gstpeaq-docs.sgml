@@ -14,4 +14,8 @@
     <xi:include href="xml/modpatt.xml"/>
     <xi:include href="xml/fft.xml"/>
   </chapter>
+  <chapter>
+    <title>References</title>
+    <xi:include href="references.xml"/>
+  </chapter>
 </book>

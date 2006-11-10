@@ -1,0 +1,22 @@
+<bibliography>
+  <biblioentry id="BS1387">
+    <abbrev>ITU01</abbrev>
+    <title>Recommendation ITU-R BS.1387-1</title>
+    <subtitle>Method for objective measurements of perceived audio quality</subtitle>
+    <orgname>ITU</orgname>
+    <date>2001</date>
+  </biblioentry>
+  <biblioentry id="Kabal03">
+    <abbrev>Ka03</abbrev>
+    <author><firstname>Peter</firstname><surname>Kabal</surname>
+    <affiliation>
+      <orgname>McGill University</orgname>
+      <orgdiv>Department of Electrical &amp; Computer Engineering</orgdiv>
+    </affiliation>
+    </author>
+    <title>An Examination and Interpretation of ITU-R BS.1387: Perceptual Evaluation of Audio Quality</title>
+    <date>2003-12-08</date>
+    <edition>Version 2</edition>
+    <bibliomisc><ulink url="http://www-mmsp.ece.mcgill.ca/Documents/Reports/2002/KabalR2002v2.pdf"></ulink></bibliomisc>
+  </biblioentry>
+</bibliography>
