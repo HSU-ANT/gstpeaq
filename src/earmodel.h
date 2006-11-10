@@ -38,10 +38,40 @@
 #define PEAQ_EARMODEL_GET_CLASS(obj) \
   (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_EARMODEL, PeaqEarModelClass))
 
+/**
+ * FRAMESIZE:
+ *
+ * The length (in samples) of a frame to be processed by 
+ * peaq_earmodel_process().
+ */
 #define FRAMESIZE 2048
+
+/**
+ * CRITICAL_BAND_COUNT:
+ *
+ * The number of auditory bands the signal is decomposed into by 
+ * peaq_earmodel_group_into_bands().
+ */
 #define CRITICAL_BAND_COUNT 109
 
-typedef struct _EarModelOutput
+/**
+ * EarModelOutput:
+ * @power_spectrum: The power spectrum of the frame, up to half the sampling 
+ * rate (G<subscript>L</subscript><superscript>2</superscript>
+ * |X[k]|<superscript>2</superscript> in <xref linkend="Kabal03" />).
+ * @weighted_power_spectrum: The power spectrum weighted with the outer ear
+ * weighting function 
+ * (|X<subscript>w</subscript>[k]|<superscript>2</superscript> in 
+ * <xref linkend="Kabal03" />).
+ * @band_power: The total power in each auditory sub-band 
+ * (E<subscript>b</subscript>[i] in <xref linkend="Kabal03" />).
+ * @unsmeared_excitation: The excitation patterns after frequency spreading, 
+ * but before time-domain spreading
+ * (E<subscript>s</subscript>[i] in <xref linkend="Kabal03" />).
+ * @excitation: The excitation patterns after frequency and time-domain 
+ * spreading (E&tilde;<subscript>s</subscript>[i] in <xref linkend="Kabal03" />).
+ */
+struct _EarModelOutput
 {
   gdouble power_spectrum[FRAMESIZE / 2 + 1];
   gdouble weighted_power_spectrum[FRAMESIZE / 2 + 1];
@@ -49,10 +79,11 @@ typedef struct _EarModelOutput
   gdouble unsmeared_excitation[CRITICAL_BAND_COUNT];
   gdouble excitation[CRITICAL_BAND_COUNT];
   gdouble overall_loudness;
-} EarModelOutput;
+};
 
 typedef struct _PeaqEarModelClass PeaqEarModelClass;
 typedef struct _PeaqEarModel PeaqEarModel;
+typedef struct _EarModelOutput EarModelOutput;
 
 struct _PeaqEarModelClass
 {

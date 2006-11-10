@@ -5,6 +5,7 @@ CRITICAL_BAND_COUNT
 <TITLE>PeaqEarModel</TITLE>
 PeaqEarModel
 PeaqEarModelClass
+EarModelOutput
 peaq_earmodel_process
 peaq_earmodel_group_into_bands
 peaq_earmodel_get_band_center_frequency
