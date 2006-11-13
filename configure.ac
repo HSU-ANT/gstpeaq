@@ -16,6 +16,8 @@ AC_PROG_LIBTOOL
 
 AC_HEADER_STDC
 
+AC_CHECK_LIB(m, pow)
+
 AC_FUNC_MALLOC
 
 PKG_CHECK_MODULES(PKGCONF, [gstreamer-0.10 gstreamer-base-0.10 ])
