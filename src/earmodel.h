@@ -69,7 +69,14 @@
  * but before time-domain spreading
  * (E<subscript>s</subscript>[i] in <xref linkend="Kabal03" />).
  * @excitation: The excitation patterns after frequency and time-domain 
- * spreading (E&tilde;<subscript>s</subscript>[i] in <xref linkend="Kabal03" />).
+ * spreading (E&tilde;<subscript>s</subscript>[i] in 
+ * <xref linkend="Kabal03" />).
+ * @overall_loudness: The overall loundness in the frame 
+ * (N<subscript>tot</subscript> in <xref linkend="Kabal03" />). Note that the 
+ * loudness computation is usually not considered part of the ear model, but 
+ * the code fits in nicely here.
+ *
+ * Holds the data calculated by the ear model for one frame of audio data.
  */
 struct _EarModelOutput
 {
