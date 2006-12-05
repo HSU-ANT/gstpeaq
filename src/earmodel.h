@@ -111,13 +111,6 @@ struct _PeaqEarModelClass
   gdouble *excitation_threshold;
 };
 
-struct _PeaqEarModel
-{
-  GObjectClass parent;
-  gdouble level_factor;
-  gdouble *filtered_excitation;
-};
-
 GType peaq_earmodel_get_type ();
 void peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
 			    EarModelOutput * output);

@@ -39,6 +39,34 @@ enum
   PROP_PLAYBACK_LEVEL
 };
 
+/**
+ * PeaqEarModel:
+ *
+ * Transforms a time domain signal into pitch domain excitation patterns.
+ *
+ * The computation is thoroughly described in section 2 of 
+ * <xref linkend="Kabal03" />.
+ *
+ * The main processing is performed in peaq_earmodel_process(), where frames of
+ * length %FRAMESIZE samples are processed, which should be overlapped by 50% 
+ * from one invocation to the next. The first step is to apply a Hann window 
+ * and transform the frame to the frequency domain. Then, a filter modelling
+ * the effects of the outer and middle ear is applied by weighting the 
+ * spectral coefficients. These are grouped into frequency bands of one fourth 
+ * the width of the critical bands of auditoriy perception to reach the pitch 
+ * domain. To model the internal noise of the ear, a pitch-dependent term is
+ * added to the power in each band. Finally, spreading in the pitch domain and 
+ * smearing in the time-domain are performed. The necessary state information 
+ * for the time smearing is stored in the #PeaqEarModel.
+ */
+
+struct _PeaqEarModel
+{
+  GObjectClass parent;
+  gdouble level_factor;
+  gdouble *filtered_excitation;
+};
+
 static void peaq_earmodel_class_init (gpointer klass, gpointer class_data);
 static void peaq_earmodel_init (GTypeInstance * obj, gpointer klass);
 static void peaq_earmodel_get_property (GObject * obj, guint id,
