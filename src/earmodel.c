@@ -67,6 +67,25 @@ struct _PeaqEarModel
   gdouble *filtered_excitation;
 };
 
+struct _PeaqEarModelClass
+{
+  GObjectClass parent;
+  gdouble *hann_window;
+  FFTData *fft_data;
+  gdouble *outer_middle_ear_weight;
+  guint *band_lower_end;
+  guint *band_upper_end;
+  gdouble *band_lower_weight;
+  gdouble *band_upper_weight;
+  gdouble *internal_noise_level;
+  gdouble lower_spreading;
+  gdouble lower_spreading_exponantiated;
+  gdouble *spreading_normalization;
+  gdouble *ear_time_constants;
+  gdouble *threshold;
+  gdouble *excitation_threshold;
+};
+
 static void peaq_earmodel_class_init (gpointer klass, gpointer class_data);
 static void peaq_earmodel_init (GTypeInstance * obj, gpointer klass);
 static void peaq_earmodel_get_property (GObject * obj, guint id,
@@ -350,3 +369,10 @@ peaq_earmodel_get_band_center_frequency (guint band)
 {
   return fc[band];
 }
+
+gdouble peaq_earmodel_get_internal_noise (PeaqEarModelClass * ear_class,
+					  guint band)
+{
+  return ear_class->internal_noise_level[band];
+}
+

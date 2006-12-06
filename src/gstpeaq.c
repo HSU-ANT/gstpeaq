@@ -447,7 +447,7 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
     mod_diff_2b += w * diff / (0.01 + ref_mod_output.modulation[i]);
     temp_wt += ref_mod_output.average_loudness[i] /
       (ref_mod_output.average_loudness[i] + 100 *
-       pow (ear_class->internal_noise_level[i], 0.3));
+       pow (peaq_earmodel_get_internal_noise (ear_class, i), 0.3));
   }
   mod_diff_1b *= 100. / CRITICAL_BAND_COUNT;
   mod_diff_2b *= 100. / CRITICAL_BAND_COUNT;
@@ -457,7 +457,7 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
   for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
     gdouble sref = 0.15 * ref_mod_output.modulation[i] + 0.5;
     gdouble stest = 0.15 * test_mod_output.modulation[i] + 0.5;
-    gdouble ethres = ear_class->internal_noise_level[i];
+    gdouble ethres = peaq_earmodel_get_internal_noise (ear_class, i);
     gdouble ep_ref = level_output.spectrally_adapted_ref_patterns[i];
     gdouble ep_test = level_output.spectrally_adapted_test_patterns[i];
     gdouble beta = exp (-1.5 * (ep_test - ep_ref) / ep_ref);

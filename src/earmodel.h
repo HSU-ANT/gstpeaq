@@ -92,25 +92,6 @@ typedef struct _PeaqEarModelClass PeaqEarModelClass;
 typedef struct _PeaqEarModel PeaqEarModel;
 typedef struct _EarModelOutput EarModelOutput;
 
-struct _PeaqEarModelClass
-{
-  GObjectClass parent;
-  gdouble *hann_window;
-  FFTData *fft_data;
-  gdouble *outer_middle_ear_weight;
-  guint *band_lower_end;
-  guint *band_upper_end;
-  gdouble *band_lower_weight;
-  gdouble *band_upper_weight;
-  gdouble *internal_noise_level;
-  gdouble lower_spreading;
-  gdouble lower_spreading_exponantiated;
-  gdouble *spreading_normalization;
-  gdouble *ear_time_constants;
-  gdouble *threshold;
-  gdouble *excitation_threshold;
-};
-
 GType peaq_earmodel_get_type ();
 void peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
 			    EarModelOutput * output);
@@ -118,4 +99,6 @@ void peaq_earmodel_group_into_bands (PeaqEarModelClass * ear_class,
 				     gdouble * spectrum,
 				     gdouble * band_power);
 gdouble peaq_earmodel_get_band_center_frequency (guint band);
+gdouble peaq_earmodel_get_internal_noise (PeaqEarModelClass * ear_class,
+					  guint band);
 #endif
