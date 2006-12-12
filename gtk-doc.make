@@ -99,8 +99,8 @@ html-build.stamp: sgml.stamp $(DOC_MAIN_SGML_FILE) $(content_files)
 	rm -rf $(srcdir)/html 
 	mkdir $(srcdir)/html
 	cd $(srcdir)/html && /usr/bin/xsltproc --nonet --xinclude --stringparam gtkdoc.bookname $(DOC_MODULE) --stringparam gtkdoc.version "1.7" ../gtk-doc.xsl ../$(DOC_MAIN_SGML_FILE)
-	cp -f /usr/share/gtk-doc/data/*.png html
-	cp -f /usr/share/gtk-doc/data/*.css html
+	cp -f /usr/share/gtk-doc/data/*.png $(srcdir)/html
+	cp -f /usr/share/gtk-doc/data/*.css $(srcdir)/html
 	test "x$(HTML_IMAGES)" = "x" || ( cd $(srcdir) && cp $(HTML_IMAGES) html )
 	@echo 'gtk-doc: Fixing cross-references' 
 	cd $(srcdir) && gtkdoc-fixxref --module-dir=html --html-dir=$(HTML_DIR) $(FIXXREF_OPTIONS)
