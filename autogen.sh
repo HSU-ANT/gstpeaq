@@ -1,6 +1,6 @@
 mkdir -p aux
 libtoolize
-gtkdocize
+#gtkdocize
 aclocal -I m4
 autoheader
 autoconf

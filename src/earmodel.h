@@ -57,24 +57,56 @@
 /**
  * EarModelOutput:
  * @power_spectrum: The power spectrum of the frame, up to half the sampling 
- * rate (G<subscript>L</subscript><superscript>2</superscript>
- * |X[k]|<superscript>2</superscript> in <xref linkend="Kabal03" />).
+ * rate (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ * <msubsup><mi>G</mi><mi>L</mi><mn>2</mn></msubsup>
+ * <mo>&InvisibleTimes;</mo>
+ * <msup>
+ *   <mfenced open="|" close="|"><mrow>
+ *     <mi>X</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   </mrow></mfenced>
+ *   <mn>2</mn>
+ * </msup>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />).
  * @weighted_power_spectrum: The power spectrum weighted with the outer ear
  * weighting function 
- * (|X<subscript>w</subscript>[k]|<superscript>2</superscript> in 
- * <xref linkend="Kabal03" />).
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ * <msup>
+ *   <mfenced open="|" close="|"><mrow>
+ *     <msub><mi>X</mi><mi>w</mi></msub>
+ *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   </mrow></mfenced>
+ *   <mn>2</mn>
+ * </msup>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />).
  * @band_power: The total power in each auditory sub-band 
- * (E<subscript>b</subscript>[i] in <xref linkend="Kabal03" />).
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mi>E</mi><mi>b</mi></msub>
+ *   <mfenced open="[" close="]"><mi>i</mi></mfenced>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />).
  * @unsmeared_excitation: The excitation patterns after frequency spreading, 
  * but before time-domain spreading
- * (E<subscript>s</subscript>[i] in <xref linkend="Kabal03" />).
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mi>E</mi><mi>s</mi></msub>
+ *   <mfenced open="[" close="]"><mi>i</mi></mfenced>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />).
  * @excitation: The excitation patterns after frequency and time-domain 
- * spreading (E&tilde;<subscript>s</subscript>[i] in 
- * <xref linkend="Kabal03" />).
+ * spreading
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mover><mi>E</mi><mo>~</mo></mover><mi>s</mi></msub>
+ *   <mfenced open="[" close="]"><mi>i</mi></mfenced>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />).
  * @overall_loudness: The overall loundness in the frame 
- * (N<subscript>tot</subscript> in <xref linkend="Kabal03" />). Note that the 
- * loudness computation is usually not considered part of the ear model, but 
- * the code fits in nicely here.
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mi>N</mi><mi>tot</mi></msub>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />). Note that the loudness computation is
+ * usually not considered part of the ear model, but the code fits in nicely
+ * here.
  *
  * Holds the data calculated by the ear model for one frame of audio data.
  */

@@ -108,21 +108,33 @@ static void peaq_earmodel_set_property (GObject * obj, guint id,
 					GParamSpec * pspec);
 static void do_spreading (PeaqEarModelClass * ear_class, gdouble * Pp,
 			  gdouble * E2);
+
+/*
+ * peaq_leveladapter_get_type:
+ *
+ * Registers the type GstPeaqEarModel if not already done so and returns the
+ * respective #GType.
+ *
+ * Returns: the type for GstPeaqEarModel.
+ *
+ * TODO: add a class_finalize function to free all the memory allocated in 
+ * class_init. Or should all this be done by base_init/base_finalize?
+ */
 GType
 peaq_earmodel_get_type ()
 {
   static GType type = 0;
   if (type == 0) {
     static const GTypeInfo info = {
-      sizeof (PeaqEarModelClass),
-      NULL,			/* base_init */
-      NULL,			/* base_finalize */
-      peaq_earmodel_class_init,
-      NULL,			/* class_finalize */
-      NULL,			/* class_data */
-      sizeof (PeaqEarModel),
-      0,			/* n_preallocs */
-      peaq_earmodel_init	/* instance_init */
+      sizeof (PeaqEarModelClass), /* class_size */
+      NULL,			  /* base_init */
+      NULL,			  /* base_finalize */
+      peaq_earmodel_class_init,   /* class_init */
+      NULL,			  /* class_finalize */
+      NULL,			  /* class_data */
+      sizeof (PeaqEarModel),      /* instance_size */
+      0,			  /* n_preallocs */
+      peaq_earmodel_init	  /* instance_init */
     };
     type = g_type_register_static (G_TYPE_OBJECT,
 				   "GstPeaqEarModel", &info, 0);
@@ -130,6 +142,13 @@ peaq_earmodel_get_type ()
   return type;
 }
 
+/*
+ * peaq_earmodel_class_init:
+ * @klass: pointer to the uninitialized class structure.
+ * @class_data: pointer to data specified when registering the class (unused).
+ *
+ * Sets up the class data which mainly involves pre-computing helper data.
+ */
 static void
 peaq_earmodel_class_init (gpointer klass, gpointer class_data)
 {
@@ -139,6 +158,8 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
   PeaqEarModelClass *ear_class = PEAQ_EARMODEL_CLASS (klass);
 
+  /* set property setter/getter functions and install property for playback 
+   * level */
   object_class->set_property = peaq_earmodel_set_property;
   object_class->get_property = peaq_earmodel_get_property;
   g_object_class_install_property (object_class,
@@ -149,12 +170,18 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
 							0, 130, 92,
 							G_PARAM_READWRITE |
 							G_PARAM_CONSTRUCT));
+
+  /* setup data for FFT */
   ear_class->fft_data = create_fft_data (FRAMESIZE);
+
+  /* pre-compute Hann window */
   ear_class->hann_window = g_new (gdouble, N);
   for (k = 0; k < N; k++) {
     ear_class->hann_window[k] = 0.5 * (1. - cos (2 * M_PI * k / (N - 1)));
   }
 
+  /* pre-compute weighting coefficients for outer and middle ear weighting 
+   * function */
   ear_class->outer_middle_ear_weight = g_new (gdouble, N / 2 + 1);
   for (k = 0; k <= N / 2; k++) {
     gdouble f_kHz = (gdouble) k * SAMPLINGRATE / N / 1000;
@@ -164,6 +191,7 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
     ear_class->outer_middle_ear_weight[k] = pow (10, W_dB / 10);
   }
 
+  /* pre-compute helper data for peaq_earmodel_group_into_bands */
   ear_class->band_lower_end = g_new (guint, CRITICAL_BAND_COUNT);
   ear_class->band_upper_end = g_new (guint, CRITICAL_BAND_COUNT);
   ear_class->band_lower_weight = g_new (gdouble, CRITICAL_BAND_COUNT);
@@ -196,15 +224,16 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
     }
   }
 
-  ear_class->lower_spreading = pow (10, -2.7 * DELTAZ);
-  ear_class->lower_spreading_exponantiated =
-    pow (ear_class->lower_spreading, 0.4);
-
+  /* pre-compute internal noise, time constants for time smearing, thresholds 
+   * and helper data for spreading */
   ear_class->internal_noise_level = g_new (gdouble, CRITICAL_BAND_COUNT);
   ear_class->ear_time_constants = g_new (gdouble, CRITICAL_BAND_COUNT);
   ear_class->spreading_normalization = g_new (gdouble, CRITICAL_BAND_COUNT);
   ear_class->threshold = g_new (gdouble, CRITICAL_BAND_COUNT);
   ear_class->excitation_threshold = g_new (gdouble, CRITICAL_BAND_COUNT);
+  ear_class->lower_spreading = pow (10, -2.7 * DELTAZ);
+  ear_class->lower_spreading_exponantiated =
+    pow (ear_class->lower_spreading, 0.4);
   for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
     gdouble curr_fc;
     gdouble tau;
@@ -227,6 +256,14 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
     ear_class->spreading_normalization[k] = spread[k];
 }
 
+/*
+ * peaq_earmodel_init:
+ * @obj: Pointer to the unitialized #PeaqEarModel structure.
+ * @klass: The class structure of the class being instantiated.
+ *
+ * Initializes one instance of #PeaqEarModel, in particular, the state 
+ * variables for the time smearing are allocated and initialized to zero.
+ */
 static void
 peaq_earmodel_init (GTypeInstance * obj, gpointer klass)
 {
@@ -237,6 +274,16 @@ peaq_earmodel_init (GTypeInstance * obj, gpointer klass)
     ear->filtered_excitation[i] = 0;
 }
 
+/*
+ * peaq_earmodel_get_property:
+ * @obj: the object structure.
+ * @id: the id of the property queried.
+ * @value: the value to be filled in.
+ * @pspec: the #GParamSpec of the property queried.
+ *
+ * Fills the given @value with the value currently set for the property 
+ * specified by @id.
+ */
 static void
 peaq_earmodel_get_property (GObject * obj, guint id, GValue * value,
 			    GParamSpec * pspec)
@@ -248,9 +295,21 @@ peaq_earmodel_get_property (GObject * obj, guint id, GValue * value,
 					     (GAMMA / 4 * (FRAMESIZE - 1) /
 					      FRAMESIZE)));
       break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (obj, id, pspec);
+      break;
   }
 }
 
+/*
+ * peaq_earmodel_get_property:
+ * @obj: the object structure.
+ * @id: the id of the property to be set.
+ * @value: the value to set the property to.
+ * @pspec: the #GParamSpec of the property to be set.
+ *
+ * Sets the property specified by @id to the given @value.
+ */
 static void
 peaq_earmodel_set_property (GObject * obj, guint id, const GValue * value,
 			    GParamSpec * pspec)
@@ -262,9 +321,25 @@ peaq_earmodel_set_property (GObject * obj, guint id, const GValue * value,
 	((GAMMA / 4 * (FRAMESIZE - 1) / FRAMESIZE) *
 	 (GAMMA / 4 * (FRAMESIZE - 1) / FRAMESIZE));
       break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (obj, id, pspec);
+      break;
   }
 }
 
+/**
+ * peaq_earmodel_process:
+ * @ear: the #PeaqEarModel instance structure.
+ * @sample_data: pointer to a frame of #FRAMESIZE samples to be processed.
+ * @output: pointer to a #EarModelOutput structure which is filled with the 
+ * computed output data.
+ *
+ * Performs the computation described in section 2 of 
+ * <xref linkend="Kabal03" /> for one single frame. To follow the 
+ * specification, the frames of successive invocations of 
+ * peaq_earmodel_process() have to overlap by 50%.
+ *
+ */
 void
 peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
 		       EarModelOutput * output)
@@ -278,6 +353,9 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
 
   g_assert (output);
 
+  /**
+   * The first step is to apply a Hann window to the input data frame.
+   */
   for (k = 0; k < FRAMESIZE; k++)
     windowed_data[k] = ear_class->hann_window[k] * sample_data[k];
 
