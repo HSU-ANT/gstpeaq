@@ -335,10 +335,23 @@ peaq_earmodel_set_property (GObject * obj, guint id, const GValue * value,
  * computed output data.
  *
  * Performs the computation described in section 2 of 
- * <xref linkend="Kabal03" /> for one single frame. To follow the 
- * specification, the frames of successive invocations of 
- * peaq_earmodel_process() have to overlap by 50%.
+ * <xref linkend="Kabal03" /> for one single frame. The input is assumed to be 
+ * sampled at 48 kHz. To follow the specification, the frames of successive 
+ * invocations of peaq_earmodel_process() have to overlap by 50%.
  *
+ * The first step is to apply a Hann window to the input frame and transform 
+ * it to the frequency domain using FFT. The squared magnitude 
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msup>
+ *     <mfenced open="|" close="|"><mrow>
+ *       <mi>X</mi>
+ *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *     </mrow></mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ * </math></inlineequation>
+ * of the frequency coefficients up to half the frame length are stored in 
+ * <structfield>power_spectrum</structfield> of @output.
  */
 void
 peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
@@ -353,9 +366,7 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
 
   g_assert (output);
 
-  /**
-   * The first step is to apply a Hann window to the input data frame.
-   */
+  /* apply a Hann window to the input data frame */
   for (k = 0; k < FRAMESIZE; k++)
     windowed_data[k] = ear_class->hann_window[k] * sample_data[k];
 
