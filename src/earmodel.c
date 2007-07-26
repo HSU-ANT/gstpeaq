@@ -101,6 +101,7 @@ struct _PeaqEarModelClass
 
 static void peaq_earmodel_class_init (gpointer klass, gpointer class_data);
 static void peaq_earmodel_init (GTypeInstance * obj, gpointer klass);
+static void peaq_earmodel_finalize (GObject * obj);
 static void peaq_earmodel_get_property (GObject * obj, guint id,
 					GValue * value, GParamSpec * pspec);
 static void peaq_earmodel_set_property (GObject * obj, guint id,
@@ -157,6 +158,9 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
   gdouble *spread;
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
   PeaqEarModelClass *ear_class = PEAQ_EARMODEL_CLASS (klass);
+
+  /* override finalize method */
+  object_class->finalize = peaq_earmodel_finalize;
 
   /* set property setter/getter functions and install property for playback 
    * level */
@@ -268,10 +272,25 @@ static void
 peaq_earmodel_init (GTypeInstance * obj, gpointer klass)
 {
   PeaqEarModel *ear = PEAQ_EARMODEL (obj);
-  guint i;
-  ear->filtered_excitation = g_new (gdouble, CRITICAL_BAND_COUNT);
-  for (i = 0; i < CRITICAL_BAND_COUNT; i++)
-    ear->filtered_excitation[i] = 0;
+  ear->filtered_excitation = g_new0 (gdouble, CRITICAL_BAND_COUNT);
+}
+
+/*
+ * peaq_earmodel_finalize:
+ * @obj: Pointer to the #PeaqEarModel to be finalized.
+ *
+ * Disposes the given instance of #PeaqEarModel, in particular, the state 
+ * variables for the time smearing are deallocated.
+ */
+static void 
+peaq_earmodel_finalize (GObject * obj)
+{
+  PeaqEarModel *ear = PEAQ_EARMODEL (obj);
+  GObjectClass *parent_class = 
+    G_OBJECT_CLASS (g_type_class_peek_parent (g_type_class_peek
+					      (PEAQ_TYPE_EARMODEL)));
+  g_free (ear->filtered_excitation);
+  parent_class->finalize(obj);
 }
 
 /*

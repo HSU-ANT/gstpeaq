@@ -31,6 +31,7 @@
 static void peaq_leveladapter_class_init (gpointer klass,
 					  gpointer class_data);
 static void peaq_leveladapter_init (GTypeInstance * obj, gpointer klass);
+static void peaq_leveladapter_finalize (GObject * obj);
 
 GType
 peaq_leveladapter_get_type ()
@@ -58,7 +59,10 @@ static void
 peaq_leveladapter_class_init (gpointer klass, gpointer class_data)
 {
   guint k;
+  GObjectClass *object_class = G_OBJECT_CLASS (klass);
   PeaqLevelAdapterClass *level_class = PEAQ_LEVELADAPTER_CLASS (klass);
+
+  object_class->finalize = peaq_leveladapter_finalize;
 
   level_class->ear_time_constants = g_new (gdouble, CRITICAL_BAND_COUNT);
   for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
@@ -75,21 +79,28 @@ static void
 peaq_leveladapter_init (GTypeInstance * obj, gpointer klass)
 {
   PeaqLevelAdapter *level = PEAQ_LEVELADAPTER (obj);
-  guint i;
-  level->ref_filtered_excitation = g_new (gdouble, CRITICAL_BAND_COUNT);
-  level->test_filtered_excitation = g_new (gdouble, CRITICAL_BAND_COUNT);
-  level->filtered_num = g_new (gdouble, CRITICAL_BAND_COUNT);
-  level->filtered_den = g_new (gdouble, CRITICAL_BAND_COUNT);
-  level->pattcorr_ref = g_new (gdouble, CRITICAL_BAND_COUNT);
-  level->pattcorr_test = g_new (gdouble, CRITICAL_BAND_COUNT);
-  for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
-    level->ref_filtered_excitation[i] = 0;
-    level->test_filtered_excitation[i] = 0;
-    level->filtered_num[i] = 0;
-    level->filtered_den[i] = 0;
-    level->pattcorr_ref[i] = 0;
-    level->pattcorr_test[i] = 0;
-  }
+  level->ref_filtered_excitation = g_new0 (gdouble, CRITICAL_BAND_COUNT);
+  level->test_filtered_excitation = g_new0 (gdouble, CRITICAL_BAND_COUNT);
+  level->filtered_num = g_new0 (gdouble, CRITICAL_BAND_COUNT);
+  level->filtered_den = g_new0 (gdouble, CRITICAL_BAND_COUNT);
+  level->pattcorr_ref = g_new0 (gdouble, CRITICAL_BAND_COUNT);
+  level->pattcorr_test = g_new0 (gdouble, CRITICAL_BAND_COUNT);
+}
+
+static void 
+peaq_leveladapter_finalize (GObject * obj)
+{
+  PeaqLevelAdapter *level = PEAQ_LEVELADAPTER (obj);
+  GObjectClass *parent_class = 
+    G_OBJECT_CLASS (g_type_class_peek_parent (g_type_class_peek
+					      (PEAQ_TYPE_LEVELADAPTER)));
+  g_free (level->ref_filtered_excitation);
+  g_free (level->test_filtered_excitation);
+  g_free (level->filtered_num);
+  g_free (level->filtered_den);
+  g_free (level->pattcorr_ref);
+  g_free (level->pattcorr_test);
+  parent_class->finalize(obj);
 }
 
 void

@@ -32,6 +32,7 @@ static void peaq_modulationprocessor_class_init (gpointer klass,
 						 gpointer class_data);
 static void peaq_modulationprocessor_init (GTypeInstance * obj,
 					   gpointer klass);
+static void peaq_modulationprocessor_finalize (GObject * obj);
 
 GType
 peaq_modulationprocessor_get_type ()
@@ -59,8 +60,11 @@ static void
 peaq_modulationprocessor_class_init (gpointer klass, gpointer class_data)
 {
   guint k;
+  GObjectClass *object_class = G_OBJECT_CLASS (klass);
   PeaqModulationProcessorClass *level_class =
     PEAQ_MODULATIONPROCESSOR_CLASS (klass);
+
+  object_class->finalize = peaq_modulationprocessor_finalize;
 
   level_class->ear_time_constants = g_new (gdouble, CRITICAL_BAND_COUNT);
   for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
@@ -77,16 +81,23 @@ static void
 peaq_modulationprocessor_init (GTypeInstance * obj, gpointer klass)
 {
   PeaqModulationProcessor *modproc = PEAQ_MODULATIONPROCESSOR (obj);
-  guint i;
-  modproc->previous_loudness = g_new (gdouble, CRITICAL_BAND_COUNT);
-  modproc->filtered_loudness = g_new (gdouble, CRITICAL_BAND_COUNT);
+  modproc->previous_loudness = g_new0 (gdouble, CRITICAL_BAND_COUNT);
+  modproc->filtered_loudness = g_new0 (gdouble, CRITICAL_BAND_COUNT);
   modproc->filtered_loudness_derivative =
-    g_new (gdouble, CRITICAL_BAND_COUNT);
-  for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
-    modproc->previous_loudness[i] = 0;
-    modproc->filtered_loudness[i] = 0;
-    modproc->filtered_loudness_derivative[i] = 0;
-  }
+    g_new0 (gdouble, CRITICAL_BAND_COUNT);
+}
+
+static void 
+peaq_modulationprocessor_finalize (GObject * obj)
+{
+  PeaqModulationProcessor *modproc = PEAQ_MODULATIONPROCESSOR (obj);
+  GObjectClass *parent_class = 
+    G_OBJECT_CLASS (g_type_class_peek_parent (g_type_class_peek
+					      (PEAQ_TYPE_MODULATIONPROCESSOR)));
+  g_free (modproc->previous_loudness);
+  g_free (modproc->filtered_loudness);
+  g_free (modproc->filtered_loudness_derivative);
+  parent_class->finalize(obj);
 }
 
 void
