@@ -1,4 +1,5 @@
 mkdir -p aux
+./makeChangeLog.sh
 libtoolize
 #gtkdocize
 aclocal -I m4
