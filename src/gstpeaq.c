@@ -243,9 +243,15 @@ gst_peaq_finalize (GObject * object)
   g_object_unref (peaq->collect);
   g_object_unref (peaq->ref_adapter);
   g_object_unref (peaq->test_adapter);
+  g_object_unref (peaq->ref_ear_model);
+  g_object_unref (peaq->test_ear_model);
   g_object_unref (peaq->level_adapter);
   g_object_unref (peaq->ref_modulation_processor);
   g_object_unref (peaq->test_modulation_processor);
+  if (peaq->current_aggregated_data != NULL)
+    g_free (peaq->current_aggregated_data);
+  if (peaq->saved_aggregated_data != NULL)
+    g_free (peaq->saved_aggregated_data);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
