@@ -140,6 +140,19 @@ static void gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata,
 static double gst_peaq_calculate_odg (GstPeaq * peaq);
 static gboolean is_frame_above_threshold (gfloat * framedata);
 
+gboolean query(GstElement *element, GstQuery *query)
+{
+  switch (query->type) {
+    case GST_QUERY_LATENCY:
+      /* we are not live, no latency compensation required */
+      gst_query_set_latency (query, FALSE, 0, -1);
+      return TRUE;
+    default:
+      return parent_class->query(element, query);
+  }
+}
+
+
 static void
 gst_peaq_base_init (gpointer g_class)
 {
@@ -154,6 +167,8 @@ gst_peaq_base_init (gpointer g_class)
 				      gst_static_pad_template_get
 				      (&gst_peaq_test_template));
   gst_element_class_set_details (element_class, &peaq_details);
+
+  element_class->query = query;
 
   element_class->change_state = gst_peaq_change_state;
   gobject_class->finalize = gst_peaq_finalize;
@@ -221,6 +236,8 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   gst_collect_pads_add_pad (peaq->collect, peaq->testpad,
 			    sizeof (GstCollectData));
   gst_element_add_pad (GST_ELEMENT (peaq), peaq->testpad);
+
+  GST_OBJECT_FLAG_SET (peaq, GST_ELEMENT_IS_SINK);
 
   peaq->frame_counter = 0;
 
