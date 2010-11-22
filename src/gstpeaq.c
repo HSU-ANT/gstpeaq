@@ -42,6 +42,7 @@ enum
 {
   PROP_0,
   PROP_ODG,
+  PROP_TOTALSNR,
   PROP_CONSOLE_OUTPUT
 };
 
@@ -68,6 +69,8 @@ struct _GstPeaqAggregatedData
   gdouble noise_loudness;
   gdouble filtered_detection_probability;
   gdouble max_filtered_detection_probability;
+  gdouble total_signal_energy;
+  gdouble total_noise_energy;
 };
 
 static const GstElementDetails peaq_details =
@@ -203,10 +206,17 @@ gst_peaq_class_init (GstPeaqClass * peaq_class)
 							-4, 0, 0,
 							G_PARAM_READABLE));
   g_object_class_install_property (object_class,
+				   PROP_TOTALSNR,
+				   g_param_spec_double ("totalsnr",
+							"the overall SNR in dB",
+							"the overall signal to noise ratio in dB",
+							-1000, 1000, 0,
+							G_PARAM_READABLE));
+  g_object_class_install_property (object_class,
 				   PROP_CONSOLE_OUTPUT,
 				   g_param_spec_boolean ("console-output",
 							 "console output",
-							 "Enable od disable console output",
+							 "Enable or disable console output",
 							 TRUE,
 							 G_PARAM_READWRITE |
 							 G_PARAM_CONSTRUCT));
@@ -280,6 +290,22 @@ gst_peaq_get_property (GObject * obj, guint id, GValue * value,
   switch (id) {
     case PROP_ODG:
       g_value_set_double (value, gst_peaq_calculate_odg (peaq));
+      break;
+    case PROP_TOTALSNR:
+      {
+	GstPeaqAggregatedData *agg_data;
+
+	if (peaq->saved_aggregated_data)
+	  agg_data = peaq->saved_aggregated_data;
+	else
+	  agg_data = peaq->current_aggregated_data;
+
+	if (agg_data)
+	  g_value_set_double (value, 10 * log10 (agg_data->total_signal_energy 
+						 / agg_data->total_noise_energy));
+	else
+	  g_value_set_double (value, 0);
+      }
       break;
     case PROP_CONSOLE_OUTPUT:
       g_value_set_boolean (value, peaq->console_output);
@@ -644,6 +670,8 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
       peaq->current_aggregated_data->noise_loudness = 0;
       peaq->current_aggregated_data->filtered_detection_probability = 0;
       peaq->current_aggregated_data->max_filtered_detection_probability = 0;
+      peaq->current_aggregated_data->total_signal_energy = 0;
+      peaq->current_aggregated_data->total_noise_energy = 0;
     }
     if (peaq->saved_aggregated_data != NULL) {
       g_free (peaq->saved_aggregated_data);
@@ -707,6 +735,12 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
 	peaq->current_aggregated_data->filtered_detection_probability;
     if (nmr_max > 1.41253754462275)
       peaq->current_aggregated_data->disturbed_frame_count++;
+
+    for (i = 0; i < FRAMESIZE / 2; i++) {
+      peaq->current_aggregated_data->total_signal_energy += pow (refdata[i], 2);
+      peaq->current_aggregated_data->total_noise_energy 
+	+= pow (refdata[i] - testdata[i], 2);
+    }
   }
   peaq->frame_counter++;
 }
