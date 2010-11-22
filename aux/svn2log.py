@@ -35,6 +35,17 @@
 #           -L, --no-files       generate log without filenames
 #           -A, --no-author      generate log without author names
 #           -H, --no-host        generate author name without hostname
+# 2009-08-17 Chris.Clark@ingres.com, removed dependency on PyXML (aka 
+#       python-xml), which is no longer supported.
+#       See http://sourceforge.net/projects/pyxml/.
+#       NOTE this program expects the output from:
+#           svn -v --xml
+#       I.e. expects the verbose mode (of the xml output).
+#       Without the versbose mode will see error:
+#           <logentry> doesn't have <paths> child
+# 2009-08-17 Chris.Clark@ingres.com Added first-line-only.
+#       Only show first line of commit message/log.
+# 2009-08-18 Chris.Clark@ingres.com, made dependency on PyXML optional.
 #
 
 
@@ -46,7 +57,10 @@ import getopt
 import string
 import codecs
 
-from xml.utils import qp_xml
+try:
+    from xml.utils import qp_xml
+except ImportError:
+    import qp_xml
 
 kill_prefix_rx = None
 default_domain = "localhost"
@@ -60,6 +74,7 @@ date_only = False
 no_files = False
 no_host = False
 no_author = False
+first_line_only = False
 
 date_rx = re.compile(r"^(\d+-\d+-\d+T\d+:\d+:\d+)")
 
@@ -183,6 +198,11 @@ def process_entry(e):
     author = "anonymous"
   m = date_rx.search(child(e, "date").textof())
   msg = ' ' + child(e, "msg").textof()
+  if first_line_only:
+    #msg = msg.split('\n')[0] # inefficient but quick to implement!
+    iend = string.find(msg, '\n')
+    if iend > 0:
+        msg = msg[:iend]
   if strip == True:
     ibegin = string.find(msg, "/*")
     if ibegin > 0:
@@ -261,6 +281,7 @@ Options:
   -L, --no-files       generate log without filenames
   -A, --no-author      generate log without author names
   -H, --no-host        generate author name without hostname
+  -1, --first-line-only    generate log using only the first line of a log message
 
 Users file is used to map svn logins to real names to appear in ChangeLog.
 If login is not found in users file "login <login@domain>" is used.
@@ -287,17 +308,17 @@ def utf_open(name, mode):
 
 def process_opts():
   try:
-    opts, args = getopt.gnu_getopt(sys.argv[1:], "o:u:p:x:d:r:d:D:FhsOLHA", 
+    opts, args = getopt.gnu_getopt(sys.argv[1:], "o:u:p:x:d:r:d:D:FhsOLHA1", 
                                    ["users=", "prefix=", "domain=", "delta=",
                                     "exclude=", "help", "output=", "relocate=",
                                     "list-format","strip-comments", "only-date", "no-files",
-																		"no-host", "no-author"])
+                                    "no-host", "no-author", "first-line-only"])
   except getopt.GetoptError:
     usage()
     sys.exit(2)
   fin = sys.stdin
   fout = None
-  global kill_prefix_rx, exclude, users, default_domain, reloc, max_join_delta, list_format, strip, date_only, no_files, no_host, no_author
+  global kill_prefix_rx, exclude, users, default_domain, reloc, max_join_delta, list_format, strip, date_only, no_files, no_host, no_author, first_line_only
   for o, a in opts:
     if o in ("--prefix", "-p"):
       kill_prefix_rx = re.compile("^" + a)
@@ -320,6 +341,8 @@ def process_opts():
       no_host = True
     elif o in ("--no-author", "-A"):
       no_author = True
+    elif o in ("--first-line-only", "-1"):
+      first_line_only = True
     elif o in ("--users", "-u"):
       f = utf_open(a, "r")
       for line in f.xreadlines():
