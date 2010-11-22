@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2006 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2006, 2010 Martin Holters <martin.holters@hsuhh.de>
  *
  * gstpeaq.c: Compute objective audio quality measures
  *
