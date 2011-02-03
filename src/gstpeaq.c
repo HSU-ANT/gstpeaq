@@ -41,6 +41,7 @@
 enum
 {
   PROP_0,
+  PROP_PLAYBACK_LEVEL,
   PROP_ODG,
   PROP_TOTALSNR,
   PROP_CONSOLE_OUTPUT
@@ -199,6 +200,14 @@ gst_peaq_class_init (GstPeaqClass * peaq_class)
   object_class->get_property = gst_peaq_get_property;
   object_class->set_property = gst_peaq_set_property;
   g_object_class_install_property (object_class,
+				   PROP_PLAYBACK_LEVEL,
+				   g_param_spec_double ("playback_level",
+							"playback level",
+							"Playback level in dB",
+							0, 130, 92,
+							G_PARAM_READWRITE |
+							G_PARAM_CONSTRUCT));
+  g_object_class_install_property (object_class,
 				   PROP_ODG,
 				   g_param_spec_double ("odg",
 							"objective differnece grade",
@@ -288,6 +297,12 @@ gst_peaq_get_property (GObject * obj, guint id, GValue * value,
 {
   GstPeaq *peaq = GST_PEAQ (obj);
   switch (id) {
+    case PROP_PLAYBACK_LEVEL:
+      g_object_get_property (G_OBJECT (peaq->ref_ear_model), 
+			     "playback_level", value);
+      g_object_get_property (G_OBJECT (peaq->test_ear_model), 
+			     "playback_level", value);
+      break;
     case PROP_ODG:
       g_value_set_double (value, gst_peaq_calculate_odg (peaq));
       break;
@@ -319,6 +334,10 @@ gst_peaq_set_property (GObject * obj, guint id, const GValue * value,
 {
   GstPeaq *peaq = GST_PEAQ (obj);
   switch (id) {
+    case PROP_PLAYBACK_LEVEL:
+      g_object_set_property (G_OBJECT (peaq->ref_ear_model), 
+			     "playback_level", value);
+      break;
     case PROP_CONSOLE_OUTPUT:
       peaq->console_output = g_value_get_boolean (value);
       break;
