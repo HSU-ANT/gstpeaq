@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2006 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2006, 2007, 2010, 2011 Martin Holters <martin.holters@hsuhh.de>
  *
  * gstpeaq.c: Compute objective audio quality measures
  *
@@ -195,7 +195,7 @@ gst_peaq_class_init (GstPeaqClass * peaq_class)
   for (i = 0; i < MAXLAG; i++)
     peaq_class->correlation_window[i] = 0.81649658092773 *
       (1 - cos (2 * M_PI * i / (MAXLAG - 1))) / MAXLAG;
-  peaq_class->correlation_fft_data = create_fft_data (MAXLAG);
+  peaq_class->correlation_fft = gst_fft_f64_new (MAXLAG, FALSE);
 
   object_class->get_property = gst_peaq_get_property;
   object_class->set_property = gst_peaq_set_property;
@@ -604,8 +604,7 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
     gdouble d0;
     gdouble dk;
     gdouble cavg;
-    gdouble s_real[MAXLAG];
-    gdouble s_imag[MAXLAG];
+    GstFFTF64Complex c_fft[MAXLAG / 2 + 1];
     gdouble s;
     for (i = 0; i < FRAMESIZE / 2 + 1; i++) {
       gdouble fref = ref_ear_output.power_spectrum[i];
@@ -632,11 +631,11 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
     cavg /= MAXLAG;
     for (i = 0; i < MAXLAG; i++)
       c[i] = (c[i] - cavg) * peaq_class->correlation_window[i];
-    compute_real_fft (peaq_class->correlation_fft_data, c, s_real, s_imag);
+    gst_fft_f64_fft (peaq_class->correlation_fft, c, c_fft);
     ehs = 0;
-    s = s_real[0] * s_real[0] + s_imag[0] * s_imag[0];
+    s = c_fft[0].r * c_fft[0].r + c_fft[0].i * c_fft[0].i;
     for (i = 1; i < MAXLAG / 2 + 1; i++) {
-      gdouble new_s = s_real[i] * s_real[i] + s_imag[i] * s_imag[i];
+      gdouble new_s = c_fft[i].r * c_fft[i].r + c_fft[i].i * c_fft[i].i;
       if (new_s > s && new_s > ehs)
 	ehs = new_s;
       s = new_s;

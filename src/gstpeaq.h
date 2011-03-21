@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2006 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2006, 2011 Martin Holters <martin.holters@hsuhh.de>
  *
  * gstpeaq.h: Compute objective audio quality measures
  *
@@ -26,11 +26,12 @@
 #include "earmodel.h"
 #include "leveladapter.h"
 #include "modpatt.h"
-#include "fft.h"
 
 #include <gst/gst.h>
 #include <gst/base/gstcollectpads.h>
 #include <gst/base/gstadapter.h>
+#include <gst/fft/gstfftf64.h>
+
 
 G_BEGIN_DECLS;
 
@@ -81,7 +82,7 @@ struct _GstPeaqClass
   guint sampling_rate;
   gdouble *masking_difference;
   gdouble *correlation_window;
-  FFTData *correlation_fft_data;
+  GstFFTF64 *correlation_fft;
 };
 
 GType gst_peaq_get_type ();

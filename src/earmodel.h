@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2006 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2006, 2011 Martin Holters <martin.holters@hsuhh.de>
  *
  * earmodel.h: Peripheral ear model part.
  *
@@ -23,7 +23,6 @@
 #ifndef __EARMODEL_H__
 #define __EARMODEL_H__ 1
 
-#include <fft.h>
 #include <glib-object.h>
 
 #define PEAQ_TYPE_EARMODEL (peaq_earmodel_get_type ())

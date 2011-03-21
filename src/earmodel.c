@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2006 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2006, 2007, 2011 Martin Holters <martin.holters@hsuhh.de>
  *
  * earmodel.c: Peripheral ear model part.
  *
@@ -52,6 +52,7 @@
 #include "gstpeaq.h"
 
 #include <math.h>
+#include <gst/fft/gstfftf64.h>
 
 #define DELTAZ 0.25
 #define GAMMA 0.84971762641205
@@ -84,7 +85,7 @@ struct _PeaqEarModelClass
 {
   GObjectClass parent;
   gdouble *hann_window;
-  FFTData *fft_data;
+  GstFFTF64 *gstfft;
   gdouble *outer_middle_ear_weight;
   guint *band_lower_end;
   guint *band_upper_end;
@@ -176,7 +177,7 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
 							G_PARAM_CONSTRUCT));
 
   /* setup data for FFT */
-  ear_class->fft_data = create_fft_data (FRAMESIZE);
+  ear_class->gstfft = gst_fft_f64_new (FRAMESIZE, FALSE);
 
   /* pre-compute Hann window */
   ear_class->hann_window = g_new (gdouble, N);
@@ -379,8 +380,7 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
   guint k, i;
   PeaqEarModelClass *ear_class = PEAQ_EARMODEL_GET_CLASS (ear);
   gdouble *windowed_data = g_newa (gdouble, FRAMESIZE);
-  gdouble *real_fft = g_newa (gdouble, FRAMESIZE);
-  gdouble *imag_fft = g_newa (gdouble, FRAMESIZE);
+  GstFFTF64Complex *fftoutput = g_newa (GstFFTF64Complex, FRAMESIZE / 2 + 1);
   gdouble *noisy_band_power = g_newa (gdouble, CRITICAL_BAND_COUNT);
 
   g_assert (output);
@@ -389,10 +389,10 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
   for (k = 0; k < FRAMESIZE; k++)
     windowed_data[k] = ear_class->hann_window[k] * sample_data[k];
 
-  compute_real_fft (ear_class->fft_data, windowed_data, real_fft, imag_fft);
+  gst_fft_f64_fft (ear_class->gstfft, windowed_data, fftoutput);
   for (k = 0; k < FRAMESIZE / 2 + 1; k++) {
     output->power_spectrum[k] =
-      (real_fft[k] * real_fft[k] + imag_fft[k] * imag_fft[k]) *
+      (fftoutput[k].r * fftoutput[k].r + fftoutput[k].i * fftoutput[k].i) *
       ear->level_factor / (FRAMESIZE * FRAMESIZE);
     output->weighted_power_spectrum[k] =
       output->power_spectrum[k] * ear_class->outer_middle_ear_weight[k];

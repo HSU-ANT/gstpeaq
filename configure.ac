@@ -1,6 +1,6 @@
 AC_PREREQ(2.60)
 
-AC_INIT([gstpeaq], [0.3.0], [martin.holters@hsuhh.de])
+AC_INIT([gstpeaq], [0.3.1], [martin.holters@hsuhh.de])
 AC_CONFIG_AUX_DIR([misc])
 AC_CONFIG_MACRO_DIR([misc])
 AM_INIT_AUTOMAKE([1.9 gnu])
@@ -16,11 +16,11 @@ AC_PROG_LIBTOOL
 
 AC_HEADER_STDC
 
-AC_CHECK_LIB(m, pow)
+AC_CHECK_LIB(m, main)
 
 AC_FUNC_MALLOC
 
-PKG_CHECK_MODULES(PKGCONF, [gstreamer-0.10 gstreamer-base-0.10 ])
+PKG_CHECK_MODULES(PKGCONF, [gstreamer-0.10 gstreamer-base-0.10 gstreamer-fft-0.10])
 
 GST_SET_PLUGINDIR
 
