@@ -195,7 +195,6 @@ gst_peaq_class_init (GstPeaqClass * peaq_class)
   for (i = 0; i < MAXLAG; i++)
     peaq_class->correlation_window[i] = 0.81649658092773 *
       (1 - cos (2 * M_PI * i / (MAXLAG - 1))) / MAXLAG;
-  peaq_class->correlation_fft = gst_fft_f64_new (MAXLAG, FALSE);
 
   object_class->get_property = gst_peaq_get_property;
   object_class->set_property = gst_peaq_set_property;
@@ -242,6 +241,8 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   peaq->ref_adapter = gst_adapter_new ();
   peaq->test_adapter = gst_adapter_new ();
 
+  peaq->correlation_fft = gst_fft_f64_new (MAXLAG, FALSE);
+
   template = gst_static_pad_template_get (&gst_peaq_ref_template);
   peaq->refpad = gst_pad_new_from_template (template, "ref");
   gst_object_unref (template);
@@ -284,6 +285,7 @@ gst_peaq_finalize (GObject * object)
   g_object_unref (peaq->level_adapter);
   g_object_unref (peaq->ref_modulation_processor);
   g_object_unref (peaq->test_modulation_processor);
+  gst_fft_f64_free (peaq->correlation_fft);
   if (peaq->current_aggregated_data != NULL)
     g_free (peaq->current_aggregated_data);
   if (peaq->saved_aggregated_data != NULL)
@@ -631,7 +633,7 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
     cavg /= MAXLAG;
     for (i = 0; i < MAXLAG; i++)
       c[i] = (c[i] - cavg) * peaq_class->correlation_window[i];
-    gst_fft_f64_fft (peaq_class->correlation_fft, c, c_fft);
+    gst_fft_f64_fft (peaq->correlation_fft, c, c_fft);
     ehs = 0;
     s = c_fft[0].r * c_fft[0].r + c_fft[0].i * c_fft[0].i;
     for (i = 1; i < MAXLAG / 2 + 1; i++) {

@@ -64,6 +64,7 @@ struct _GstPeaq
   GstCollectPads *collect;
   GstAdapter *ref_adapter;
   GstAdapter *test_adapter;
+  GstFFTF64 *correlation_fft;
   gboolean console_output;
   guint frame_counter;
   PeaqEarModel *ref_ear_model;
@@ -82,7 +83,6 @@ struct _GstPeaqClass
   guint sampling_rate;
   gdouble *masking_difference;
   gdouble *correlation_window;
-  GstFFTF64 *correlation_fft;
 };
 
 GType gst_peaq_get_type ();

@@ -72,6 +72,7 @@ enum
 struct _PeaqEarModel
 {
   GObjectClass parent;
+  GstFFTF64 *gstfft;
   gdouble level_factor;
   gdouble *filtered_excitation;
 };
@@ -85,7 +86,6 @@ struct _PeaqEarModelClass
 {
   GObjectClass parent;
   gdouble *hann_window;
-  GstFFTF64 *gstfft;
   gdouble *outer_middle_ear_weight;
   guint *band_lower_end;
   guint *band_upper_end;
@@ -175,9 +175,6 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
 							0, 130, 92,
 							G_PARAM_READWRITE |
 							G_PARAM_CONSTRUCT));
-
-  /* setup data for FFT */
-  ear_class->gstfft = gst_fft_f64_new (FRAMESIZE, FALSE);
 
   /* pre-compute Hann window */
   ear_class->hann_window = g_new (gdouble, N);
@@ -273,6 +270,10 @@ static void
 peaq_earmodel_init (GTypeInstance * obj, gpointer klass)
 {
   PeaqEarModel *ear = PEAQ_EARMODEL (obj);
+
+  /* setup data for FFT */
+  ear->gstfft = gst_fft_f64_new (FRAMESIZE, FALSE);
+
   ear->filtered_excitation = g_new0 (gdouble, CRITICAL_BAND_COUNT);
 }
 
@@ -291,6 +292,7 @@ peaq_earmodel_finalize (GObject * obj)
     G_OBJECT_CLASS (g_type_class_peek_parent (g_type_class_peek
 					      (PEAQ_TYPE_EARMODEL)));
   g_free (ear->filtered_excitation);
+  gst_fft_f64_free (ear->gstfft);
   parent_class->finalize(obj);
 }
 
@@ -389,7 +391,7 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
   for (k = 0; k < FRAMESIZE; k++)
     windowed_data[k] = ear_class->hann_window[k] * sample_data[k];
 
-  gst_fft_f64_fft (ear_class->gstfft, windowed_data, fftoutput);
+  gst_fft_f64_fft (ear->gstfft, windowed_data, fftoutput);
   for (k = 0; k < FRAMESIZE / 2 + 1; k++) {
     output->power_spectrum[k] =
       (fftoutput[k].r * fftoutput[k].r + fftoutput[k].i * fftoutput[k].i) *
