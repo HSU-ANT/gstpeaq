@@ -360,13 +360,11 @@ gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
        collected = g_slist_next (collected)) {
     GstBuffer *buf;
     GstCollectData *data;
-    guint len;
 
     data = (GstCollectData *) collected->data;
     buf = gst_collect_pads_pop (pads, data);
     while (buf != NULL) {
       data_received = TRUE;
-      len = GST_BUFFER_SIZE (buf);
       if (data->pad == peaq->refpad) {
 	gst_adapter_push (peaq->ref_adapter, buf);
       } else if (data->pad == peaq->testpad) {
