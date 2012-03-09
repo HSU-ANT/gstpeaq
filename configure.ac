@@ -1,6 +1,6 @@
 AC_PREREQ(2.60)
 
-AC_INIT([gstpeaq], [0.3.1], [martin.holters@hsuhh.de])
+AC_INIT([gstpeaq], [0.3.2], [martin.holters@hsuhh.de])
 AC_CONFIG_AUX_DIR([misc])
 AC_CONFIG_MACRO_DIR([misc])
 AM_INIT_AUTOMAKE([1.9 gnu])
