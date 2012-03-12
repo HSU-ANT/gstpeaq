@@ -658,9 +658,10 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
       peaq->current_aggregated_data->disturbed_frame_count++;
 
     for (i = 0; i < FRAMESIZE / 2; i++) {
-      peaq->current_aggregated_data->total_signal_energy += pow (refdata[i], 2);
+      peaq->current_aggregated_data->total_signal_energy
+        += refdata[i] * refdata[i];
       peaq->current_aggregated_data->total_noise_energy 
-	+= pow (refdata[i] - testdata[i], 2);
+	+= (refdata[i] - testdata[i]) * (refdata[i] - testdata[i]);
     }
   }
   peaq->frame_counter++;
