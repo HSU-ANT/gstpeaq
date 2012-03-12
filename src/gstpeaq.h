@@ -65,6 +65,8 @@ struct _GstPeaq
   GstAdapter *ref_adapter;
   GstAdapter *test_adapter;
   GstFFTF64 *correlation_fft;
+  GstFFTF64 *correlator_fft;
+  GstFFTF64 *correlator_inverse_fft;
   gboolean console_output;
   guint frame_counter;
   PeaqEarModel *ref_ear_model;

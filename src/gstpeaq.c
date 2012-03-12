@@ -267,6 +267,8 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   peaq->test_adapter = gst_adapter_new ();
 
   peaq->correlation_fft = gst_fft_f64_new (MAXLAG, FALSE);
+  peaq->correlator_fft = gst_fft_f64_new (2 * MAXLAG, FALSE);
+  peaq->correlator_inverse_fft = gst_fft_f64_new (2 * MAXLAG, TRUE);
 
   template = gst_static_pad_template_get (&gst_peaq_ref_template);
   peaq->refpad = gst_pad_new_from_template (template, "ref");
@@ -311,6 +313,8 @@ gst_peaq_finalize (GObject * object)
   g_object_unref (peaq->ref_modulation_processor);
   g_object_unref (peaq->test_modulation_processor);
   gst_fft_f64_free (peaq->correlation_fft);
+  gst_fft_f64_free (peaq->correlator_fft);
+  gst_fft_f64_free (peaq->correlator_inverse_fft);
   if (peaq->current_aggregated_data != NULL)
     g_free (peaq->current_aggregated_data);
   if (peaq->saved_aggregated_data != NULL)
@@ -780,30 +784,36 @@ calc_prob_detect (EarModelOutput *ref_ear_output,
 }
 
 static void
-do_xcorr(gdouble * d, gdouble * c)
+do_xcorr(GstPeaq * peaq, gdouble const* d, gdouble * c)
 {
-#ifdef __SSE2__
-  guint i;
-  for (i = 0; i < MAXLAG; i+=2) {
-    guint k;
-    __m128d cs = _mm_setzero_pd();
-    for (k = 0; k < MAXLAG; k++) {
-      __m128d d1 = _mm_set1_pd(d[k]);
-      __m128d d2 = _mm_setr_pd(d[k+i], d[k+1+i]);
-      cs = _mm_add_pd (cs, _mm_mul_pd (d1, d2));
-    }
-    c[i] = cs[0];
-    c[i+1] = cs[1];
+  /*
+   * the follwing uses an equivalent computation in the frequency domain to
+   * determine the correlation like function:
+   * for (i = 0; i < MAXLAG; i++) {
+   *   c[i] = 0;
+   *   for (k = 0; k < MAXLAG; k++)
+   *     c[i] += d[k] * d[k + i];
+   * }
+  */
+  guint k;
+  gdouble timedata[2 * MAXLAG];
+  GstFFTF64Complex freqdata1[MAXLAG + 1];
+  GstFFTF64Complex freqdata2[MAXLAG + 1];
+  memcpy (timedata, d, 2 * MAXLAG * sizeof(gdouble));
+  gst_fft_f64_fft (peaq->correlator_fft, timedata, freqdata1);
+  memset (timedata + MAXLAG, 0, MAXLAG * sizeof(gdouble));
+  gst_fft_f64_fft (peaq->correlator_fft, timedata, freqdata2);
+  for (k = 0; k < MAXLAG + 1; k++) {
+    /* multiply freqdata1 with the conjugate of freqdata2 */
+    gdouble r = (freqdata1[k].r * freqdata2[k].r
+                 + freqdata1[k].i * freqdata2[k].i) / (2 * MAXLAG);
+    gdouble i = (freqdata2[k].r * freqdata1[k].i
+                 - freqdata1[k].r * freqdata2[k].i) / (2 * MAXLAG);
+    freqdata1[k].r = r;
+    freqdata1[k].i = i;
   }
-#else
-  guint i;
-  for (i = 0; i < MAXLAG; i++) {
-    guint k;
-    c[i] = 0;
-    for (k = 0; k < MAXLAG; k++)
-      c[i] += d[k] * d[k + i];
-  }
-#endif
+  gst_fft_f64_inverse_fft (peaq->correlator_inverse_fft, freqdata1, timedata);
+  memcpy (c, timedata, MAXLAG * sizeof(gdouble));
 }
 
 static void
@@ -842,7 +852,7 @@ calc_ehs (GstPeaq *peaq, gfloat *refdata, gfloat *testdata,
       else
 	d[i] = 0.;
     }
-    do_xcorr(d, c);
+    do_xcorr(peaq, d, c);
     /*
     for (i = 0; i < MAXLAG; i++) {
       guint k;
