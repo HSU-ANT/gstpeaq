@@ -1,4 +1,5 @@
 plugin_LTLIBRARIES = libgstpeaq.la
+bin_PROGRAMS = peaq 
 check_PROGRAMS = testpeaq 
 EXTRA_DIST = runtest.sh
 TESTS = testpeaq runtest.sh
@@ -8,6 +9,9 @@ libgstpeaq_la_SOURCES = gstpeaq.c gstpeaqplugin.c earmodel.c \
 	leveladapter.c modpatt.c
 libgstpeaq_la_CFLAGS = @PKGCONF_CFLAGS@
 libgstpeaq_la_LIBADD = @PKGCONF_LIBS@
+peaq_SOURCES = peaq.c
+peaq_CFLAGS = @PKGCONF_CFLAGS@
+peaq_LDADD = @PKGCONF_LIBS@
 testpeaq_SOURCES = testpeaq.c earmodel.c leveladapter.c modpatt.c
 testpeaq_CFLAGS = @PKGCONF_CFLAGS@
 testpeaq_LDADD = @PKGCONF_LIBS@
