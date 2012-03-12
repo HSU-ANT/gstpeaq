@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2006, 2007, 2011 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2006, 2007, 2011, 2012 Martin Holters <martin.holters@hsuhh.de>
  *
  * earmodel.c: Peripheral ear model part.
  *
@@ -95,6 +95,8 @@ struct _PeaqEarModelClass
   gdouble lower_spreading;
   gdouble lower_spreading_exponantiated;
   gdouble *spreading_normalization;
+  gdouble *aUC;
+  gdouble *gIL;
   gdouble *ear_time_constants;
   gdouble *threshold;
   gdouble *excitation_threshold;
@@ -226,17 +228,21 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
     }
   }
 
+
   /* pre-compute internal noise, time constants for time smearing, thresholds 
    * and helper data for spreading */
   ear_class->internal_noise_level = g_new (gdouble, CRITICAL_BAND_COUNT);
   ear_class->ear_time_constants = g_new (gdouble, CRITICAL_BAND_COUNT);
   ear_class->spreading_normalization = g_new (gdouble, CRITICAL_BAND_COUNT);
+  ear_class->aUC = g_new (gdouble, CRITICAL_BAND_COUNT);
+  ear_class->gIL = g_new (gdouble, CRITICAL_BAND_COUNT);
   ear_class->threshold = g_new (gdouble, CRITICAL_BAND_COUNT);
   ear_class->excitation_threshold = g_new (gdouble, CRITICAL_BAND_COUNT);
   ear_class->lower_spreading = pow (10, -2.7 * DELTAZ);
   ear_class->lower_spreading_exponantiated =
     pow (ear_class->lower_spreading, 0.4);
   for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
+    const gdouble aL = ear_class->lower_spreading;
     gdouble curr_fc;
     gdouble tau;
     curr_fc = fc[k];
@@ -246,6 +252,8 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
     ear_class->ear_time_constants[k] =
       exp (-(gdouble) N / (2 * SAMPLINGRATE) / tau);
     ear_class->spreading_normalization[k] = 1.;
+    ear_class->aUC[k] = pow (10, (-2.4 - 23 / curr_fc) * DELTAZ);
+    ear_class->gIL[k] = (1 - pow (aL, k + 1)) / (1 - aL);
     ear_class->excitation_threshold[k] =
       pow (10, 0.364 * pow (curr_fc / 1000, -0.8));
     ear_class->threshold[k] =
@@ -458,16 +466,12 @@ do_spreading (PeaqEarModelClass * ear_class, gdouble * Pp, gdouble * E2)
   guint i;
   gdouble *aUCEe = g_newa (gdouble, CRITICAL_BAND_COUNT);
   gdouble *Ene = g_newa (gdouble, CRITICAL_BAND_COUNT);
-  const gdouble aL = ear_class->lower_spreading;
   const gdouble aLe = ear_class->lower_spreading_exponantiated;
 
   for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
-    gdouble curr_fc = fc[i];
-    gdouble aUC = pow (10, (-2.4 - 23 / curr_fc) * DELTAZ);
-    gdouble aUCE = aUC * pow (Pp[i], 0.2 * DELTAZ);
-    gdouble gIL = (1 - pow (aL, i + 1)) / (1 - aL);
+    gdouble aUCE = ear_class->aUC[i] * pow (Pp[i], 0.2 * DELTAZ);
     gdouble gIU = (1 - pow (aUCE, CRITICAL_BAND_COUNT - i)) / (1 - aUCE);
-    gdouble En = Pp[i] / (gIL + gIU - 1);
+    gdouble En = Pp[i] / (ear_class->gIL[i] + gIU - 1);
     aUCEe[i] = pow (aUCE, 0.4);
     Ene[i] = pow (En, 0.4);
   }
