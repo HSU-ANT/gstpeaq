@@ -100,6 +100,7 @@ struct _PeaqEarModelClass
   gdouble *ear_time_constants;
   gdouble *threshold;
   gdouble *excitation_threshold;
+  gdouble *loudness_factor;
 };
 
 static void peaq_earmodel_class_init (gpointer klass, gpointer class_data);
@@ -238,6 +239,7 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
   ear_class->gIL = g_new (gdouble, CRITICAL_BAND_COUNT);
   ear_class->threshold = g_new (gdouble, CRITICAL_BAND_COUNT);
   ear_class->excitation_threshold = g_new (gdouble, CRITICAL_BAND_COUNT);
+  ear_class->loudness_factor = g_new (gdouble, CRITICAL_BAND_COUNT);
   ear_class->lower_spreading = pow (10, -2.7 * DELTAZ);
   ear_class->lower_spreading_exponantiated =
     pow (ear_class->lower_spreading, 0.4);
@@ -259,6 +261,10 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
     ear_class->threshold[k] =
       pow (10, 0.1 * (-2 - 2.05 * atan (curr_fc / 4000) -
 		      0.75 * atan (curr_fc / 1600 * curr_fc / 1600)));
+    ear_class->loudness_factor[k]
+      = LOUDNESS_SCALE * pow (ear_class->excitation_threshold[k]
+                              / (1e4 * ear_class->threshold[k]),
+                              0.23);
   }
   spread = g_newa (gdouble, CRITICAL_BAND_COUNT);
   do_spreading (ear_class, ear_class->spreading_normalization, spread);
@@ -427,15 +433,11 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
 
   output->overall_loudness = 0;
   for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
-    gdouble loudness = LOUDNESS_SCALE *
-      pow (ear_class->excitation_threshold[i] /
-	   (1e4 * ear_class->threshold[i]),
-	   0.23) *
-      (pow
-       (1 - ear_class->threshold[i] +
-	ear_class->threshold[i] * output->excitation[i] /
-	ear_class->excitation_threshold[i], 0.23) - 1);
-    output->overall_loudness += MAX (loudness, 0);
+    gdouble loudness = ear_class->loudness_factor[i]
+      * (pow (1. - ear_class->threshold[i] +
+              ear_class->threshold[i] * output->excitation[i] /
+              ear_class->excitation_threshold[i], 0.23) - 1.);
+    output->overall_loudness += MAX (loudness, 0.);
   }
   output->overall_loudness *= 24. / CRITICAL_BAND_COUNT;
 }
