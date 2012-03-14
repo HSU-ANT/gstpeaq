@@ -130,6 +130,6 @@ void peaq_earmodel_group_into_bands (PeaqEarModelClass * ear_class,
 				     gdouble * spectrum,
 				     gdouble * band_power);
 gdouble peaq_earmodel_get_band_center_frequency (guint band);
-gdouble peaq_earmodel_get_internal_noise (PeaqEarModelClass * ear_class,
+gdouble peaq_earmodel_get_internal_noise (PeaqEarModelClass const * ear_class,
 					  guint band);
 #endif

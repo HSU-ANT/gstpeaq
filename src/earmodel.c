@@ -499,7 +499,7 @@ peaq_earmodel_get_band_center_frequency (guint band)
   return fc[band];
 }
 
-gdouble peaq_earmodel_get_internal_noise (PeaqEarModelClass * ear_class,
+gdouble peaq_earmodel_get_internal_noise (PeaqEarModelClass const * ear_class,
 					  guint band)
 {
   return ear_class->internal_noise_level[band];
