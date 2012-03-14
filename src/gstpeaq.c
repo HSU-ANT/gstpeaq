@@ -44,6 +44,7 @@ enum
 {
   PROP_0,
   PROP_PLAYBACK_LEVEL,
+  PROP_DI,
   PROP_ODG,
   PROP_TOTALSNR,
   PROP_CONSOLE_OUTPUT
@@ -166,6 +167,7 @@ static void calc_ehs (GstPeaq *peaq, gfloat *refdata, gfloat *testdata,
                       EarModelOutput *ref_ear_output,
                       EarModelOutput *test_ear_output,
                       gboolean *ehs_valid, gdouble *ehs);
+static double gst_peaq_calculate_di (GstPeaq * peaq);
 static double gst_peaq_calculate_odg (GstPeaq * peaq);
 static gboolean is_frame_above_threshold (gfloat * framedata);
 
@@ -231,6 +233,13 @@ gst_peaq_class_init (GstPeaqClass * peaq_class)
 							0, 130, 92,
 							G_PARAM_READWRITE |
 							G_PARAM_CONSTRUCT));
+  g_object_class_install_property (object_class,
+				   PROP_DI,
+				   g_param_spec_double ("di",
+							"distortion index",
+							"Distortion Index",
+							-10., 3.5, 0,
+							G_PARAM_READABLE));
   g_object_class_install_property (object_class,
 				   PROP_ODG,
 				   g_param_spec_double ("odg",
@@ -333,6 +342,9 @@ gst_peaq_get_property (GObject * obj, guint id, GValue * value,
 			     "playback_level", value);
       g_object_get_property (G_OBJECT (peaq->test_ear_model), 
 			     "playback_level", value);
+      break;
+    case PROP_DI:
+      g_value_set_double (value, gst_peaq_calculate_di (peaq));
       break;
     case PROP_ODG:
       g_value_set_double (value, gst_peaq_calculate_odg (peaq));
@@ -886,7 +898,7 @@ calc_ehs (GstPeaq *peaq, gfloat *refdata, gfloat *testdata,
 }
 
 static double
-gst_peaq_calculate_odg (GstPeaq * peaq)
+gst_peaq_calculate_di (GstPeaq * peaq)
 {
   GstPeaqAggregatedData *agg_data;
 
@@ -900,7 +912,6 @@ gst_peaq_calculate_odg (GstPeaq * peaq)
     gdouble movs[11];
     gdouble x[3];
     gdouble distortion_index;
-    gdouble odg;
     gdouble bw_ref_b =
       agg_data->bandwidth_frame_count ?
       agg_data->ref_bandwidth_sum / agg_data->bandwidth_frame_count : 0;
@@ -949,7 +960,6 @@ gst_peaq_calculate_odg (GstPeaq * peaq)
     distortion_index = -0.307594;
     for (i = 0; i < 3; i++)
       distortion_index += wy[i] / (1 + exp (-(wxb[i] + x[i])));
-    odg = -3.98 + 4.2 / (1 + exp (-distortion_index));
 
     if (peaq->console_output) {
       g_printf ("   BandwidthRefB: %f\n"
@@ -962,11 +972,24 @@ gst_peaq_calculate_odg (GstPeaq * peaq)
 		"    AvgModDiff2B: %f\n"
 		"   RmsNoiseLoudB: %f\n"
 		"           MFPDB: %f\n"
-		"  RelDistFramesB: %f\n"
-		"Objective Difference Grade: %.3f\n",
+		"  RelDistFramesB: %f\n",
 		bw_ref_b, bw_test_b, total_nmr_b, win_mod_diff1_b, adb_b,
 		ehs_b, avg_mod_diff1_b, avg_mod_diff2_b, rms_noise_loud_b,
-		mfpd_b, rel_dist_frames_b, odg);
+		mfpd_b, rel_dist_frames_b);
+    }
+    return distortion_index;
+  }
+  return 0;
+}
+
+static double
+gst_peaq_calculate_odg (GstPeaq * peaq)
+{
+  if (peaq->saved_aggregated_data || peaq->current_aggregated_data) {
+    gdouble distortion_index = gst_peaq_calculate_di (peaq);
+    gdouble odg = -3.98 + 4.2 / (1 + exp (-distortion_index));
+    if (peaq->console_output) {
+      g_printf ("Objective Difference Grade: %.3f\n", odg);
     }
     return odg;
   }

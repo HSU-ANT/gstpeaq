@@ -76,7 +76,7 @@ usage()
 int
 main(int argc, char *argv[])
 {
-  gdouble odg;
+  gdouble odg, di;
   GError *error = NULL;
   GOptionContext *context;
   GOptionGroup *option_group;
@@ -154,6 +154,8 @@ main(int argc, char *argv[])
 
   g_object_get (peaq, "odg", &odg, NULL);
   g_printf ("Objective Difference Grade: %.3f\n", odg);
+  g_object_get (peaq, "di", &di, NULL);
+  g_printf ("Distortion Index: %.3f\n", di);
 
   g_main_loop_unref (loop);
 
