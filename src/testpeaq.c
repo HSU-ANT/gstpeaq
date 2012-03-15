@@ -2,6 +2,7 @@
 #include "leveladapter.h"
 #include "modpatt.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <glib/gprintf.h>
 
@@ -651,7 +652,7 @@ main (int argc, char *argv[])
 static void
 test_ear ()
 {
-  gint i;
+  gint i,frame;
   gfloat input_data[2048];
   PeaqEarModel *ear;
   EarModelOutput output;
@@ -682,6 +683,18 @@ test_ear ()
 
   assertArrayEquals (output.excitation, excitation_ref, CRITICAL_BAND_COUNT,
 		     "excitation");
+
+  for (frame = 0; frame < 10; frame++) {
+    gdouble SPL;
+    for (i = 0; i < 2048; i++)
+      input_data[i] = sin (2 * M_PI * 1019.5 / 48000. * (i + frame * 1024));
+    peaq_earmodel_process (ear, input_data, &output);
+    SPL = 10*log10(output.power_spectrum[43]);
+    if (SPL > 92.0001 || SPL < 91.9999) {
+      g_printf ("SPL == %f != 92\n", SPL);
+      exit(1);
+    }
+  }
 }
 
 static void
