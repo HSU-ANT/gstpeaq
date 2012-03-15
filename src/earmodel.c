@@ -179,7 +179,12 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
 							G_PARAM_READWRITE |
 							G_PARAM_CONSTRUCT));
 
-  /* pre-compute Hann window */
+  /* pre-compute Hann window
+   *
+   * Compared to the BS.1387-1, this lacks the factor sqrt(8./3.) which is
+   * subsumed in the GAMMA as defined in Kabal03. Note that Kabal03 erraneously
+   * includes sqrt(8./3.) in (5).
+   */
   ear_class->hann_window = g_new (gdouble, N);
   for (k = 0; k < N; k++) {
     ear_class->hann_window[k] = 0.5 * (1. - cos (2 * M_PI * k / (N - 1)));
@@ -196,39 +201,31 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
     ear_class->outer_middle_ear_weight[k] = pow (10, W_dB / 10);
   }
 
-  /* pre-compute helper data for peaq_earmodel_group_into_bands */
+  /* pre-compute helper data for peaq_earmodel_group_into_bands
+   * The precomputed data is as proposed in [Kabal03], but the algorithm to
+   * compute is somewhat simplified */
   ear_class->band_lower_end = g_new (guint, CRITICAL_BAND_COUNT);
   ear_class->band_upper_end = g_new (guint, CRITICAL_BAND_COUNT);
   ear_class->band_lower_weight = g_new (gdouble, CRITICAL_BAND_COUNT);
   ear_class->band_upper_weight = g_new (gdouble, CRITICAL_BAND_COUNT);
   for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
-    guint l;
-    ear_class->band_lower_end[k] = 0;
-    for (l = 0; l <= FRAMESIZE / 2; l++) {
-      gdouble U;
-      gdouble upper_freq = (2 * l + 1) / 2. * SAMPLINGRATE / FRAMESIZE;
-      gdouble lower_freq = (2 * l - 1) / 2. * SAMPLINGRATE / FRAMESIZE;
-      if (upper_freq > fu[k])
-	upper_freq = fu[k];
-      if (lower_freq < fl[k])
-	lower_freq = fl[k];
-      U = upper_freq - lower_freq;
-      if (U <= 0) {
-	if (l == ear_class->band_lower_end[k])
-	  ear_class->band_lower_end[k] = l + 1;
-      } else {
-	U /= (gdouble) SAMPLINGRATE / FRAMESIZE;
-	if (l == ear_class->band_lower_end[k]) {
-	  ear_class->band_lower_weight[k] = U;
-	  ear_class->band_upper_weight[k] = 0;
-	} else {
-	  ear_class->band_upper_weight[k] = U;
-	}
-	ear_class->band_upper_end[k] = l;
-      }
+    ear_class->band_lower_end[k]
+      = (guint) round(fl[k] / SAMPLINGRATE * FRAMESIZE);
+    ear_class->band_upper_end[k]
+      = (guint) round(fu[k] / SAMPLINGRATE * FRAMESIZE);
+    gdouble upper_freq
+      = (2 * ear_class->band_lower_end[k] + 1) / 2. * SAMPLINGRATE / FRAMESIZE;
+    gdouble U = upper_freq - fl[k];
+    ear_class->band_lower_weight[k] = U * FRAMESIZE / SAMPLINGRATE;
+    if (ear_class->band_lower_weight[k] == ear_class->band_upper_weight[k]) {
+      ear_class->band_upper_weight[k] = 0;
+    } else {
+      gdouble lower_freq = (2 * ear_class->band_upper_end[k] - 1) / 2.
+        * SAMPLINGRATE / FRAMESIZE;
+      U = fu[k] - lower_freq;
+      ear_class->band_upper_weight[k] = U * FRAMESIZE / SAMPLINGRATE;
     }
   }
-
 
   /* pre-compute internal noise, time constants for time smearing, thresholds 
    * and helper data for spreading */
@@ -353,9 +350,12 @@ peaq_earmodel_set_property (GObject * obj, guint id, const GValue * value,
   PeaqEarModel *ear = PEAQ_EARMODEL (obj);
   switch (id) {
     case PROP_PLAYBACK_LEVEL:
+      /* ear->level_factor is the square of G_Li/N_F in [Kabal03], which equals
+       * fac/N in [BS1387] except for a factor of sqrt(8/3) which is part of
+       * the Hann window in [BS1387] */
       ear->level_factor = pow (10, g_value_get_double (value) / 10) /
-	((GAMMA / 4 * (FRAMESIZE - 1) / FRAMESIZE) *
-	 (GAMMA / 4 * (FRAMESIZE - 1) / FRAMESIZE));
+	((GAMMA / 4 * (FRAMESIZE - 1)) *
+	 (GAMMA / 4 * (FRAMESIZE - 1)));
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (obj, id, pspec);
@@ -409,19 +409,23 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
   for (k = 0; k < FRAMESIZE / 2 + 1; k++) {
     output->power_spectrum[k] =
       (fftoutput[k].r * fftoutput[k].r + fftoutput[k].i * fftoutput[k].i) *
-      ear->level_factor / (FRAMESIZE * FRAMESIZE);
+      ear->level_factor;
     output->weighted_power_spectrum[k] =
       output->power_spectrum[k] * ear_class->outer_middle_ear_weight[k];
   }
 
   peaq_earmodel_group_into_bands (ear_class, output->weighted_power_spectrum,
 				  output->band_power);
+
   for (i = 0; i < CRITICAL_BAND_COUNT; i++)
     noisy_band_power[i] =
       output->band_power[i] + ear_class->internal_noise_level[i];
 
   do_spreading (ear_class, noisy_band_power, output->unsmeared_excitation);
 
+  /* NOTE: according to [BS1387], the filtered_excitation after processing the
+   * first frame should be all zero; we follow the interpretation of [Kabal03]
+   * and only initialize to zero before the first frame. */
   for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
     ear->filtered_excitation[i] = ear_class->ear_time_constants[i] *
       ear->filtered_excitation[i] + (1 - ear_class->ear_time_constants[i]) *
@@ -442,6 +446,9 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
   output->overall_loudness *= 24. / CRITICAL_BAND_COUNT;
 }
 
+/*
+ * The grouping into bands follows the algorithm proposed in [Kabal03].
+ */
 void
 peaq_earmodel_group_into_bands (PeaqEarModelClass * ear_class,
 				gdouble * spectrum, gdouble * band_power)
@@ -462,6 +469,20 @@ peaq_earmodel_group_into_bands (PeaqEarModelClass * ear_class,
   }
 }
 
+/* this computation follows the algorithm in [Kabal03] where the
+ * correspondances between variables in the code and in [Kabal[03] are as
+ * follows:
+ *
+ *    code     | [Kabal03]
+ *    ---------+----------
+ *    aLe      | a_L^-0.4
+ *    aUCE     | a_Ua_C[l]a_E(E)
+ *    gIU      | (1-(a_Ua_C[l]a_E(E))^(N_c-l)) / (1-a_Ua_C[l]a_E(E))
+ *    En       | E[l] / A(l,E)
+ *    aUCEe    | (a_Ua_C[l]a_E(E))^0.4
+ *    En       | (E[l] / A(l,E))^0.4
+ *    E2       | Es[l]
+ */
 static void
 do_spreading (PeaqEarModelClass * ear_class, gdouble * Pp, gdouble * E2)
 {
