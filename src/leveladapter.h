@@ -48,23 +48,6 @@ typedef struct _LevelAdapterOutput
 typedef struct _PeaqLevelAdapterClass PeaqLevelAdapterClass;
 typedef struct _PeaqLevelAdapter PeaqLevelAdapter;
 
-struct _PeaqLevelAdapterClass
-{
-  GObjectClass parent;
-  gdouble *ear_time_constants;
-};
-
-struct _PeaqLevelAdapter
-{
-  GObjectClass parent;
-  gdouble *ref_filtered_excitation;
-  gdouble *test_filtered_excitation;
-  gdouble *filtered_num;
-  gdouble *filtered_den;
-  gdouble *pattcorr_ref;
-  gdouble *pattcorr_test;
-};
-
 GType peaq_leveladapter_get_type ();
 void peaq_leveladapter_process (PeaqLevelAdapter * level,
 				gdouble * ref_exciation,

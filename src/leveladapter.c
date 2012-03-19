@@ -28,6 +28,23 @@
 #include "leveladapter.h"
 #include "gstpeaq.h"
 
+struct _PeaqLevelAdapterClass
+{
+  GObjectClass parent;
+  gdouble *ear_time_constants;
+};
+
+struct _PeaqLevelAdapter
+{
+  GObjectClass parent;
+  gdouble *ref_filtered_excitation;
+  gdouble *test_filtered_excitation;
+  gdouble *filtered_num;
+  gdouble *filtered_den;
+  gdouble *pattcorr_ref;
+  gdouble *pattcorr_test;
+};
+
 static void peaq_leveladapter_class_init (gpointer klass,
 					  gpointer class_data);
 static void peaq_leveladapter_init (GTypeInstance * obj, gpointer klass);
