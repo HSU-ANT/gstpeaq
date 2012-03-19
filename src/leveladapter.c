@@ -102,6 +102,15 @@ peaq_leveladapter_init (GTypeInstance * obj, gpointer klass)
   level->filtered_den = g_new0 (gdouble, CRITICAL_BAND_COUNT);
   level->pattcorr_ref = g_new0 (gdouble, CRITICAL_BAND_COUNT);
   level->pattcorr_test = g_new0 (gdouble, CRITICAL_BAND_COUNT);
+#if 0
+  /* [Kabal03] suggests initialization to 1, although the standard does not
+   * mention it; there seems to be no difference on conformance, though */
+  guint k;
+  for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
+    level->pattcorr_ref[k] = 1.;
+    level->pattcorr_test[k] = 1.;
+  }
+#endif
 }
 
 static void 
@@ -172,7 +181,9 @@ peaq_leveladapter_process (PeaqLevelAdapter * level, gdouble * ref_exciation,
     level->filtered_den[k] =
       level_class->ear_time_constants[k] * level->filtered_den[k] +
       levcorr_ref_excitation[k] * levcorr_ref_excitation[k];
-    if (level->filtered_num[k] > level->filtered_den[k]) {
+    /* these values cannot be zero [Kabal03], so the special case desribed in
+     * [BS1387] is unnecessary */
+    if (level->filtered_num[k] >= level->filtered_den[k]) {
       pattadapt_ref[k] = 1.;
       pattadapt_test[k] = level->filtered_den[k] / level->filtered_num[k];
     } else {
