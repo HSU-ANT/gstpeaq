@@ -68,6 +68,7 @@ struct _GstPeaq
   GstFFTF64 *correlator_fft;
   GstFFTF64 *correlator_inverse_fft;
   gboolean console_output;
+  gdouble *masking_difference;
   guint frame_counter;
   PeaqEar *ref_ear;
   PeaqEar *test_ear;
@@ -83,7 +84,6 @@ struct _GstPeaqClass
   GstElementClass parent_class;
   guint window_length;
   guint sampling_rate;
-  gdouble *masking_difference;
   gdouble *correlation_window;
 };
 

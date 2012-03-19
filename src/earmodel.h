@@ -50,14 +50,6 @@
 #define FRAMESIZE 2048
 
 /**
- * CRITICAL_BAND_COUNT:
- *
- * The number of auditory bands the signal is decomposed into by 
- * peaq_earmodel_group_into_bands().
- */
-#define CRITICAL_BAND_COUNT 109
-
-/**
  * EarModelOutput:
  * @power_spectrum: The power spectrum of the frame, up to half the sampling 
  * rate (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">

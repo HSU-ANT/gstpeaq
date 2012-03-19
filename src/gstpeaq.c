@@ -157,9 +157,9 @@ static gdouble calc_noise_loudness(PeaqEarModel const *ear_model,
 static void calc_bandwidth(gdouble const *ref_power_spectrum,
                            gdouble const *test_power_spectrum,
                            guint *bw_test, guint *bw_ref);
-static void calc_nmr(GstPeaqClass const *peaq_class, gdouble const *ref_excitation,
+static void calc_nmr(GstPeaq const *peaq, gdouble const *ref_excitation,
                      gdouble *noise_in_bands, gdouble *nmr, gdouble *nmr_max);
-static void calc_prob_detect(gdouble const *ref_excitation,
+static void calc_prob_detect(guint band_count, gdouble const *ref_excitation,
                              gdouble const *test_excitation,
                              gdouble *detection_probability,
                              gdouble *detection_steps);
@@ -215,11 +215,7 @@ gst_peaq_class_init (GstPeaqClass * peaq_class)
   guint i;
   GObjectClass *object_class = G_OBJECT_CLASS (peaq_class);
 
-  peaq_class->masking_difference = g_new (gdouble, CRITICAL_BAND_COUNT);
   peaq_class->correlation_window = g_new (gdouble, MAXLAG);
-  for (i = 0; i < CRITICAL_BAND_COUNT; i++)
-    peaq_class->masking_difference[i] =
-      pow (10, (i * 0.25 <= 12 ? 3 : 0.25 * i * 0.25) / 10);
   for (i = 0; i < MAXLAG; i++)
     peaq_class->correlation_window[i] = 0.81649658092773 *
       (1 - cos (2 * M_PI * i / (MAXLAG - 1))) / MAXLAG;
@@ -268,6 +264,7 @@ gst_peaq_class_init (GstPeaqClass * peaq_class)
 static void
 gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
 {
+  guint band_count, i;
   GstPadTemplate *template;
 
   peaq->collect = gst_collect_pads_new ();
@@ -300,6 +297,14 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
 
   peaq->ref_ear = g_object_new (PEAQ_TYPE_EAR, NULL);
   peaq->test_ear = g_object_new (PEAQ_TYPE_EAR, NULL);
+
+  band_count
+    = peaq_earmodel_get_band_count (peaq_ear_get_model (peaq->ref_ear));
+  peaq->masking_difference = g_new (gdouble, band_count);
+  for (i = 0; i < band_count; i++)
+    peaq->masking_difference[i] =
+      pow (10, (i * 0.25 <= 12 ? 3 : 0.25 * i * 0.25) / 10);
+
   peaq->level_adapter
     = peaq_leveladapter_new (peaq_ear_get_model (peaq->ref_ear));
   peaq->ref_modulation_processor
@@ -504,7 +509,7 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
   ModulationProcessorOutput ref_mod_output;
   ModulationProcessorOutput test_mod_output;
   gdouble noise_spectrum[FRAMESIZE / 2 + 1];
-  gdouble noise_in_bands[CRITICAL_BAND_COUNT];
+  gdouble *noise_in_bands;
   gdouble mod_diff_1b;
   gdouble mod_diff_2b;
   gdouble temp_wt;
@@ -520,6 +525,8 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
 
   PeaqEarModel *ear_model = peaq_ear_get_model(peaq->ref_ear);
   guint band_count = peaq_earmodel_get_band_count (ear_model);
+
+  noise_in_bands = g_newa (gdouble, band_count);
 
   ref_ear_output.band_power = g_newa (gdouble, band_count);
   ref_ear_output.unsmeared_excitation = g_newa (gdouble, band_count);
@@ -566,11 +573,12 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
                   test_ear_output.power_spectrum, &bw_test, &bw_ref);
 
   /* noise-to-mask ratio */
-  calc_nmr (GST_PEAQ_GET_CLASS (peaq), ref_ear_output.excitation,
+  calc_nmr (peaq, ref_ear_output.excitation,
             noise_in_bands, &nmr, &nmr_max);
 
   /* probability of detection */
-  calc_prob_detect(ref_ear_output.excitation, test_ear_output.excitation,
+  calc_prob_detect(band_count, ref_ear_output.excitation,
+                   test_ear_output.excitation,
                    &detection_probability, &detection_steps);
 
   /* error harmonic structure */
@@ -705,10 +713,11 @@ calc_modulation_difference (PeaqEarModel const *ear,
                             gdouble *temp_wt)
 {
   guint i;
+  guint band_count = peaq_earmodel_get_band_count (ear);
   *mod_diff_1b = 0.;
   *mod_diff_2b = 0.;
   *temp_wt = 0.;
-  for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
+  for (i = 0; i < band_count; i++) {
     gdouble w;
     gdouble diff = ABS (test_mod_output->modulation[i] -
 			ref_mod_output->modulation[i]);
@@ -720,8 +729,8 @@ calc_modulation_difference (PeaqEarModel const *ear,
       (ref_mod_output->average_loudness[i] + 100 *
        pow (peaq_earmodel_get_internal_noise (ear, i), 0.3));
   }
-  *mod_diff_1b *= 100. / CRITICAL_BAND_COUNT;
-  *mod_diff_2b *= 100. / CRITICAL_BAND_COUNT;
+  *mod_diff_1b *= 100. / band_count;
+  *mod_diff_2b *= 100. / band_count;
 }
 
 static gdouble
@@ -732,7 +741,8 @@ calc_noise_loudness (PeaqEarModel const *ear_model,
 {
   guint i;
   gdouble noise_loudness = 0.;
-  for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
+  guint band_count = peaq_earmodel_get_band_count (ear_model);
+  for (i = 0; i < band_count; i++) {
     gdouble sref = 0.15 * ref_modulation[i] + 0.5;
     gdouble stest = 0.15 * test_modulation[i] + 0.5;
     gdouble ethres = peaq_earmodel_get_internal_noise (ear_model, i);
@@ -743,7 +753,7 @@ calc_noise_loudness (PeaqEarModel const *ear_model,
       (pow (1 + MAX (stest * ep_test - sref * ep_ref, 0) /
 	    (ethres + sref * ep_ref * beta), 0.23) - 1.);
   }
-  noise_loudness *= 24. / CRITICAL_BAND_COUNT;
+  noise_loudness *= 24. / band_count;
   return noise_loudness;
 }
 
@@ -773,32 +783,34 @@ calc_bandwidth (gdouble const *ref_power_spectrum,
 }
 
 static void
-calc_nmr (GstPeaqClass const *peaq_class, gdouble const *ref_excitation,
+calc_nmr (GstPeaq const *peaq, gdouble const *ref_excitation,
           gdouble *noise_in_bands, gdouble *nmr, gdouble *nmr_max)
 {
-  guint i;
+  guint i, band_count;
+  band_count
+    = peaq_earmodel_get_band_count (peaq_ear_get_model (peaq->ref_ear));
   *nmr = 0.;
   *nmr_max = 0.;
-  for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
+  for (i = 0; i < band_count; i++) {
     gdouble mask = ref_excitation[i] /
-      peaq_class->masking_difference[i];
+      peaq->masking_difference[i];
     gdouble curr_nmr = noise_in_bands[i] / mask;
     *nmr += curr_nmr;
     if (curr_nmr > *nmr_max)
       *nmr_max = curr_nmr;
   }
-  *nmr /= CRITICAL_BAND_COUNT;
+  *nmr /= band_count;
 }
 
 static void
-calc_prob_detect (gdouble const *ref_excitation,
+calc_prob_detect (guint band_count, gdouble const *ref_excitation,
                   gdouble const *test_excitation,
                   gdouble *detection_probability, gdouble *detection_steps)
 {
   guint i;
   *detection_probability = 1.;
   *detection_steps = 0.;
-  for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
+  for (i = 0; i < band_count; i++) {
     gdouble eref_db = 10 * log10 (ref_excitation[i]);
     gdouble etest_db = 10 * log10 (test_excitation[i]);
     gdouble l = 0.3 * MAX (eref_db, etest_db) + 0.7 * etest_db;

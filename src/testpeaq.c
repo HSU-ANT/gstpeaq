@@ -652,16 +652,18 @@ main (int argc, char *argv[])
 static void
 test_ear ()
 {
-  gint i,frame;
+  gint i,frame,band_count;
   gfloat input_data[2048];
   PeaqEar *ear;
   EarModelOutput output;
 
-  output.band_power = g_newa (gdouble, CRITICAL_BAND_COUNT);
-  output.unsmeared_excitation = g_newa (gdouble, CRITICAL_BAND_COUNT);
-  output.excitation = g_newa (gdouble, CRITICAL_BAND_COUNT);
-
   ear = g_object_new (PEAQ_TYPE_EAR, NULL);
+
+  band_count = peaq_earmodel_get_band_count (peaq_ear_get_model (ear));
+
+  output.band_power = g_newa (gdouble, band_count);
+  output.unsmeared_excitation = g_newa (gdouble, band_count);
+  output.excitation = g_newa (gdouble, band_count);
 
   for (i = 0; i < 1024; i++)
     input_data[i] = -1;
@@ -679,13 +681,13 @@ test_ear ()
   assertArrayEqualsSq (output.weighted_power_spectrum, weighted_fft_ref_data,
 		       1025, "weighted_fft");
 
-  assertArrayEquals (output.band_power, band_power_ref, CRITICAL_BAND_COUNT,
+  assertArrayEquals (output.band_power, band_power_ref, band_count,
 		     "band_power");
 
   assertArrayEquals (output.unsmeared_excitation, unsmeared_excitation_ref,
-		     CRITICAL_BAND_COUNT, "unsmeared_excitation");
+		     band_count, "unsmeared_excitation");
 
-  assertArrayEquals (output.excitation, excitation_ref, CRITICAL_BAND_COUNT,
+  assertArrayEquals (output.excitation, excitation_ref, band_count,
 		     "excitation");
 
   for (frame = 0; frame < 10; frame++) {
@@ -704,18 +706,17 @@ test_ear ()
 static void
 test_leveladapt ()
 {
-  guint i;
+  guint i, band_count;
   gdouble input_data_ref[109];
   gdouble input_data_test[109];
   PeaqEarModel *ear_model;
   PeaqLevelAdapter *level;
   LevelAdapterOutput output;
-  output.spectrally_adapted_ref_patterns = g_newa (gdouble,
-                                                   CRITICAL_BAND_COUNT);
-  output.spectrally_adapted_test_patterns = g_newa (gdouble,
-                                                    CRITICAL_BAND_COUNT);
 
   ear_model = g_object_new (PEAQ_TYPE_EARMODEL, NULL);
+  band_count = peaq_earmodel_get_band_count (ear_model);
+  output.spectrally_adapted_ref_patterns = g_newa (gdouble, band_count);
+  output.spectrally_adapted_test_patterns = g_newa (gdouble, band_count);
   level = peaq_leveladapter_new (ear_model);
   for (i = 0; i < 109; i++) {
     input_data_ref[i] = i + 1;
@@ -740,14 +741,15 @@ test_leveladapt ()
 static void
 test_modulationproc ()
 {
-  guint i;
+  guint i, band_count;
   gdouble input_data[109];
   PeaqEarModel *ear_model;
   PeaqModulationProcessor *modproc;
   ModulationProcessorOutput output;
-  output.modulation = g_newa (gdouble, CRITICAL_BAND_COUNT);
 
   ear_model = g_object_new (PEAQ_TYPE_EARMODEL, NULL);
+  band_count = peaq_earmodel_get_band_count (ear_model);
+  output.modulation = g_newa (gdouble, band_count);
   modproc = peaq_modulationprocessor_new (ear_model);
   for (i = 0; i < 109; i++) {
     input_data[i] = i + 1;
