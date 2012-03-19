@@ -43,28 +43,17 @@
 
 typedef struct _ModulationProcessorOutput
 {
-  gdouble modulation[CRITICAL_BAND_COUNT];
+  gdouble *modulation;
   const gdouble *average_loudness;
 } ModulationProcessorOutput;
 
 typedef struct _PeaqModulationProcessorClass PeaqModulationProcessorClass;
 typedef struct _PeaqModulationProcessor PeaqModulationProcessor;
 
-struct _PeaqModulationProcessorClass
-{
-  GObjectClass parent;
-  gdouble *ear_time_constants;
-};
-
-struct _PeaqModulationProcessor
-{
-  GObjectClass parent;
-  gdouble *previous_loudness;
-  gdouble *filtered_loudness;
-  gdouble *filtered_loudness_derivative;
-};
-
 GType peaq_modulationprocessor_get_type ();
+PeaqModulationProcessor *peaq_modulationprocessor_new (PeaqEarModel *ear_model);
+void peaq_modulationprocessor_set_ear_model (PeaqModulationProcessor *modproc,
+                                             PeaqEarModel *ear_model);
 void peaq_modulationprocessor_process (PeaqModulationProcessor * level,
 				       gdouble * unsmeared_exciation,
 				       ModulationProcessorOutput * output);

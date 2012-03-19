@@ -302,10 +302,10 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   peaq->test_ear = g_object_new (PEAQ_TYPE_EAR, NULL);
   peaq->level_adapter
     = peaq_leveladapter_new (peaq_ear_get_model (peaq->ref_ear));
-  peaq->ref_modulation_processor =
-    g_object_new (PEAQ_TYPE_MODULATIONPROCESSOR, NULL);
-  peaq->test_modulation_processor =
-    g_object_new (PEAQ_TYPE_MODULATIONPROCESSOR, NULL);
+  peaq->ref_modulation_processor
+    = peaq_modulationprocessor_new (peaq_ear_get_model (peaq->ref_ear));
+  peaq->test_modulation_processor
+    = peaq_modulationprocessor_new (peaq_ear_get_model (peaq->ref_ear));
 
   peaq->current_aggregated_data = NULL;
   peaq->saved_aggregated_data = NULL;
@@ -541,9 +541,12 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
   level_output.spectrally_adapted_test_patterns = g_newa (gdouble, band_count);
   peaq_leveladapter_process (peaq->level_adapter, ref_ear_output.excitation,
 			     test_ear_output.excitation, &level_output);
+
+  ref_mod_output.modulation = g_newa (gdouble, band_count);
   peaq_modulationprocessor_process (peaq->ref_modulation_processor,
 				    ref_ear_output.unsmeared_excitation,
 				    &ref_mod_output);
+  test_mod_output.modulation = g_newa (gdouble, band_count);
   peaq_modulationprocessor_process (peaq->test_modulation_processor,
 				    test_ear_output.unsmeared_excitation,
 				    &test_mod_output);

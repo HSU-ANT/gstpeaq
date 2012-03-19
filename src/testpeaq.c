@@ -742,10 +742,13 @@ test_modulationproc ()
 {
   guint i;
   gdouble input_data[109];
+  PeaqEarModel *ear_model;
   PeaqModulationProcessor *modproc;
   ModulationProcessorOutput output;
+  output.modulation = g_newa (gdouble, CRITICAL_BAND_COUNT);
 
-  modproc = g_object_new (PEAQ_TYPE_MODULATIONPROCESSOR, NULL);
+  ear_model = g_object_new (PEAQ_TYPE_EARMODEL, NULL);
+  modproc = peaq_modulationprocessor_new (ear_model);
   for (i = 0; i < 109; i++) {
     input_data[i] = i + 1;
   }
