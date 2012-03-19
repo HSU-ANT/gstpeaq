@@ -54,7 +54,6 @@
 #include <math.h>
 #include <gst/fft/gstfftf64.h>
 
-#define DELTAZ 0.25
 #define GAMMA 0.84971762641205
 #define LOUDNESS_SCALE 1.07664
 
@@ -65,6 +64,30 @@ enum
 };
 
 /**
+ * PeaqEar:
+ *
+ * The opaque PeaqEar structure.
+ */
+struct _PeaqEar
+{
+  GObjectClass parent;
+  PeaqEarModel *ear_model;
+  GstFFTF64 *gstfft;
+  gdouble *filtered_excitation;
+};
+
+/**
+ * PeaqEarClass:
+ *
+ * The opaque PeaqEarClass structure.
+ */
+struct _PeaqEarClass
+{
+  GObjectClass parent;
+};
+
+
+/**
  * PeaqEarModel:
  *
  * The opaque PeaqEarModel structure.
@@ -72,21 +95,9 @@ enum
 struct _PeaqEarModel
 {
   GObjectClass parent;
-  GstFFTF64 *gstfft;
+  gdouble deltaZ;
+  guint band_count;
   gdouble level_factor;
-  gdouble *filtered_excitation;
-};
-
-/**
- * PeaqEarModelClass:
- *
- * The opaque PeaqEarModelClass structure.
- */
-struct _PeaqEarModelClass
-{
-  GObjectClass parent;
-  gdouble *hann_window;
-  gdouble *outer_middle_ear_weight;
   guint *band_lower_end;
   guint *band_upper_end;
   gdouble *band_lower_weight;
@@ -103,6 +114,22 @@ struct _PeaqEarModelClass
   gdouble *loudness_factor;
 };
 
+/**
+ * PeaqEarModelClass:
+ *
+ * The opaque PeaqEarModelClass structure.
+ */
+struct _PeaqEarModelClass
+{
+  GObjectClass parent;
+  gdouble *hann_window;
+  gdouble *outer_middle_ear_weight;
+};
+
+static void peaq_ear_class_init (gpointer klass, gpointer class_data);
+static void peaq_ear_init (GTypeInstance * obj, gpointer klass);
+static void peaq_ear_finalize (GObject * obj);
+
 static void peaq_earmodel_class_init (gpointer klass, gpointer class_data);
 static void peaq_earmodel_init (GTypeInstance * obj, gpointer klass);
 static void peaq_earmodel_finalize (GObject * obj);
@@ -111,8 +138,30 @@ static void peaq_earmodel_get_property (GObject * obj, guint id,
 static void peaq_earmodel_set_property (GObject * obj, guint id,
 					const GValue * value,
 					GParamSpec * pspec);
-static void do_spreading (PeaqEarModelClass * ear_class, gdouble * Pp,
+static void do_spreading (PeaqEarModel const* ear_model, gdouble * Pp,
 			  gdouble * E2);
+
+GType
+peaq_ear_get_type ()
+{
+  static GType type = 0;
+  if (type == 0) {
+    static const GTypeInfo info = {
+      sizeof (PeaqEarClass), /* class_size */
+      NULL,			  /* base_init */
+      NULL,			  /* base_finalize */
+      peaq_ear_class_init,   /* class_init */
+      NULL,			  /* class_finalize */
+      NULL,			  /* class_data */
+      sizeof (PeaqEar),      /* instance_size */
+      0,			  /* n_preallocs */
+      peaq_ear_init	  /* instance_init */
+    };
+    type = g_type_register_static (G_TYPE_OBJECT,
+				   "GstPeaqEar", &info, 0);
+  }
+  return type;
+}
 
 /*
  * peaq_leveladapter_get_type:
@@ -147,6 +196,48 @@ peaq_earmodel_get_type ()
   return type;
 }
 
+
+static void
+peaq_ear_class_init (gpointer klass, gpointer class_data)
+{
+  GObjectClass *object_class = G_OBJECT_CLASS (klass);
+
+  /* override finalize method */
+  object_class->finalize = peaq_ear_finalize;
+}
+
+static void
+peaq_ear_init (GTypeInstance * obj, gpointer klass)
+{
+  PeaqEar *ear = PEAQ_EAR (obj);
+
+  ear->ear_model = g_object_new (PEAQ_TYPE_EARMODEL, NULL);
+
+  ear->gstfft = gst_fft_f64_new (FRAMESIZE, FALSE);
+
+  ear->filtered_excitation = g_new0 (gdouble, ear->ear_model->band_count);
+}
+
+static void
+peaq_ear_finalize (GObject * obj)
+{
+  PeaqEar *ear = PEAQ_EAR (obj);
+  GObjectClass *parent_class =
+    G_OBJECT_CLASS (g_type_class_peek_parent (g_type_class_peek
+					      (PEAQ_TYPE_EAR)));
+
+  g_free (ear->filtered_excitation);
+  gst_fft_f64_free (ear->gstfft);
+
+  parent_class->finalize(obj);
+}
+
+PeaqEarModel *
+peaq_ear_get_model(PeaqEar const* ear)
+{
+  return ear->ear_model;
+}
+
 /*
  * peaq_earmodel_class_init:
  * @klass: pointer to the uninitialized class structure.
@@ -159,7 +250,6 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
 {
   guint k;
   guint N = FRAMESIZE;
-  gdouble *spread;
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
   PeaqEarModelClass *ear_class = PEAQ_EARMODEL_CLASS (klass);
 
@@ -201,72 +291,6 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
     ear_class->outer_middle_ear_weight[k] = pow (10, W_dB / 10);
   }
 
-  /* pre-compute helper data for peaq_earmodel_group_into_bands
-   * The precomputed data is as proposed in [Kabal03], but the algorithm to
-   * compute is somewhat simplified */
-  ear_class->band_lower_end = g_new (guint, CRITICAL_BAND_COUNT);
-  ear_class->band_upper_end = g_new (guint, CRITICAL_BAND_COUNT);
-  ear_class->band_lower_weight = g_new (gdouble, CRITICAL_BAND_COUNT);
-  ear_class->band_upper_weight = g_new (gdouble, CRITICAL_BAND_COUNT);
-  for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
-    ear_class->band_lower_end[k]
-      = (guint) round(fl[k] / SAMPLINGRATE * FRAMESIZE);
-    ear_class->band_upper_end[k]
-      = (guint) round(fu[k] / SAMPLINGRATE * FRAMESIZE);
-    gdouble upper_freq
-      = (2 * ear_class->band_lower_end[k] + 1) / 2. * SAMPLINGRATE / FRAMESIZE;
-    gdouble U = upper_freq - fl[k];
-    ear_class->band_lower_weight[k] = U * FRAMESIZE / SAMPLINGRATE;
-    if (ear_class->band_lower_weight[k] == ear_class->band_upper_weight[k]) {
-      ear_class->band_upper_weight[k] = 0;
-    } else {
-      gdouble lower_freq = (2 * ear_class->band_upper_end[k] - 1) / 2.
-        * SAMPLINGRATE / FRAMESIZE;
-      U = fu[k] - lower_freq;
-      ear_class->band_upper_weight[k] = U * FRAMESIZE / SAMPLINGRATE;
-    }
-  }
-
-  /* pre-compute internal noise, time constants for time smearing, thresholds 
-   * and helper data for spreading */
-  ear_class->internal_noise_level = g_new (gdouble, CRITICAL_BAND_COUNT);
-  ear_class->ear_time_constants = g_new (gdouble, CRITICAL_BAND_COUNT);
-  ear_class->spreading_normalization = g_new (gdouble, CRITICAL_BAND_COUNT);
-  ear_class->aUC = g_new (gdouble, CRITICAL_BAND_COUNT);
-  ear_class->gIL = g_new (gdouble, CRITICAL_BAND_COUNT);
-  ear_class->threshold = g_new (gdouble, CRITICAL_BAND_COUNT);
-  ear_class->excitation_threshold = g_new (gdouble, CRITICAL_BAND_COUNT);
-  ear_class->loudness_factor = g_new (gdouble, CRITICAL_BAND_COUNT);
-  ear_class->lower_spreading = pow (10, -2.7 * DELTAZ);
-  ear_class->lower_spreading_exponantiated =
-    pow (ear_class->lower_spreading, 0.4);
-  for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
-    const gdouble aL = ear_class->lower_spreading;
-    gdouble curr_fc;
-    gdouble tau;
-    curr_fc = fc[k];
-    ear_class->internal_noise_level[k] =
-      pow (10, 0.4 * 0.364 * pow (curr_fc / 1000, -0.8));
-    tau = 0.008 + 100 / curr_fc * (0.03 - 0.008);
-    ear_class->ear_time_constants[k] =
-      exp (-(gdouble) N / (2 * SAMPLINGRATE) / tau);
-    ear_class->spreading_normalization[k] = 1.;
-    ear_class->aUC[k] = pow (10, (-2.4 - 23 / curr_fc) * DELTAZ);
-    ear_class->gIL[k] = (1 - pow (aL, k + 1)) / (1 - aL);
-    ear_class->excitation_threshold[k] =
-      pow (10, 0.364 * pow (curr_fc / 1000, -0.8));
-    ear_class->threshold[k] =
-      pow (10, 0.1 * (-2 - 2.05 * atan (curr_fc / 4000) -
-		      0.75 * atan (curr_fc / 1600 * curr_fc / 1600)));
-    ear_class->loudness_factor[k]
-      = LOUDNESS_SCALE * pow (ear_class->excitation_threshold[k]
-                              / (1e4 * ear_class->threshold[k]),
-                              0.23);
-  }
-  spread = g_newa (gdouble, CRITICAL_BAND_COUNT);
-  do_spreading (ear_class, ear_class->spreading_normalization, spread);
-  for (k = 0; k < CRITICAL_BAND_COUNT; k++)
-    ear_class->spreading_normalization[k] = spread[k];
 }
 
 /*
@@ -274,18 +298,85 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
  * @obj: Pointer to the unitialized #PeaqEarModel structure.
  * @klass: The class structure of the class being instantiated.
  *
- * Initializes one instance of #PeaqEarModel, in particular, the state 
+ * Initializes one instance of #PeaqEarModel, in particular, the state
  * variables for the time smearing are allocated and initialized to zero.
  */
 static void
 peaq_earmodel_init (GTypeInstance * obj, gpointer klass)
 {
-  PeaqEarModel *ear = PEAQ_EARMODEL (obj);
+  gdouble *spread;
+  guint k;
 
-  /* setup data for FFT */
-  ear->gstfft = gst_fft_f64_new (FRAMESIZE, FALSE);
+  PeaqEarModel *ear_model = PEAQ_EARMODEL (obj);
 
-  ear->filtered_excitation = g_new0 (gdouble, CRITICAL_BAND_COUNT);
+  ear_model->band_count = 109;
+  ear_model->deltaZ = 0.25;
+
+  /* pre-compute helper data for peaq_earmodel_group_into_bands
+   * The precomputed data is as proposed in [Kabal03], but the algorithm to
+   * compute is somewhat simplified */
+  ear_model->band_lower_end = g_new (guint, ear_model->band_count);
+  ear_model->band_upper_end = g_new (guint, ear_model->band_count);
+  ear_model->band_lower_weight = g_new (gdouble, ear_model->band_count);
+  ear_model->band_upper_weight = g_new (gdouble, ear_model->band_count);
+  for (k = 0; k < ear_model->band_count; k++) {
+    ear_model->band_lower_end[k]
+      = (guint) round(fl[k] / SAMPLINGRATE * FRAMESIZE);
+    ear_model->band_upper_end[k]
+      = (guint) round(fu[k] / SAMPLINGRATE * FRAMESIZE);
+    gdouble upper_freq
+      = (2 * ear_model->band_lower_end[k] + 1) / 2. * SAMPLINGRATE / FRAMESIZE;
+    gdouble U = upper_freq - fl[k];
+    ear_model->band_lower_weight[k] = U * FRAMESIZE / SAMPLINGRATE;
+    if (ear_model->band_lower_weight[k] == ear_model->band_upper_weight[k]) {
+      ear_model->band_upper_weight[k] = 0;
+    } else {
+      gdouble lower_freq = (2 * ear_model->band_upper_end[k] - 1) / 2.
+        * SAMPLINGRATE / FRAMESIZE;
+      U = fu[k] - lower_freq;
+      ear_model->band_upper_weight[k] = U * FRAMESIZE / SAMPLINGRATE;
+    }
+  }
+
+  /* pre-compute internal noise, time constants for time smearing, thresholds 
+   * and helper data for spreading */
+  ear_model->internal_noise_level = g_new (gdouble, ear_model->band_count);
+  ear_model->ear_time_constants = g_new (gdouble, ear_model->band_count);
+  ear_model->spreading_normalization = g_new (gdouble, ear_model->band_count);
+  ear_model->aUC = g_new (gdouble, ear_model->band_count);
+  ear_model->gIL = g_new (gdouble, ear_model->band_count);
+  ear_model->threshold = g_new (gdouble, ear_model->band_count);
+  ear_model->excitation_threshold = g_new (gdouble, ear_model->band_count);
+  ear_model->loudness_factor = g_new (gdouble, ear_model->band_count);
+  ear_model->lower_spreading = pow (10, -2.7 * ear_model->deltaZ);
+  ear_model->lower_spreading_exponantiated =
+    pow (ear_model->lower_spreading, 0.4);
+  for (k = 0; k < ear_model->band_count; k++) {
+    gdouble tau;
+    gdouble curr_fc = fc[k];
+    const gdouble aL = ear_model->lower_spreading;
+    ear_model->internal_noise_level[k] =
+      pow (10, 0.4 * 0.364 * pow (curr_fc / 1000, -0.8));
+    tau = 0.008 + 100 / curr_fc * (0.03 - 0.008);
+    ear_model->ear_time_constants[k] =
+      exp (-(gdouble) FRAMESIZE / (2 * SAMPLINGRATE) / tau);
+    ear_model->aUC[k] = pow (10, (-2.4 - 23 / curr_fc) * ear_model->deltaZ);
+    ear_model->gIL[k] = (1 - pow (aL, k + 1)) / (1 - aL);
+    ear_model->excitation_threshold[k] =
+      pow (10, 0.364 * pow (curr_fc / 1000, -0.8));
+    ear_model->threshold[k] =
+      pow (10, 0.1 * (-2 - 2.05 * atan (curr_fc / 4000) -
+		      0.75 * atan (curr_fc / 1600 * curr_fc / 1600)));
+    ear_model->spreading_normalization[k] = 1.;
+    ear_model->loudness_factor[k]
+      = LOUDNESS_SCALE * pow (ear_model->excitation_threshold[k]
+                              / (1e4 * ear_model->threshold[k]),
+                              0.23);
+  }
+  spread = g_newa (gdouble, ear_model->band_count);
+  do_spreading (ear_model, ear_model->spreading_normalization, spread);
+  for (k = 0; k < ear_model->band_count; k++)
+    ear_model->spreading_normalization[k] = spread[k];
 }
 
 /*
@@ -295,15 +386,26 @@ peaq_earmodel_init (GTypeInstance * obj, gpointer klass)
  * Disposes the given instance of #PeaqEarModel, in particular, the state 
  * variables for the time smearing are deallocated.
  */
-static void 
+static void
 peaq_earmodel_finalize (GObject * obj)
 {
-  PeaqEarModel *ear = PEAQ_EARMODEL (obj);
+  PeaqEarModel *ear_model = PEAQ_EARMODEL (obj);
   GObjectClass *parent_class = 
     G_OBJECT_CLASS (g_type_class_peek_parent (g_type_class_peek
 					      (PEAQ_TYPE_EARMODEL)));
-  g_free (ear->filtered_excitation);
-  gst_fft_f64_free (ear->gstfft);
+  g_free (ear_model->band_lower_end);
+  g_free (ear_model->band_upper_end);
+  g_free (ear_model->band_lower_weight);
+  g_free (ear_model->band_upper_weight);
+  g_free (ear_model->internal_noise_level);
+  g_free (ear_model->ear_time_constants);
+  g_free (ear_model->spreading_normalization);
+  g_free (ear_model->aUC);
+  g_free (ear_model->gIL);
+  g_free (ear_model->threshold);
+  g_free (ear_model->excitation_threshold);
+  g_free (ear_model->loudness_factor);
+
   parent_class->finalize(obj);
 }
 
@@ -321,10 +423,10 @@ static void
 peaq_earmodel_get_property (GObject * obj, guint id, GValue * value,
 			    GParamSpec * pspec)
 {
-  PeaqEarModel *ear = PEAQ_EARMODEL (obj);
+  PeaqEarModel *ear_model = PEAQ_EARMODEL (obj);
   switch (id) {
     case PROP_PLAYBACK_LEVEL:
-      g_value_set_double (value, 10 * log10 (ear->level_factor *
+      g_value_set_double (value, 10 * log10 (ear_model->level_factor *
 					     (GAMMA / 4 * (FRAMESIZE - 1) /
 					      FRAMESIZE)));
       break;
@@ -347,13 +449,13 @@ static void
 peaq_earmodel_set_property (GObject * obj, guint id, const GValue * value,
 			    GParamSpec * pspec)
 {
-  PeaqEarModel *ear = PEAQ_EARMODEL (obj);
+  PeaqEarModel *ear_model = PEAQ_EARMODEL (obj);
   switch (id) {
     case PROP_PLAYBACK_LEVEL:
-      /* ear->level_factor is the square of G_Li/N_F in [Kabal03], which equals
+      /* ear_model->level_factor is the square of G_Li/N_F in [Kabal03], which equals
        * fac/N in [BS1387] except for a factor of sqrt(8/3) which is part of
        * the Hann window in [BS1387] */
-      ear->level_factor = pow (10, g_value_get_double (value) / 10) /
+      ear_model->level_factor = pow (10, g_value_get_double (value) / 10) /
 	((GAMMA / 4 * (FRAMESIZE - 1)) *
 	 (GAMMA / 4 * (FRAMESIZE - 1)));
       break;
@@ -363,9 +465,15 @@ peaq_earmodel_set_property (GObject * obj, guint id, const GValue * value,
   }
 }
 
+guint
+peaq_earmodel_get_band_count (PeaqEarModel const *ear_model)
+{
+  return ear_model->band_count;
+}
+
 /**
- * peaq_earmodel_process:
- * @ear: the #PeaqEarModel instance structure.
+ * peaq_ear_process:
+ * @ear: the #PeaqEar instance structure.
  * @sample_data: pointer to a frame of #FRAMESIZE samples to be processed.
  * @output: pointer to a #EarModelOutput structure which is filled with the 
  * computed output data.
@@ -373,7 +481,7 @@ peaq_earmodel_set_property (GObject * obj, guint id, const GValue * value,
  * Performs the computation described in section 2 of 
  * <xref linkend="Kabal03" /> for one single frame. The input is assumed to be 
  * sampled at 48 kHz. To follow the specification, the frames of successive 
- * invocations of peaq_earmodel_process() have to overlap by 50%.
+ * invocations of peaq_ear_process() have to overlap by 50%.
  *
  * The first step is to apply a Hann window to the input frame and transform 
  * it to the frequency domain using FFT. The squared magnitude 
@@ -390,14 +498,15 @@ peaq_earmodel_set_property (GObject * obj, guint id, const GValue * value,
  * <structfield>power_spectrum</structfield> of @output.
  */
 void
-peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
-		       EarModelOutput * output)
+peaq_ear_process (PeaqEar * ear, gfloat * sample_data,
+                  EarModelOutput * output)
 {
   guint k, i;
-  PeaqEarModelClass *ear_class = PEAQ_EARMODEL_GET_CLASS (ear);
+  PeaqEarModel *ear_model = ear->ear_model;
+  PeaqEarModelClass *ear_class = PEAQ_EARMODEL_GET_CLASS (ear_model);
   gdouble *windowed_data = g_newa (gdouble, FRAMESIZE);
   GstFFTF64Complex *fftoutput = g_newa (GstFFTF64Complex, FRAMESIZE / 2 + 1);
-  gdouble *noisy_band_power = g_newa (gdouble, CRITICAL_BAND_COUNT);
+  gdouble *noisy_band_power = g_newa (gdouble, ear_model->band_count);
 
   g_assert (output);
 
@@ -409,26 +518,26 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
   for (k = 0; k < FRAMESIZE / 2 + 1; k++) {
     output->power_spectrum[k] =
       (fftoutput[k].r * fftoutput[k].r + fftoutput[k].i * fftoutput[k].i) *
-      ear->level_factor;
+      ear_model->level_factor;
     output->weighted_power_spectrum[k] =
       output->power_spectrum[k] * ear_class->outer_middle_ear_weight[k];
   }
 
-  peaq_earmodel_group_into_bands (ear_class, output->weighted_power_spectrum,
+  peaq_earmodel_group_into_bands (ear_model, output->weighted_power_spectrum,
 				  output->band_power);
 
-  for (i = 0; i < CRITICAL_BAND_COUNT; i++)
+  for (i = 0; i < ear_model->band_count; i++)
     noisy_band_power[i] =
-      output->band_power[i] + ear_class->internal_noise_level[i];
+      output->band_power[i] + ear_model->internal_noise_level[i];
 
-  do_spreading (ear_class, noisy_band_power, output->unsmeared_excitation);
+  do_spreading (ear_model, noisy_band_power, output->unsmeared_excitation);
 
   /* NOTE: according to [BS1387], the filtered_excitation after processing the
    * first frame should be all zero; we follow the interpretation of [Kabal03]
    * and only initialize to zero before the first frame. */
-  for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
-    ear->filtered_excitation[i] = ear_class->ear_time_constants[i] *
-      ear->filtered_excitation[i] + (1 - ear_class->ear_time_constants[i]) *
+  for (i = 0; i < ear_model->band_count; i++) {
+    ear->filtered_excitation[i] = ear_model->ear_time_constants[i] *
+      ear->filtered_excitation[i] + (1 - ear_model->ear_time_constants[i]) *
       output->unsmeared_excitation[i];
     output->excitation[i] =
       ear->filtered_excitation[i] > output->unsmeared_excitation[i] ?
@@ -436,33 +545,33 @@ peaq_earmodel_process (PeaqEarModel * ear, gfloat * sample_data,
   }
 
   output->overall_loudness = 0;
-  for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
-    gdouble loudness = ear_class->loudness_factor[i]
-      * (pow (1. - ear_class->threshold[i] +
-              ear_class->threshold[i] * output->excitation[i] /
-              ear_class->excitation_threshold[i], 0.23) - 1.);
+  for (i = 0; i < ear_model->band_count; i++) {
+    gdouble loudness = ear_model->loudness_factor[i]
+      * (pow (1. - ear_model->threshold[i] +
+              ear_model->threshold[i] * output->excitation[i] /
+              ear_model->excitation_threshold[i], 0.23) - 1.);
     output->overall_loudness += MAX (loudness, 0.);
   }
-  output->overall_loudness *= 24. / CRITICAL_BAND_COUNT;
+  output->overall_loudness *= 24. / ear_model->band_count;
 }
 
 /*
  * The grouping into bands follows the algorithm proposed in [Kabal03].
  */
 void
-peaq_earmodel_group_into_bands (PeaqEarModelClass * ear_class,
+peaq_earmodel_group_into_bands (PeaqEarModel const* ear_model,
 				gdouble * spectrum, gdouble * band_power)
 {
   guint i;
   guint k;
-  for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
+  for (i = 0; i < ear_model->band_count; i++) {
     band_power[i] =
-      (ear_class->band_lower_weight[i] *
-       spectrum[ear_class->band_lower_end[i]]) +
-      (ear_class->band_upper_weight[i] *
-       spectrum[ear_class->band_upper_end[i]]);
-    for (k = ear_class->band_lower_end[i] + 1;
-	 k < ear_class->band_upper_end[i]; k++)
+      (ear_model->band_lower_weight[i] *
+       spectrum[ear_model->band_lower_end[i]]) +
+      (ear_model->band_upper_weight[i] *
+       spectrum[ear_model->band_upper_end[i]]);
+    for (k = ear_model->band_lower_end[i] + 1;
+	 k < ear_model->band_upper_end[i]; k++)
       band_power[i] += spectrum[k];
     if (band_power[i] < 1e-12)
       band_power[i] = 1e-12;
@@ -484,33 +593,33 @@ peaq_earmodel_group_into_bands (PeaqEarModelClass * ear_class,
  *    E2       | Es[l]
  */
 static void
-do_spreading (PeaqEarModelClass * ear_class, gdouble * Pp, gdouble * E2)
+do_spreading (PeaqEarModel const* ear_model, gdouble * Pp, gdouble * E2)
 {
   guint i;
-  gdouble *aUCEe = g_newa (gdouble, CRITICAL_BAND_COUNT);
-  gdouble *Ene = g_newa (gdouble, CRITICAL_BAND_COUNT);
-  const gdouble aLe = ear_class->lower_spreading_exponantiated;
+  gdouble *aUCEe = g_newa (gdouble, ear_model->band_count);
+  gdouble *Ene = g_newa (gdouble, ear_model->band_count);
+  const gdouble aLe = ear_model->lower_spreading_exponantiated;
 
-  for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
-    gdouble aUCE = ear_class->aUC[i] * pow (Pp[i], 0.2 * DELTAZ);
-    gdouble gIU = (1 - pow (aUCE, CRITICAL_BAND_COUNT - i)) / (1 - aUCE);
-    gdouble En = Pp[i] / (ear_class->gIL[i] + gIU - 1);
+  for (i = 0; i < ear_model->band_count; i++) {
+    gdouble aUCE = ear_model->aUC[i] * pow (Pp[i], 0.2 * ear_model->deltaZ);
+    gdouble gIU = (1 - pow (aUCE, ear_model->band_count - i)) / (1 - aUCE);
+    gdouble En = Pp[i] / (ear_model->gIL[i] + gIU - 1);
     aUCEe[i] = pow (aUCE, 0.4);
     Ene[i] = pow (En, 0.4);
   }
-  E2[CRITICAL_BAND_COUNT - 1] = Ene[CRITICAL_BAND_COUNT - 1];
-  for (i = CRITICAL_BAND_COUNT - 1; i > 0; i--)
+  E2[ear_model->band_count - 1] = Ene[ear_model->band_count - 1];
+  for (i = ear_model->band_count - 1; i > 0; i--)
     E2[i - 1] = aLe * E2[i] + Ene[i - 1];
-  for (i = 0; i < CRITICAL_BAND_COUNT - 1; i++) {
+  for (i = 0; i < ear_model->band_count - 1; i++) {
     guint j;
     gdouble r = Ene[i];
-    for (j = i + 1; j < CRITICAL_BAND_COUNT; j++) {
+    for (j = i + 1; j < ear_model->band_count; j++) {
       r *= aUCEe[i];
       E2[j] += r;
     }
   }
-  for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
-    E2[i] = pow (E2[i], 1 / 0.4) / ear_class->spreading_normalization[i];
+  for (i = 0; i < ear_model->band_count; i++) {
+    E2[i] = pow (E2[i], 1 / 0.4) / ear_model->spreading_normalization[i];
   }
 }
 
@@ -520,9 +629,9 @@ peaq_earmodel_get_band_center_frequency (guint band)
   return fc[band];
 }
 
-gdouble peaq_earmodel_get_internal_noise (PeaqEarModelClass const * ear_class,
+gdouble peaq_earmodel_get_internal_noise (PeaqEarModel const * ear_model,
 					  guint band)
 {
-  return ear_class->internal_noise_level[band];
+  return ear_model->internal_noise_level[band];
 }
 

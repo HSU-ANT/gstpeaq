@@ -144,13 +144,13 @@ static GstStateChangeReturn gst_peaq_change_state (GstElement * element,
 						   GstStateChange transition);
 static void gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata,
 				    gfloat * testdata);
-static void calc_modulation_difference(PeaqEarModelClass const *ear_class,
+static void calc_modulation_difference(PeaqEarModel const *ear,
                                        ModulationProcessorOutput const *ref_mod_output,
                                        ModulationProcessorOutput const *test_mod_output,
                                        gdouble *mod_diff_1b,
                                        gdouble *mod_diff_2b,
                                        gdouble *temp_wt);
-static gdouble calc_noise_loudness(PeaqEarModelClass const *ear_class,
+static gdouble calc_noise_loudness(PeaqEarModel const *ear_model,
                                    gdouble const *ref_modulation,
                                    gdouble const *test_modulation,
                                    LevelAdapterOutput const *level_output);
@@ -298,8 +298,8 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
 
   peaq->frame_counter = 0;
 
-  peaq->ref_ear_model = g_object_new (PEAQ_TYPE_EARMODEL, NULL);
-  peaq->test_ear_model = g_object_new (PEAQ_TYPE_EARMODEL, NULL);
+  peaq->ref_ear = g_object_new (PEAQ_TYPE_EAR, NULL);
+  peaq->test_ear = g_object_new (PEAQ_TYPE_EAR, NULL);
   peaq->level_adapter = g_object_new (PEAQ_TYPE_LEVELADAPTER, NULL);
   peaq->ref_modulation_processor =
     g_object_new (PEAQ_TYPE_MODULATIONPROCESSOR, NULL);
@@ -317,8 +317,8 @@ gst_peaq_finalize (GObject * object)
   g_object_unref (peaq->collect);
   g_object_unref (peaq->ref_adapter);
   g_object_unref (peaq->test_adapter);
-  g_object_unref (peaq->ref_ear_model);
-  g_object_unref (peaq->test_ear_model);
+  g_object_unref (peaq->ref_ear);
+  g_object_unref (peaq->test_ear);
   g_object_unref (peaq->level_adapter);
   g_object_unref (peaq->ref_modulation_processor);
   g_object_unref (peaq->test_modulation_processor);
@@ -339,9 +339,7 @@ gst_peaq_get_property (GObject * obj, guint id, GValue * value,
   GstPeaq *peaq = GST_PEAQ (obj);
   switch (id) {
     case PROP_PLAYBACK_LEVEL:
-      g_object_get_property (G_OBJECT (peaq->ref_ear_model), 
-			     "playback_level", value);
-      g_object_get_property (G_OBJECT (peaq->test_ear_model), 
+      g_object_get_property (G_OBJECT (peaq_ear_get_model(peaq->ref_ear)),
 			     "playback_level", value);
       break;
     case PROP_DI:
@@ -379,7 +377,9 @@ gst_peaq_set_property (GObject * obj, guint id, const GValue * value,
   GstPeaq *peaq = GST_PEAQ (obj);
   switch (id) {
     case PROP_PLAYBACK_LEVEL:
-      g_object_set_property (G_OBJECT (peaq->ref_ear_model), 
+      g_object_set_property (G_OBJECT (peaq_ear_get_model(peaq->ref_ear)),
+			     "playback_level", value);
+      g_object_set_property (G_OBJECT (peaq_ear_get_model(peaq->test_ear)),
 			     "playback_level", value);
       break;
     case PROP_CONSOLE_OUTPUT:
@@ -517,18 +517,25 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
   gboolean ehs_valid;
   gdouble ehs = 0.;
 
-  PeaqEarModelClass *ear_class =
-    PEAQ_EARMODEL_GET_CLASS (peaq->ref_ear_model);
+  PeaqEarModel *ear_model = peaq_ear_get_model(peaq->ref_ear);
+  guint band_count = peaq_earmodel_get_band_count (ear_model);
 
-  peaq_earmodel_process (peaq->ref_ear_model, refdata, &ref_ear_output);
-  peaq_earmodel_process (peaq->test_ear_model, testdata, &test_ear_output);
+  ref_ear_output.band_power = g_newa (gdouble, band_count);
+  ref_ear_output.unsmeared_excitation = g_newa (gdouble, band_count);
+  ref_ear_output.excitation = g_newa (gdouble, band_count);
+  test_ear_output.band_power = g_newa (gdouble, band_count);
+  test_ear_output.unsmeared_excitation = g_newa (gdouble, band_count);
+  test_ear_output.excitation = g_newa (gdouble, band_count);
+  peaq_ear_process (peaq->ref_ear, refdata, &ref_ear_output);
+  peaq_ear_process (peaq->test_ear, testdata, &test_ear_output);
   for (i = 0; i < FRAMESIZE / 2 + 1; i++)
     noise_spectrum[i] =
       ref_ear_output.weighted_power_spectrum[i] -
       2 * sqrt (ref_ear_output.weighted_power_spectrum[i] *
 		test_ear_output.weighted_power_spectrum[i]) +
       test_ear_output.weighted_power_spectrum[i];
-  peaq_earmodel_group_into_bands (ear_class, noise_spectrum, noise_in_bands);
+  peaq_earmodel_group_into_bands (ear_model, noise_spectrum, noise_in_bands);
+
   peaq_leveladapter_process (peaq->level_adapter, ref_ear_output.excitation,
 			     test_ear_output.excitation, &level_output);
   peaq_modulationprocessor_process (peaq->ref_modulation_processor,
@@ -539,11 +546,12 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
 				    &test_mod_output);
 
   /* modulation difference */
-  calc_modulation_difference (ear_class, &ref_mod_output, &test_mod_output,
+  calc_modulation_difference (ear_model, &ref_mod_output, &test_mod_output,
                               &mod_diff_1b, &mod_diff_2b, &temp_wt);
 
   /* noise loudness */
-  noise_loudness = calc_noise_loudness (ear_class, ref_mod_output.modulation,
+  noise_loudness = calc_noise_loudness (ear_model,
+                                        ref_mod_output.modulation,
                                         test_mod_output.modulation,
                                         &level_output);
 
@@ -684,7 +692,7 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
 }
 
 static void
-calc_modulation_difference (PeaqEarModelClass const *ear_class,
+calc_modulation_difference (PeaqEarModel const *ear,
                             ModulationProcessorOutput const *ref_mod_output,
                             ModulationProcessorOutput const *test_mod_output,
                             gdouble *mod_diff_1b, gdouble *mod_diff_2b,
@@ -704,14 +712,14 @@ calc_modulation_difference (PeaqEarModelClass const *ear_class,
     *mod_diff_2b += w * diff / (0.01 + ref_mod_output->modulation[i]);
     *temp_wt += ref_mod_output->average_loudness[i] /
       (ref_mod_output->average_loudness[i] + 100 *
-       pow (peaq_earmodel_get_internal_noise (ear_class, i), 0.3));
+       pow (peaq_earmodel_get_internal_noise (ear, i), 0.3));
   }
   *mod_diff_1b *= 100. / CRITICAL_BAND_COUNT;
   *mod_diff_2b *= 100. / CRITICAL_BAND_COUNT;
 }
 
 static gdouble
-calc_noise_loudness (PeaqEarModelClass const *ear_class,
+calc_noise_loudness (PeaqEarModel const *ear_model,
                      gdouble const *ref_modulation,
                      gdouble const *test_modulation,
                      LevelAdapterOutput const *level_output)
@@ -721,7 +729,7 @@ calc_noise_loudness (PeaqEarModelClass const *ear_class,
   for (i = 0; i < CRITICAL_BAND_COUNT; i++) {
     gdouble sref = 0.15 * ref_modulation[i] + 0.5;
     gdouble stest = 0.15 * test_modulation[i] + 0.5;
-    gdouble ethres = peaq_earmodel_get_internal_noise (ear_class, i);
+    gdouble ethres = peaq_earmodel_get_internal_noise (ear_model, i);
     gdouble ep_ref = level_output->spectrally_adapted_ref_patterns[i];
     gdouble ep_test = level_output->spectrally_adapted_test_patterns[i];
     gdouble beta = exp (-1.5 * (ep_test - ep_ref) / ep_ref);
