@@ -290,7 +290,6 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
       (6.5 * exp (-0.6 * pow (f_kHz - 3.3, 2))) - (1e-3 * pow (f_kHz, 3.6));
     ear_class->outer_middle_ear_weight[k] = pow (10, W_dB / 10);
   }
-
 }
 
 /*
