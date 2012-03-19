@@ -311,6 +311,27 @@ peaq_earmodel_init (GTypeInstance * obj, gpointer klass)
   ear_model->band_count = 109;
   ear_model->deltaZ = 0.25;
 
+}
+
+/*
+ * peaq_earmodel_init:
+ * @obj: Pointer to the unitialized #PeaqEarModel structure.
+ * @klass: The class structure of the class being instantiated.
+ *
+ * Initializes one instance of #PeaqEarModel, in particular, the state
+ * variables for the time smearing are allocated and initialized to zero.
+ */
+static void
+peaq_earmodel_init (GTypeInstance * obj, gpointer klass)
+{
+  gdouble *spread;
+  guint k;
+
+  PeaqEarModel *ear_model = PEAQ_EARMODEL (obj);
+
+  ear_model->band_count = 109;
+  ear_model->deltaZ = 0.25;
+
   /* pre-compute helper data for peaq_earmodel_group_into_bands
    * The precomputed data is as proposed in [Kabal03], but the algorithm to
    * compute is somewhat simplified */
