@@ -290,26 +290,6 @@ peaq_earmodel_class_init (gpointer klass, gpointer class_data)
       (6.5 * exp (-0.6 * pow (f_kHz - 3.3, 2))) - (1e-3 * pow (f_kHz, 3.6));
     ear_class->outer_middle_ear_weight[k] = pow (10, W_dB / 10);
   }
-}
-
-/*
- * peaq_earmodel_init:
- * @obj: Pointer to the unitialized #PeaqEarModel structure.
- * @klass: The class structure of the class being instantiated.
- *
- * Initializes one instance of #PeaqEarModel, in particular, the state
- * variables for the time smearing are allocated and initialized to zero.
- */
-static void
-peaq_earmodel_init (GTypeInstance * obj, gpointer klass)
-{
-  gdouble *spread;
-  guint k;
-
-  PeaqEarModel *ear_model = PEAQ_EARMODEL (obj);
-
-  ear_model->band_count = 109;
-  ear_model->deltaZ = 0.25;
 
 }
 
