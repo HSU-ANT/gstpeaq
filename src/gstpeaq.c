@@ -300,7 +300,8 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
 
   peaq->ref_ear = g_object_new (PEAQ_TYPE_EAR, NULL);
   peaq->test_ear = g_object_new (PEAQ_TYPE_EAR, NULL);
-  peaq->level_adapter = g_object_new (PEAQ_TYPE_LEVELADAPTER, NULL);
+  peaq->level_adapter
+    = peaq_leveladapter_new (peaq_ear_get_model (peaq->ref_ear));
   peaq->ref_modulation_processor =
     g_object_new (PEAQ_TYPE_MODULATIONPROCESSOR, NULL);
   peaq->test_modulation_processor =
@@ -536,6 +537,8 @@ gst_peaq_process_block (GstPeaq * peaq, gfloat * refdata, gfloat * testdata)
       test_ear_output.weighted_power_spectrum[i];
   peaq_earmodel_group_into_bands (ear_model, noise_spectrum, noise_in_bands);
 
+  level_output.spectrally_adapted_ref_patterns = g_newa (gdouble, band_count);
+  level_output.spectrally_adapted_test_patterns = g_newa (gdouble, band_count);
   peaq_leveladapter_process (peaq->level_adapter, ref_ear_output.excitation,
 			     test_ear_output.excitation, &level_output);
   peaq_modulationprocessor_process (peaq->ref_modulation_processor,

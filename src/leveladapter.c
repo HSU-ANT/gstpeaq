@@ -31,12 +31,13 @@
 struct _PeaqLevelAdapterClass
 {
   GObjectClass parent;
-  gdouble *ear_time_constants;
 };
 
 struct _PeaqLevelAdapter
 {
   GObjectClass parent;
+  PeaqEarModel *ear_model;
+  gdouble *ear_time_constants;
   gdouble *ref_filtered_excitation;
   gdouble *test_filtered_excitation;
   gdouble *filtered_num;
@@ -72,45 +73,33 @@ peaq_leveladapter_get_type ()
   return type;
 }
 
+PeaqLevelAdapter *
+peaq_leveladapter_new (PeaqEarModel *ear_model)
+{
+  PeaqLevelAdapter *level = g_object_new (PEAQ_TYPE_LEVELADAPTER, NULL);
+  peaq_leveladapter_set_ear_model (level, ear_model);
+  return level;
+}
+
 static void
 peaq_leveladapter_class_init (gpointer klass, gpointer class_data)
 {
-  guint k;
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
-  PeaqLevelAdapterClass *level_class = PEAQ_LEVELADAPTER_CLASS (klass);
 
   object_class->finalize = peaq_leveladapter_finalize;
-
-  level_class->ear_time_constants = g_new (gdouble, CRITICAL_BAND_COUNT);
-  for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
-    gdouble tau;
-    gdouble curr_fc;
-    curr_fc = peaq_earmodel_get_band_center_frequency (k);
-    tau = 0.008 + 100 / curr_fc * (0.05 - 0.008);
-    level_class->ear_time_constants[k] =
-      exp (-(gdouble) FRAMESIZE / (2 * SAMPLINGRATE) / tau);
-  }
 }
 
 static void
 peaq_leveladapter_init (GTypeInstance * obj, gpointer klass)
 {
   PeaqLevelAdapter *level = PEAQ_LEVELADAPTER (obj);
-  level->ref_filtered_excitation = g_new0 (gdouble, CRITICAL_BAND_COUNT);
-  level->test_filtered_excitation = g_new0 (gdouble, CRITICAL_BAND_COUNT);
-  level->filtered_num = g_new0 (gdouble, CRITICAL_BAND_COUNT);
-  level->filtered_den = g_new0 (gdouble, CRITICAL_BAND_COUNT);
-  level->pattcorr_ref = g_new0 (gdouble, CRITICAL_BAND_COUNT);
-  level->pattcorr_test = g_new0 (gdouble, CRITICAL_BAND_COUNT);
-#if 0
-  /* [Kabal03] suggests initialization to 1, although the standard does not
-   * mention it; there seems to be no difference on conformance, though */
-  guint k;
-  for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
-    level->pattcorr_ref[k] = 1.;
-    level->pattcorr_test[k] = 1.;
-  }
-#endif
+  level->ear_time_constants = NULL;
+  level->ref_filtered_excitation = NULL;
+  level->test_filtered_excitation = NULL;
+  level->filtered_num = NULL;
+  level->filtered_den = NULL;
+  level->pattcorr_ref = NULL;
+  level->pattcorr_test = NULL;
 }
 
 static void 
@@ -120,13 +109,68 @@ peaq_leveladapter_finalize (GObject * obj)
   GObjectClass *parent_class = 
     G_OBJECT_CLASS (g_type_class_peek_parent (g_type_class_peek
 					      (PEAQ_TYPE_LEVELADAPTER)));
-  g_free (level->ref_filtered_excitation);
-  g_free (level->test_filtered_excitation);
-  g_free (level->filtered_num);
-  g_free (level->filtered_den);
-  g_free (level->pattcorr_ref);
-  g_free (level->pattcorr_test);
+  if (level->ear_model) {
+    g_object_unref (level->ear_model);
+    g_free (level->ref_filtered_excitation);
+    g_free (level->test_filtered_excitation);
+    g_free (level->filtered_num);
+    g_free (level->filtered_den);
+    g_free (level->pattcorr_ref);
+    g_free (level->pattcorr_test);
+    g_free (level->ear_time_constants);
+  }
   parent_class->finalize(obj);
+}
+
+void
+peaq_leveladapter_set_ear_model (PeaqLevelAdapter *level,
+                                 PeaqEarModel *ear_model)
+{
+  guint band_count, k;
+
+  if (level->ear_model) {
+    g_object_unref (level->ear_model);
+    g_free (level->ref_filtered_excitation);
+    g_free (level->test_filtered_excitation);
+    g_free (level->filtered_num);
+    g_free (level->filtered_den);
+    g_free (level->pattcorr_ref);
+    g_free (level->pattcorr_test);
+    g_free (level->ear_time_constants);
+  }
+  g_object_ref (ear_model);
+  level->ear_model = ear_model;
+
+  band_count = peaq_earmodel_get_band_count (ear_model);
+
+  level->ref_filtered_excitation = g_new0 (gdouble, band_count);
+  level->test_filtered_excitation = g_new0 (gdouble, band_count);
+  level->filtered_num = g_new0 (gdouble, band_count);
+  level->filtered_den = g_new0 (gdouble, band_count);
+  level->pattcorr_ref = g_new0 (gdouble, band_count);
+  level->pattcorr_test = g_new0 (gdouble, band_count);
+
+  level->ear_time_constants = g_new (gdouble, band_count);
+
+  for (k = 0; k < band_count; k++) {
+    gdouble tau;
+    gdouble curr_fc;
+    /* TODO: should depend on the ear model used... */
+    curr_fc = peaq_earmodel_get_band_center_frequency (k);
+    tau = 0.008 + 100 / curr_fc * (0.05 - 0.008);
+    /* TODO: use configurable step-size */
+    level->ear_time_constants[k] =
+      exp (-(gdouble) FRAMESIZE / (2 * SAMPLINGRATE) / tau);
+  }
+#if 0
+  /* [Kabal03] suggests initialization to 1, although the standard does not
+   * mention it; there seems to be no difference on conformance, though */
+  guint k;
+  for (k = 0; k < band_count; k++) {
+    level->pattcorr_ref[k] = 1.;
+    level->pattcorr_test[k] = 1.;
+  }
+#endif
 }
 
 void
@@ -134,31 +178,30 @@ peaq_leveladapter_process (PeaqLevelAdapter * level, gdouble * ref_exciation,
 			   gdouble * test_exciation,
 			   LevelAdapterOutput * output)
 {
-  guint k;
+  guint band_count, k;
   gdouble num, den;
   gdouble lev_corr;
   gdouble *levcorr_ref_excitation;
   gdouble *levcorr_test_excitation;
-  gdouble pattadapt_ref[CRITICAL_BAND_COUNT];
-  gdouble pattadapt_test[CRITICAL_BAND_COUNT];
-  PeaqLevelAdapterClass *level_class = PEAQ_LEVELADAPTER_GET_CLASS (level);
-  levcorr_ref_excitation = g_newa (gdouble, CRITICAL_BAND_COUNT);
-  levcorr_test_excitation = g_newa (gdouble, CRITICAL_BAND_COUNT);
+  gdouble *pattadapt_ref;
+  gdouble *pattadapt_test;
+  band_count = peaq_earmodel_get_band_count (level->ear_model);
+  pattadapt_ref = g_newa (gdouble, band_count);
+  pattadapt_test = g_newa (gdouble, band_count);
+  levcorr_ref_excitation = g_newa (gdouble, band_count);
+  levcorr_test_excitation = g_newa (gdouble, band_count);
 
   g_assert (output);
 
   num = 0;
   den = 0;
-  for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
+  for (k = 0; k < band_count; k++) {
     level->ref_filtered_excitation[k] =
-      level_class->ear_time_constants[k] * level->ref_filtered_excitation[k] +
-      (1 - level_class->ear_time_constants[k]) * ref_exciation[k];
-    level->test_filtered_excitation[k] =
-      level_class->ear_time_constants[k] *
-      level->test_filtered_excitation[k] + (1 -
-					    level_class->
-					    ear_time_constants[k]) *
-      test_exciation[k];
+      level->ear_time_constants[k] * level->ref_filtered_excitation[k] +
+      (1 - level->ear_time_constants[k]) * ref_exciation[k];
+    level->test_filtered_excitation[k]
+      = level->ear_time_constants[k] * level->test_filtered_excitation[k]
+      + (1 - level-> ear_time_constants[k]) * test_exciation[k];
     num +=
       sqrt (level->ref_filtered_excitation[k] *
 	    level->test_filtered_excitation[k]);
@@ -167,19 +210,19 @@ peaq_leveladapter_process (PeaqLevelAdapter * level, gdouble * ref_exciation,
   lev_corr = num * num / (den * den);
   if (lev_corr > 1) {
     levcorr_test_excitation = test_exciation;
-    for (k = 0; k < CRITICAL_BAND_COUNT; k++)
+    for (k = 0; k < band_count; k++)
       levcorr_ref_excitation[k] = ref_exciation[k] / lev_corr;
   } else {
     levcorr_ref_excitation = ref_exciation;
-    for (k = 0; k < CRITICAL_BAND_COUNT; k++)
+    for (k = 0; k < band_count; k++)
       levcorr_test_excitation[k] = test_exciation[k] * lev_corr;
   }
-  for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
+  for (k = 0; k < band_count; k++) {
     level->filtered_num[k] =
-      level_class->ear_time_constants[k] * level->filtered_num[k] +
+      level->ear_time_constants[k] * level->filtered_num[k] +
       levcorr_test_excitation[k] * levcorr_ref_excitation[k];
     level->filtered_den[k] =
-      level_class->ear_time_constants[k] * level->filtered_den[k] +
+      level->ear_time_constants[k] * level->filtered_den[k] +
       levcorr_ref_excitation[k] * levcorr_ref_excitation[k];
     /* these values cannot be zero [Kabal03], so the special case desribed in
      * [BS1387] is unnecessary */
@@ -191,11 +234,12 @@ peaq_leveladapter_process (PeaqLevelAdapter * level, gdouble * ref_exciation,
       pattadapt_test[k] = 1.;
     }
   }
-  for (k = 0; k < CRITICAL_BAND_COUNT; k++) {
+  for (k = 0; k < band_count; k++) {
     gdouble ra_ref, ra_test;
     guint l;
+    /* TODO: has to depend on band_count! */
     guint m1 = MIN (k, 3);
-    guint m2 = MIN (CRITICAL_BAND_COUNT - k - 1, 4);
+    guint m2 = MIN (band_count - k - 1, 4);
     ra_ref = 0;
     ra_test = 0;
     for (l = k - m1; l <= k + m2; l++) {
@@ -205,11 +249,11 @@ peaq_leveladapter_process (PeaqLevelAdapter * level, gdouble * ref_exciation,
     ra_ref /= (m1 + m2 + 1);
     ra_test /= (m1 + m2 + 1);
     level->pattcorr_ref[k] =
-      level_class->ear_time_constants[k] * level->pattcorr_ref[k] +
-      (1 - level_class->ear_time_constants[k]) * ra_ref;
+      level->ear_time_constants[k] * level->pattcorr_ref[k] +
+      (1 - level->ear_time_constants[k]) * ra_ref;
     level->pattcorr_test[k] =
-      level_class->ear_time_constants[k] * level->pattcorr_test[k] +
-      (1 - level_class->ear_time_constants[k]) * ra_test;
+      level->ear_time_constants[k] * level->pattcorr_test[k] +
+      (1 - level->ear_time_constants[k]) * ra_test;
     output->spectrally_adapted_ref_patterns[k] =
       levcorr_ref_excitation[k] * level->pattcorr_ref[k];
     output->spectrally_adapted_test_patterns[k] =

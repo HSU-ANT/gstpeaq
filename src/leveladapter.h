@@ -41,14 +41,17 @@
 
 typedef struct _LevelAdapterOutput
 {
-  gdouble spectrally_adapted_ref_patterns[CRITICAL_BAND_COUNT];
-  gdouble spectrally_adapted_test_patterns[CRITICAL_BAND_COUNT];
+  gdouble *spectrally_adapted_ref_patterns;
+  gdouble *spectrally_adapted_test_patterns;
 } LevelAdapterOutput;
 
 typedef struct _PeaqLevelAdapterClass PeaqLevelAdapterClass;
 typedef struct _PeaqLevelAdapter PeaqLevelAdapter;
 
 GType peaq_leveladapter_get_type ();
+PeaqLevelAdapter *peaq_leveladapter_new (PeaqEarModel *ear_model);
+void peaq_leveladapter_set_ear_model (PeaqLevelAdapter *level,
+                                      PeaqEarModel *ear_model);
 void peaq_leveladapter_process (PeaqLevelAdapter * level,
 				gdouble * ref_exciation,
 				gdouble * test_exciation,

@@ -707,10 +707,16 @@ test_leveladapt ()
   guint i;
   gdouble input_data_ref[109];
   gdouble input_data_test[109];
+  PeaqEarModel *ear_model;
   PeaqLevelAdapter *level;
   LevelAdapterOutput output;
+  output.spectrally_adapted_ref_patterns = g_newa (gdouble,
+                                                   CRITICAL_BAND_COUNT);
+  output.spectrally_adapted_test_patterns = g_newa (gdouble,
+                                                    CRITICAL_BAND_COUNT);
 
-  level = g_object_new (PEAQ_TYPE_LEVELADAPTER, NULL);
+  ear_model = g_object_new (PEAQ_TYPE_EARMODEL, NULL);
+  level = peaq_leveladapter_new (ear_model);
   for (i = 0; i < 109; i++) {
     input_data_ref[i] = i + 1;
     input_data_test[i] = 109 - i;
