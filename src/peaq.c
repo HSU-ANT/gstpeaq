@@ -80,8 +80,8 @@ main(int argc, char *argv[])
   GError *error = NULL;
   GOptionContext *context;
   GOptionGroup *option_group;
-  GstElement *pipeline, *ref_source, *ref_parser, *ref_converter, *test_source,
-             *test_parser, *test_converter, *peaq;
+  GstElement *pipeline, *ref_source, *ref_parser, *ref_converter, *ref_resample,
+             *test_source, *test_parser, *test_converter, *test_resample, *peaq;
   gchar *reffilename;
   gchar *testfilename;
 
@@ -127,10 +127,12 @@ main(int argc, char *argv[])
   ref_parser = gst_element_factory_make ("wavparse", "ref_wav-parser");
   g_object_set (G_OBJECT (ref_source), "location", reffilename, NULL);
   ref_converter = gst_element_factory_make ("audioconvert", "ref-converter");
+  ref_resample = gst_element_factory_make ("audioresample", "ref-resampler");
   test_source = gst_element_factory_make ("filesrc", "test_file-source");
   test_parser = gst_element_factory_make ("wavparse", "test_wav-parser");
   g_object_set (G_OBJECT (test_source), "location", testfilename, NULL);
   test_converter = gst_element_factory_make ("audioconvert", "test-converter");
+  test_resample = gst_element_factory_make ("audioresample", "test-resampler");
 
   g_signal_connect (ref_parser, "pad-added", G_CALLBACK (new_pad),
                     gst_element_get_pad (ref_converter, "sink"));
@@ -138,14 +140,16 @@ main(int argc, char *argv[])
                     gst_element_get_pad (test_converter, "sink"));
 
   gst_bin_add_many (GST_BIN (pipeline), 
-                    ref_source, ref_parser, ref_converter,
-                    test_source, test_parser, test_converter,
+                    ref_source, ref_parser, ref_converter, ref_resample,
+                    test_source, test_parser, test_converter, test_resample,
                     peaq,
                     NULL);
   gst_element_link (ref_source, ref_parser);
-  gst_element_link_pads (ref_converter, "src", peaq, "ref");
+  gst_element_link (ref_converter, ref_resample);
+  gst_element_link_pads (ref_resample, "src", peaq, "ref");
   gst_element_link (test_source, test_parser);
-  gst_element_link_pads (test_converter, "src", peaq, "test");
+  gst_element_link (test_converter, test_resample);
+  gst_element_link_pads (test_resample, "src", peaq, "test");
 
   gst_element_set_state (pipeline, GST_STATE_PLAYING);
   g_main_loop_run (loop);
