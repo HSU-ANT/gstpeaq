@@ -37,7 +37,8 @@
 #define STEPSIZE (BLOCKSIZE/2)
 #define BLOCKSIZE_BYTES (BLOCKSIZE * sizeof(gfloat))
 #define STEPSIZE_BYTES (STEPSIZE * sizeof(gfloat))
-#define EHS_ENERGY_THRESHOLD 7.442401884276241e-6
+//#define EHS_ENERGY_THRESHOLD 7.442401884276241e-6
+#define EHS_ENERGY_THRESHOLD 7.45058059692383e-06
 #define MAXLAG 256
 
 enum
@@ -215,10 +216,17 @@ gst_peaq_class_init (GstPeaqClass * peaq_class)
   guint i;
   GObjectClass *object_class = G_OBJECT_CLASS (peaq_class);
 
+  /* centering the window of the correlation in the EHS computation at lag zero
+   * (as considered in [Kabal03] to be more reasonable) improves conformance */
   peaq_class->correlation_window = g_new (gdouble, MAXLAG);
   for (i = 0; i < MAXLAG; i++)
+#if 1
+    peaq_class->correlation_window[i] = 0.81649658092773 *
+      (1 + cos (2 * M_PI * i / (2 * MAXLAG - 1))) / MAXLAG;
+#else
     peaq_class->correlation_window[i] = 0.81649658092773 *
       (1 - cos (2 * M_PI * i / (MAXLAG - 1))) / MAXLAG;
+#endif
 
   object_class->get_property = gst_peaq_get_property;
   object_class->set_property = gst_peaq_set_property;
@@ -754,6 +762,8 @@ calc_noise_loudness (PeaqEarModel const *ear_model,
 	    (ethres + sref * ep_ref * beta), 0.23) - 1.);
   }
   noise_loudness *= 24. / band_count;
+  if (noise_loudness < 0.)
+    noise_loudness = 0.;
   return noise_loudness;
 }
 
@@ -820,7 +830,7 @@ calc_prob_detect (guint band_count, gdouble const *ref_excitation,
     gdouble e = eref_db - etest_db;
     gdouble b = eref_db > etest_db ? 4 : 6;
     gdouble pc = 1 - pow (0.5, pow (e / s, b));
-    gdouble qc = ABS ((gint) e) / s;
+    gdouble qc = fabs (trunc(e)) / s;
     *detection_probability *= 1 - pc;
     *detection_steps += qc;
   }
@@ -871,13 +881,13 @@ calc_ehs (GstPeaq const *peaq, gfloat const *refdata, gfloat const *testdata,
   GstPeaqClass *peaq_class = GST_PEAQ_GET_CLASS (peaq);
   for (i = FRAMESIZE / 2; i < FRAMESIZE; i++)
     energy += refdata[i] * refdata[i];
-  if (energy > EHS_ENERGY_THRESHOLD)
+  if (energy >= EHS_ENERGY_THRESHOLD)
     *ehs_valid = TRUE;
   else {
     energy = 0.;
     for (i = FRAMESIZE / 2; i < FRAMESIZE; i++)
       energy += testdata[i] * testdata[i];
-    if (energy > EHS_ENERGY_THRESHOLD)
+    if (energy >= EHS_ENERGY_THRESHOLD)
       *ehs_valid = TRUE;
   }
   if (*ehs_valid) {
@@ -899,6 +909,9 @@ calc_ehs (GstPeaq const *peaq, gfloat const *refdata, gfloat const *testdata,
 
     do_xcorr(peaq, d, c);
 
+    /* in the following, the mean is subtracted before the window is applied as
+     * suggested by [Kabal03], although this contradicts [BS1387]; however, the
+     * results thus obtained are closer to the reference */
     d0 = c[0];
     dk = d0;
     cavg = 0;
@@ -979,6 +992,16 @@ gst_peaq_calculate_di (GstPeaq * peaq)
     for (i = 0; i <= 10; i++) {
       guint j;
       gdouble m = (movs[i] - amin[i]) / (amax[i] - amin[i]);
+      /* according to [Kabal03], it is unclear whether the MOVs should be
+       * clipped to within [amin, amax], although [BS1387] does not mention
+       * clipping at all; doing so slightly improves the results of the
+       * conformance test */
+#if 1
+      if (m < 0.)
+        m = 0.;
+      if (m > 1.)
+        m = 1.;
+#endif
       for (j = 0; j < 3; j++)
 	x[j] += wx[i][j] * m;
     }
@@ -1029,9 +1052,9 @@ is_frame_above_threshold (gfloat * framedata)
 
   sum = 0;
   for (i = 0; i < 5; i++)
-    sum += ABS (framedata[i]);
+    sum += fabs (framedata[i]);
   while (i < FRAMESIZE) {
-    sum += ABS (framedata[i]) - ABS (framedata[i - 5]);
+    sum += fabs (framedata[i]) - fabs (framedata[i - 5]);
     if (sum >= 200. / 32768)
       return TRUE;
     i++;
