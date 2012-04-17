@@ -701,6 +701,24 @@ test_ear ()
       exit(1);
     }
   }
+
+  for (frame = 0; frame < 50; frame++) {
+    /* generate 1kHz sine at 40dB SPL */
+    gdouble scale = pow (10., (40. - 92.) / 20);
+    for (i = 0; i < 2048; i++)
+      input_data[i] = scale * sin (2 * M_PI * 1000. / 48000. * (i + frame * 1024));
+    peaq_ear_process (ear, input_data, &output);
+  }
+  /* [BS1387] claims that the constants are chosen such that the loudness is 1
+   * Sone, [Kabal03] already mentions that the algorithm in fact yields 0.584 */
+#if 0
+  if (output.overall_loudness > 1.01 || output.overall_loudness < 0.99) {
+#else
+  if (output.overall_loudness > 0.59 || output.overall_loudness < 0.58) {
+#endif
+    g_printf ("loudness == %f != 1\n", output.overall_loudness);
+    exit(1);
+  }
 }
 
 static void
