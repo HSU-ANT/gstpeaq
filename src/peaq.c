@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2012 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2012, 2013 Martin Holters <martin.holters@hsuhh.de>
  *
  * peaq.c: Command-line frontend to process given WAV files
  *
