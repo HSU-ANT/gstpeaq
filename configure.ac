@@ -1,6 +1,6 @@
 AC_PREREQ(2.60)
 
-AC_INIT([gstpeaq], [0.3.3], [martin.holters@hsuhh.de])
+AC_INIT([gstpeaq], [0.3.4], [martin.holters@hsuhh.de])
 AC_CONFIG_AUX_DIR([misc])
 AC_CONFIG_MACRO_DIR([misc])
 AM_INIT_AUTOMAKE([1.9 gnu])
@@ -27,5 +27,5 @@ GST_SET_PLUGINDIR
 GTK_DOC_CHECK(1.0)
 
 AC_CONFIG_HEADER([config.h])
-AC_CONFIG_FILES([Makefile src/Makefile doc/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile doc/Makefile doc/man/Makefile])
 AC_OUTPUT

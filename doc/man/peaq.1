@@ -1,0 +1,66 @@
+.TH PEAQ 1 2013-01-31 GstPEAQ
+.SH NAME
+peaq \- Perceptual Evaluation of Audio Quality
+.SH SYNOPSIS
+.SY peaq
+.RI [ "GSTREAMER OPTIONS" ]
+.I REFFILE 
+.I TESTFILE
+.YS
+.SH DESCRIPTION
+.B peaq
+evaluates the audio quality of an impaired
+.I TESTFILE
+with reference to the original
+.IR REFFILE .
+The output consists of the Objective Difference Grade (ODG) and the Distortion
+Index (DI).
+The ODG approximates the result of a listening test with a five-grade
+impairment scale, where the possible values are anchored accoring to:
+.TS
+tab (@);
+r lx.
+ODG@T{
+judgement of impairment
+T}
+0@T{
+imperceptible
+T}
+-1@T{
+perceptible but not annoying
+T}
+-2@T{
+slightly annoying
+T}
+-3@T{
+annoying
+T}
+-4@T{
+very annoying
+T}
+.TE
+.P
+The calculation of the ODG is performed as described in ITU-R BS.1387-1 and
+interpreted by Peter Kabal in "An Examination and Interpretation of ITU-R
+BS.1387: Perceptual Evaluation of Audio Quality".
+.SH OPTIONS
+.B peaq
+has no application specific options but supports the common GStreamer options
+as described e.g. in
+.BR gst-lauch (1).
+.SH EXIT STATUS
+.TP
+.B 0
+Command completed successfully.
+.TP
+.B 1
+Usage or syntax error.
+.SH ENVIRONMENT
+See
+.BR gst-lauch (1)
+for a list of environment variables affecting all GStreamer applications.
+.SH CONFORMING TO
+Although
+.B peaq
+is implemented based on ITU-R BS.1387-1, it does not fulfill the conformance
+criteria therein.
