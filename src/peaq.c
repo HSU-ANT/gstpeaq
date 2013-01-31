@@ -70,7 +70,7 @@ new_pad (GstElement * element, GstPad * pad, gpointer data)
 void
 usage()
 {
-  exit(-1);
+  exit(1);
 }
 
 int
