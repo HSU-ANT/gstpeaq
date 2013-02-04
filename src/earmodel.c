@@ -471,6 +471,12 @@ peaq_earmodel_get_band_count (PeaqEarModel const *ear_model)
   return ear_model->band_count;
 }
 
+guint
+peaq_earmodel_get_step_size (PeaqEarModel const *ear_model)
+{
+  return 1024; /* for FFT ear model; has to be 192 for filter bank model */
+}
+
 /**
  * peaq_ear_process:
  * @ear: the #PeaqEar instance structure.

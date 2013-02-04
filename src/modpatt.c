@@ -143,9 +143,9 @@ peaq_modulationprocessor_set_ear_model (PeaqModulationProcessor *modproc,
     /* TODO: should depend on the ear model used... */
     curr_fc = peaq_earmodel_get_band_center_frequency (k);
     tau = 0.008 + 100 / curr_fc * (0.05 - 0.008);
-    /* TODO: use configurable step-size */
     modproc->ear_time_constants[k] =
-      exp (-(gdouble) FRAMESIZE / (2 * SAMPLINGRATE) / tau);
+      exp (-(gdouble) peaq_earmodel_get_step_size (ear_model)
+           / (SAMPLINGRATE * tau));
   }
 }
 
@@ -154,14 +154,15 @@ peaq_modulationprocessor_process (PeaqModulationProcessor * modproc,
 				  gdouble * unsmeared_exciation,
 				  ModulationProcessorOutput * output)
 {
-  guint band_count, k;
+  guint band_count, step_size, k;
 
   band_count = peaq_earmodel_get_band_count (modproc->ear_model);
+  step_size = peaq_earmodel_get_step_size (modproc->ear_model);
 
   for (k = 0; k < band_count; k++) {
     gdouble loudness = pow (unsmeared_exciation[k], 0.3);
     /* TODO: use configurable step-size */
-    gdouble loudness_derivative = (gdouble) SAMPLINGRATE / (FRAMESIZE / 2) *
+    gdouble loudness_derivative = (gdouble) SAMPLINGRATE / step_size *
       ABS (loudness - modproc->previous_loudness[k]);
     modproc->filtered_loudness_derivative[k] =
       modproc->ear_time_constants[k] *

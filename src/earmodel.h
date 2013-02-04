@@ -128,6 +128,7 @@ void peaq_ear_process (PeaqEar * ear, gfloat * sample_data,
 
 GType peaq_earmodel_get_type ();
 guint peaq_earmodel_get_band_count (PeaqEarModel const *ear_model);
+guint peaq_earmodel_get_step_size (PeaqEarModel const *ear_model);
 void peaq_earmodel_group_into_bands (PeaqEarModel const* ear_model,
 				     gdouble * spectrum,
 				     gdouble * band_power);
