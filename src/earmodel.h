@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2006, 2011 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2006, 2011, 2013 Martin Holters <martin.holters@hsuhh.de>
  *
  * earmodel.h: Peripheral ear model part.
  *
@@ -25,21 +25,20 @@
 
 #include <glib-object.h>
 
-#define PEAQ_TYPE_EAR (peaq_ear_get_type ())
-#define PEAQ_EAR(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST (obj, PEAQ_TYPE_EAR, PeaqEar))
+#define PEAQ_TYPE_EARMODELPARAMS (peaq_earmodelparams_get_type ())
+#define PEAQ_EARMODELPARAMS(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST (obj, PEAQ_TYPE_EARMODELPARAMS, \
+                               PeaqEarModelParams))
+#define PEAQ_EARMODELPARAMS_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST (klass, PEAQ_TYPE_EARMODELPARAMS, \
+                            PeaqEarModelParamsClass))
+#define PEAQ_EARMODELPARAMS_GET_CLASS(obj) \
+  (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_EARMODELPARAMS, \
+                              PeaqEarModelParamsClass))
 
 #define PEAQ_TYPE_EARMODEL (peaq_earmodel_get_type ())
 #define PEAQ_EARMODEL(obj) \
   (G_TYPE_CHECK_INSTANCE_CAST (obj, PEAQ_TYPE_EARMODEL, PeaqEarModel))
-#define PEAQ_EARMODEL_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST (klass, PEAQ_TYPE_EARMODEL, PeaqEarModelClass))
-#define PEAQ_IS_EARMODEL(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE (obj, PEAQ_TYPE_EARMODEL))
-#define PEAQ_IS_EARMODEL_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE (klass, PEAQ_TYPE_EARMODEL))
-#define PEAQ_EARMODEL_GET_CLASS(obj) \
-  (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_EARMODEL, PeaqEarModelClass))
 
 /**
  * FRAMESIZE:
@@ -48,6 +47,13 @@
  * peaq_earmodel_process().
  */
 #define FRAMESIZE 2048
+
+typedef struct _PeaqEarModelClass PeaqEarModelClass;
+typedef struct _PeaqEarModel PeaqEarModel;
+
+typedef struct _PeaqEarModelParamsClass PeaqEarModelParamsClass;
+typedef struct _PeaqEarModelParams PeaqEarModelParams;
+typedef struct _EarModelOutput EarModelOutput;
 
 /**
  * EarModelOutput:
@@ -115,24 +121,53 @@ struct _EarModelOutput
   gdouble overall_loudness;
 };
 
-typedef struct _PeaqEarClass PeaqEarClass;
-typedef struct _PeaqEar PeaqEar;
-typedef struct _PeaqEarModelClass PeaqEarModelClass;
-typedef struct _PeaqEarModel PeaqEarModel;
-typedef struct _EarModelOutput EarModelOutput;
+struct _PeaqEarModelParams
+{
+  GObject parent;
+  guint band_count;
+  guint step_size;
+  gdouble *excitation_threshold;
+  gdouble *threshold;
+  gdouble *loudness_factor;
+};
 
-GType peaq_ear_get_type ();
-PeaqEarModel *peaq_ear_get_model(PeaqEar const* ear);
-void peaq_ear_process (PeaqEar * ear, gfloat * sample_data,
-                       EarModelOutput * output);
+struct _PeaqEarModelParamsClass
+{
+  GObjectClass parent;
+  gdouble loudness_scale;
+  gdouble (*get_playback_level) (PeaqEarModelParams const *params);
+  void (*set_playback_level) (PeaqEarModelParams *params, gdouble level);
+  gdouble (*get_band_center_frequency) (PeaqEarModelParams const *params,
+                                        guint band);
+  gdouble (*get_internal_noise) (PeaqEarModelParams const *params,
+                                 guint band);
+};
+
+struct _PeaqEarModel
+{
+  GObject parent;
+  PeaqEarModelParams *params;
+};
+
+struct _PeaqEarModelClass
+{
+  GObjectClass parent;
+};
+
+GType peaq_earmodelparams_get_type ();
+guint peaq_earmodelparams_get_band_count (PeaqEarModelParams const *params);
+void peaq_earmodelparams_set_band_count (PeaqEarModelParams *params,
+                                         guint band_count);
+guint peaq_earmodelparams_get_step_size (PeaqEarModelParams const *params);
+gdouble peaq_earmodelparams_get_band_center_frequency (PeaqEarModelParams
+                                                       const *params,
+                                                       guint band);
+gdouble peaq_earmodelparams_get_internal_noise (PeaqEarModelParams const
+                                                *params, guint band);
+gdouble peaq_earmodelparams_calc_loudness (PeaqEarModelParams const *params,
+                                           gdouble *excitation);
 
 GType peaq_earmodel_get_type ();
-guint peaq_earmodel_get_band_count (PeaqEarModel const *ear_model);
-guint peaq_earmodel_get_step_size (PeaqEarModel const *ear_model);
-void peaq_earmodel_group_into_bands (PeaqEarModel const* ear_model,
-				     gdouble * spectrum,
-				     gdouble * band_power);
-gdouble peaq_earmodel_get_band_center_frequency (guint band);
-gdouble peaq_earmodel_get_internal_noise (PeaqEarModel const * ear_model,
-					  guint band);
+PeaqEarModelParams *peaq_earmodel_get_model_params (PeaqEarModel const *ear);
+
 #endif

@@ -4,14 +4,16 @@ check_PROGRAMS = testpeaq
 EXTRA_DIST = runtest.sh
 TESTS = testpeaq runtest.sh
 noinst_HEADERS = gstpeaq.h earmodel.h earmodel_bands.h leveladapter.h \
-	modpatt.h
+	modpatt.h fftearmodel.h fbearmodel.h
 libgstpeaq_la_SOURCES = gstpeaq.c gstpeaqplugin.c earmodel.c \
-	leveladapter.c modpatt.c
+	leveladapter.c modpatt.c fftearmodel.c fbearmodel.c
 libgstpeaq_la_CFLAGS = @PKGCONF_CFLAGS@
 libgstpeaq_la_LIBADD = @PKGCONF_LIBS@
+libgstpeaq_la_LDFLAGS = -module
 peaq_SOURCES = peaq.c
 peaq_CFLAGS = @PKGCONF_CFLAGS@
 peaq_LDADD = @PKGCONF_LIBS@
-testpeaq_SOURCES = testpeaq.c earmodel.c leveladapter.c modpatt.c
+testpeaq_SOURCES = testpeaq.c earmodel.c leveladapter.c modpatt.c \
+		   fftearmodel.c fbearmodel.c
 testpeaq_CFLAGS = @PKGCONF_CFLAGS@
 testpeaq_LDADD = @PKGCONF_LIBS@

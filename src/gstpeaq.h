@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2006, 2011 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2006, 2011, 2013 Martin Holters <martin.holters@hsuhh.de>
  *
  * gstpeaq.h: Compute objective audio quality measures
  *
@@ -23,7 +23,8 @@
 #ifndef __GST_PEAQ_H__
 #define __GST_PEAQ_H__
 
-#include "earmodel.h"
+#include "fbearmodel.h"
+#include "fftearmodel.h"
 #include "leveladapter.h"
 #include "modpatt.h"
 
@@ -52,9 +53,12 @@ G_BEGIN_DECLS;
 
 #define SAMPLINGRATE 48000
 
+//#define ADVANCED 1
+
 typedef struct _GstPeaq GstPeaq;
 typedef struct _GstPeaqClass GstPeaqClass;
 typedef struct _GstPeaqAggregatedData GstPeaqAggregatedData;
+typedef struct _GstPeaqAggregatedDataFB GstPeaqAggregatedDataFB;
 
 struct _GstPeaq
 {
@@ -62,27 +66,36 @@ struct _GstPeaq
   GstPad *refpad;
   GstPad *testpad;
   GstCollectPads *collect;
-  GstAdapter *ref_adapter;
-  GstAdapter *test_adapter;
+  GstAdapter *ref_adapter_fft;
+  GstAdapter *test_adapter_fft;
+  GstAdapter *ref_adapter_fb;
+  GstAdapter *test_adapter_fb;
   GstFFTF64 *correlation_fft;
   GstFFTF64 *correlator_fft;
   GstFFTF64 *correlator_inverse_fft;
   gboolean console_output;
   gdouble *masking_difference;
   guint frame_counter;
-  PeaqEar *ref_ear;
-  PeaqEar *test_ear;
-  PeaqLevelAdapter *level_adapter;
+  guint frame_counter_fb;
+  PeaqFFTEarModel *ref_ear;
+  PeaqFFTEarModel *test_ear;
+  PeaqFilterbankEarModel *ref_ear_fb;
+  PeaqFilterbankEarModel *test_ear_fb;
+  PeaqLevelAdapter *level_adapter_fft;
+  PeaqLevelAdapter *level_adapter_fb;
   PeaqModulationProcessor *ref_modulation_processor;
   PeaqModulationProcessor *test_modulation_processor;
+  PeaqModulationProcessor *ref_modulation_processor_fb;
+  PeaqModulationProcessor *test_modulation_processor_fb;
   GstPeaqAggregatedData *current_aggregated_data;
   GstPeaqAggregatedData *saved_aggregated_data;
+  GstPeaqAggregatedDataFB *current_aggregated_data_fb;
+  GstPeaqAggregatedDataFB *saved_aggregated_data_fb;
 };
 
 struct _GstPeaqClass
 {
   GstElementClass parent_class;
-  guint window_length;
   guint sampling_rate;
   gdouble *correlation_window;
 };

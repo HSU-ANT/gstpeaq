@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2006 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2006, 2013 Martin Holters <martin.holters@hsuhh.de>
  *
  * modpatt.h: Modulation pattern processor.
  *
@@ -51,9 +51,9 @@ typedef struct _PeaqModulationProcessorClass PeaqModulationProcessorClass;
 typedef struct _PeaqModulationProcessor PeaqModulationProcessor;
 
 GType peaq_modulationprocessor_get_type ();
-PeaqModulationProcessor *peaq_modulationprocessor_new (PeaqEarModel *ear_model);
-void peaq_modulationprocessor_set_ear_model (PeaqModulationProcessor *modproc,
-                                             PeaqEarModel *ear_model);
+PeaqModulationProcessor *peaq_modulationprocessor_new (PeaqEarModelParams *ear_params);
+void peaq_modulationprocessor_set_ear_model_params (PeaqModulationProcessor *modproc,
+                                                    PeaqEarModelParams *ear_params);
 void peaq_modulationprocessor_process (PeaqModulationProcessor * level,
 				       gdouble * unsmeared_exciation,
 				       ModulationProcessorOutput * output);

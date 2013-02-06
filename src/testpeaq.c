@@ -1,4 +1,5 @@
-#include "earmodel.h"
+#include "fftearmodel.h"
+#include "fbearmodel.h"
 #include "leveladapter.h"
 #include "modpatt.h"
 
@@ -654,12 +655,14 @@ test_ear ()
 {
   gint i,frame,band_count;
   gfloat input_data[2048];
-  PeaqEar *ear;
+  PeaqFFTEarModel *ear;
+  PeaqFilterbankEarModel *fb_ear;
   EarModelOutput output;
 
-  ear = g_object_new (PEAQ_TYPE_EAR, NULL);
+  ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
+  fb_ear = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL, NULL);
 
-  band_count = peaq_earmodel_get_band_count (peaq_ear_get_model (ear));
+  band_count = peaq_earmodelparams_get_band_count (peaq_earmodel_get_model_params (PEAQ_EARMODEL(ear)));
 
   output.band_power = g_newa (gdouble, band_count);
   output.unsmeared_excitation = g_newa (gdouble, band_count);
@@ -670,10 +673,10 @@ test_ear ()
   input_data[i++] = 0;
   while (i < 2048)
     input_data[i++] = 1;
-  peaq_ear_process (ear, input_data, &output);
+  peaq_fftearmodel_process (ear, input_data, &output);
   for (i = 0; i < 2048; i++)
     input_data[i] = (gfloat) (i - 1024) / 1024;
-  peaq_ear_process (ear, input_data, &output);
+  peaq_fftearmodel_process (ear, input_data, &output);
 
   assertArrayEqualsSq (output.power_spectrum, fft_ref_data, 1025,
 		       "absolute_spectrum");
@@ -694,7 +697,7 @@ test_ear ()
     gdouble SPL;
     for (i = 0; i < 2048; i++)
       input_data[i] = sin (2 * M_PI * 1019.5 / 48000. * (i + frame * 1024));
-    peaq_ear_process (ear, input_data, &output);
+    peaq_fftearmodel_process (ear, input_data, &output);
     SPL = 10*log10(output.power_spectrum[43]);
     if (SPL > 92.0001 || SPL < 91.9999) {
       g_printf ("SPL == %f != 92\n", SPL);
@@ -707,12 +710,30 @@ test_ear ()
     gdouble scale = pow (10., (40. - 92.) / 20);
     for (i = 0; i < 2048; i++)
       input_data[i] = scale * sin (2 * M_PI * 1000. / 48000. * (i + frame * 1024));
-    peaq_ear_process (ear, input_data, &output);
+    peaq_fftearmodel_process (ear, input_data, &output);
   }
   /* [BS1387] claims that the constants are chosen such that the loudness is 1
    * Sone, [Kabal03] already mentions that the algorithm in fact yields 0.584 */
 #if 0
   if (output.overall_loudness > 1.01 || output.overall_loudness < 0.99) {
+#else
+  if (output.overall_loudness > 0.59 || output.overall_loudness < 0.58) {
+#endif
+    g_printf ("loudness == %f != 1\n", output.overall_loudness);
+    exit(1);
+  }
+
+  for (frame = 0; frame < 250; frame++) {
+    /* generate 1kHz sine at 40dB SPL */
+    gdouble scale = pow (10., (40. - 92.) / 20);
+    for (i = 0; i < 192; i++)
+      input_data[i] = scale * sin (2 * M_PI * 1000. / 48000. * (i + frame * 192));
+    peaq_filterbankearmodel_process (fb_ear, input_data, &output);
+  }
+  /* [BS1387] claims that the constants are chosen such that the loudness is 1
+   * Sone, [Kabal03] already mentions that the algorithm in fact yields 0.584 */
+#if 1
+  if (output.overall_loudness > 1.04 || output.overall_loudness < 0.96) {
 #else
   if (output.overall_loudness > 0.59 || output.overall_loudness < 0.58) {
 #endif
@@ -727,15 +748,15 @@ test_leveladapt ()
   guint i, band_count;
   gdouble input_data_ref[109];
   gdouble input_data_test[109];
-  PeaqEarModel *ear_model;
+  PeaqEarModelParams *model_params;
   PeaqLevelAdapter *level;
   LevelAdapterOutput output;
 
-  ear_model = g_object_new (PEAQ_TYPE_EARMODEL, NULL);
-  band_count = peaq_earmodel_get_band_count (ear_model);
+  model_params = g_object_new (PEAQ_TYPE_FFTEARMODELPARAMS, NULL);
+  band_count = peaq_earmodelparams_get_band_count (model_params);
   output.spectrally_adapted_ref_patterns = g_newa (gdouble, band_count);
   output.spectrally_adapted_test_patterns = g_newa (gdouble, band_count);
-  level = peaq_leveladapter_new (ear_model);
+  level = peaq_leveladapter_new (model_params);
   for (i = 0; i < 109; i++) {
     input_data_ref[i] = i + 1;
     input_data_test[i] = 109 - i;
@@ -761,14 +782,14 @@ test_modulationproc ()
 {
   guint i, band_count;
   gdouble input_data[109];
-  PeaqEarModel *ear_model;
+  PeaqEarModelParams *model_params;
   PeaqModulationProcessor *modproc;
   ModulationProcessorOutput output;
 
-  ear_model = g_object_new (PEAQ_TYPE_EARMODEL, NULL);
-  band_count = peaq_earmodel_get_band_count (ear_model);
+  model_params = g_object_new (PEAQ_TYPE_FFTEARMODELPARAMS, NULL);
+  band_count = peaq_earmodelparams_get_band_count (model_params);
   output.modulation = g_newa (gdouble, band_count);
-  modproc = peaq_modulationprocessor_new (ear_model);
+  modproc = peaq_modulationprocessor_new (model_params);
   for (i = 0; i < 109; i++) {
     input_data[i] = i + 1;
   }
