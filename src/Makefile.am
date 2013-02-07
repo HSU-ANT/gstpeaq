@@ -3,7 +3,7 @@ bin_PROGRAMS = peaq
 check_PROGRAMS = testpeaq 
 EXTRA_DIST = runtest.sh
 TESTS = testpeaq runtest.sh
-noinst_HEADERS = gstpeaq.h earmodel.h earmodel_bands.h leveladapter.h \
+noinst_HEADERS = gstpeaq.h earmodel.h leveladapter.h \
 	modpatt.h fftearmodel.h fbearmodel.h
 libgstpeaq_la_SOURCES = gstpeaq.c gstpeaqplugin.c earmodel.c \
 	leveladapter.c modpatt.c fftearmodel.c fbearmodel.c

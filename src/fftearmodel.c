@@ -22,7 +22,6 @@
 
 #include "fftearmodel.h"
 #include "gstpeaq.h"
-#include "earmodel_bands.h"
 
 #include <math.h>
 
@@ -216,21 +215,27 @@ params_fill (PeaqFFTEarModelParams *params)
   params->band_upper_end = g_new (guint, band_count);
   params->band_lower_weight = g_new (gdouble, band_count);
   params->band_upper_weight = g_new (gdouble, band_count);
+  gdouble zL = 7. * asinh (80. / 650.);
+  gdouble zU = 7. * asinh (18000. / 650.);
   for (k = 0; k < band_count; k++) {
+    gdouble zl = zL + k * params->deltaZ;
+    gdouble zu = MIN(zU, zL + (k + 1) * params->deltaZ);
+    gdouble fl = 650. * sinh (zl / 7.);
+    gdouble fu = 650. * sinh (zu / 7.);
     params->band_lower_end[k]
-      = (guint) round (fl[k] / SAMPLINGRATE * FFT_FRAMESIZE);
+      = (guint) round (fl / SAMPLINGRATE * FFT_FRAMESIZE);
     params->band_upper_end[k]
-      = (guint) round (fu[k] / SAMPLINGRATE * FFT_FRAMESIZE);
+      = (guint) round (fu / SAMPLINGRATE * FFT_FRAMESIZE);
     gdouble upper_freq =
       (2 * params->band_lower_end[k] + 1) / 2. * SAMPLINGRATE / FFT_FRAMESIZE;
-    gdouble U = upper_freq - fl[k];
+    gdouble U = upper_freq - fl;
     params->band_lower_weight[k] = U * FFT_FRAMESIZE / SAMPLINGRATE;
     if (params->band_lower_end[k] == params->band_upper_end[k]) {
       params->band_upper_weight[k] = 0;
     } else {
       gdouble lower_freq = (2 * params->band_upper_end[k] - 1) / 2.
         * SAMPLINGRATE / FFT_FRAMESIZE;
-      U = fu[k] - lower_freq;
+      U = fu - lower_freq;
       params->band_upper_weight[k] = U * FFT_FRAMESIZE / SAMPLINGRATE;
     }
   }
@@ -244,7 +249,9 @@ params_fill (PeaqFFTEarModelParams *params)
   params->lower_spreading = pow (10, -2.7 * params->deltaZ);
   params->lower_spreading_exponantiated = pow (params->lower_spreading, 0.4);
   for (k = 0; k < band_count; k++) {
-    gdouble curr_fc = fc[k];
+    gdouble curr_fc =
+      peaq_earmodelparams_get_band_center_frequency (PEAQ_EARMODELPARAMS
+                                                     (params), k);
     const gdouble aL = params->lower_spreading;
     params->aUC[k] = pow (10, (-2.4 - 23 / curr_fc) * params->deltaZ);
     params->gIL[k] = (1 - pow (aL, k + 1)) / (1 - aL);
@@ -506,13 +513,20 @@ peaq_ear_init (GTypeInstance *obj, gpointer klass)
   guint band;
 
 #ifdef ADVANCED
-  GArray *fc_array = g_array_sized_new (FALSE, FALSE, sizeof (gdouble), 55);
-  for (band = 0; band < 55; band++) {
+  gdouble delta_z = 0.5;
 #else
-  GArray *fc_array = g_array_sized_new (FALSE, FALSE, sizeof (gdouble), 109);
-  for (band = 0; band < 109; band++) {
+  gdouble delta_z = 0.25;
 #endif
-    gdouble curr_fc = fc[band];
+  gdouble zL = 7. * asinh (80. / 650.);
+  gdouble zU = 7. * asinh (18000. / 650.);
+  guint band_count = ceil ((zU - zL) / delta_z);
+  GArray *fc_array = g_array_sized_new (FALSE, FALSE, sizeof (gdouble),
+                                        band_count);
+  for (band = 0; band < band_count; band++) {
+    gdouble zl = zL + band * delta_z;
+    gdouble zu = MIN(zU, zL + (band + 1) * delta_z);
+    gdouble zc = (zu + zl) / 2.;
+    gdouble curr_fc = 650. * sinh (zc / 7.);
     g_array_append_val (fc_array, curr_fc);
   }
 
