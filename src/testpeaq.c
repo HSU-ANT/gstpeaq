@@ -2,6 +2,7 @@
 #include "fbearmodel.h"
 #include "leveladapter.h"
 #include "modpatt.h"
+#include "earmodel_bands.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -745,14 +746,21 @@ test_ear ()
 static void
 test_leveladapt ()
 {
-  guint i, band_count;
+  guint i, band, band_count;
   gdouble input_data_ref[109];
   gdouble input_data_test[109];
   PeaqEarModelParams *model_params;
   PeaqLevelAdapter *level;
   LevelAdapterOutput output;
 
-  model_params = g_object_new (PEAQ_TYPE_FFTEARMODELPARAMS, NULL);
+  GArray *fc_array = g_array_sized_new (FALSE, FALSE, sizeof (gdouble), 109);
+  for (band = 0; band < 109; band++) {
+    gdouble curr_fc = fc[band];
+    g_array_append_val (fc_array, curr_fc);
+  }
+  model_params = g_object_new (PEAQ_TYPE_FFTEARMODELPARAMS,
+                               "band-centers", fc_array,
+                               NULL);
   band_count = peaq_earmodelparams_get_band_count (model_params);
   output.spectrally_adapted_ref_patterns = g_newa (gdouble, band_count);
   output.spectrally_adapted_test_patterns = g_newa (gdouble, band_count);
@@ -780,13 +788,20 @@ test_leveladapt ()
 static void
 test_modulationproc ()
 {
-  guint i, band_count;
+  guint i, band, band_count;
   gdouble input_data[109];
   PeaqEarModelParams *model_params;
   PeaqModulationProcessor *modproc;
   ModulationProcessorOutput output;
 
-  model_params = g_object_new (PEAQ_TYPE_FFTEARMODELPARAMS, NULL);
+  GArray *fc_array = g_array_sized_new (FALSE, FALSE, sizeof (gdouble), 109);
+  for (band = 0; band < 109; band++) {
+    gdouble curr_fc = fc[band];
+    g_array_append_val (fc_array, curr_fc);
+  }
+  model_params = g_object_new (PEAQ_TYPE_FFTEARMODELPARAMS,
+                               "band-centers", fc_array,
+                               NULL);
   band_count = peaq_earmodelparams_get_band_count (model_params);
   output.modulation = g_newa (gdouble, band_count);
   modproc = peaq_modulationprocessor_new (model_params);

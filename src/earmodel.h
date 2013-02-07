@@ -125,7 +125,9 @@ struct _PeaqEarModelParams
 {
   GObject parent;
   guint band_count;
-  guint step_size;
+  gdouble *fc;
+  gdouble *internal_noise;
+  gdouble *ear_time_constants;
   gdouble *excitation_threshold;
   gdouble *threshold;
   gdouble *loudness_factor;
@@ -135,12 +137,11 @@ struct _PeaqEarModelParamsClass
 {
   GObjectClass parent;
   gdouble loudness_scale;
+  guint step_size;
+  gdouble tau_min;
+  gdouble tau_100;
   gdouble (*get_playback_level) (PeaqEarModelParams const *params);
   void (*set_playback_level) (PeaqEarModelParams *params, gdouble level);
-  gdouble (*get_band_center_frequency) (PeaqEarModelParams const *params,
-                                        guint band);
-  gdouble (*get_internal_noise) (PeaqEarModelParams const *params,
-                                 guint band);
 };
 
 struct _PeaqEarModel
@@ -156,14 +157,14 @@ struct _PeaqEarModelClass
 
 GType peaq_earmodelparams_get_type ();
 guint peaq_earmodelparams_get_band_count (PeaqEarModelParams const *params);
-void peaq_earmodelparams_set_band_count (PeaqEarModelParams *params,
-                                         guint band_count);
 guint peaq_earmodelparams_get_step_size (PeaqEarModelParams const *params);
 gdouble peaq_earmodelparams_get_band_center_frequency (PeaqEarModelParams
                                                        const *params,
                                                        guint band);
 gdouble peaq_earmodelparams_get_internal_noise (PeaqEarModelParams const
                                                 *params, guint band);
+gdouble peaq_earmodelparams_get_ear_time_constant (PeaqEarModelParams const
+                                                   *params, guint band);
 gdouble peaq_earmodelparams_calc_loudness (PeaqEarModelParams const *params,
                                            gdouble *excitation);
 

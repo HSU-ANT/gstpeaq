@@ -43,13 +43,11 @@ struct _PeaqFFTEarModelParams
   guint *band_upper_end;
   gdouble *band_lower_weight;
   gdouble *band_upper_weight;
-  gdouble *internal_noise_level;
   gdouble lower_spreading;
   gdouble lower_spreading_exponantiated;
   gdouble *spreading_normalization;
   gdouble *aUC;
   gdouble *gIL;
-  gdouble *ear_time_constants;
 };
 
 /**
@@ -89,13 +87,10 @@ struct _PeaqFFTEarModelClass
 static void params_class_init (gpointer klass, gpointer class_data);
 static void params_init (GTypeInstance *obj, gpointer klass);
 static void params_finalize (GObject *obj);
+static void params_fill (PeaqFFTEarModelParams *params);
 static gdouble params_get_playback_level (PeaqEarModelParams const *params);
 static void params_set_playback_level (PeaqEarModelParams *params,
                                        double level);
-static gdouble params_get_band_center_frequency (PeaqEarModelParams const
-                                                 *params, guint band);
-static gdouble params_get_internal_noise (PeaqEarModelParams const *params,
-                                          guint band);
 static void params_do_spreading (PeaqFFTEarModelParams const *params,
                                  gdouble *Pp, gdouble *E2);
 
@@ -159,11 +154,11 @@ params_class_init (gpointer klass, gpointer class_data)
 
   ear_params_class->get_playback_level = params_get_playback_level;
   ear_params_class->set_playback_level = params_set_playback_level;
-  ear_params_class->get_band_center_frequency =
-    params_get_band_center_frequency;
-  ear_params_class->get_internal_noise = params_get_internal_noise;
 
   ear_params_class->loudness_scale = LOUDNESS_SCALE;
+  ear_params_class->step_size = 1024;
+  ear_params_class->tau_min = 0.008;
+  ear_params_class->tau_100 = 0.030;
 
   /* pre-compute Hann window
    *
@@ -200,28 +195,28 @@ params_class_init (gpointer klass, gpointer class_data)
 static void
 params_init (GTypeInstance *obj, gpointer klass)
 {
-  gdouble *spread;
+  PeaqEarModelParams *params = PEAQ_EARMODELPARAMS (obj);
+  g_signal_connect (params, "notify::band-centers",
+                    G_CALLBACK (params_fill), NULL);
+}
+
+static void
+params_fill (PeaqFFTEarModelParams *params)
+{
   guint k;
+  gdouble *spread;
+  guint band_count = params->parent.band_count;
 
-  PeaqFFTEarModelParams *params = PEAQ_FFTEARMODELPARAMS (obj);
-
-#ifdef ADVANCED
-  peaq_earmodelparams_set_band_count (PEAQ_EARMODELPARAMS (obj), 55);
-  params->deltaZ = 0.5;
-#else
-  peaq_earmodelparams_set_band_count (PEAQ_EARMODELPARAMS (obj), 109);
-  params->deltaZ = 0.25;
-#endif
-  params->parent.step_size = 1024;
+  params->deltaZ = 27. / (band_count - 1);
 
   /* pre-compute helper data for params_group_into_bands
    * The precomputed data is as proposed in [Kabal03], but the algorithm to
    * compute is somewhat simplified */
-  params->band_lower_end = g_new (guint, params->parent.band_count);
-  params->band_upper_end = g_new (guint, params->parent.band_count);
-  params->band_lower_weight = g_new (gdouble, params->parent.band_count);
-  params->band_upper_weight = g_new (gdouble, params->parent.band_count);
-  for (k = 0; k < params->parent.band_count; k++) {
+  params->band_lower_end = g_new (guint, band_count);
+  params->band_upper_end = g_new (guint, band_count);
+  params->band_lower_weight = g_new (gdouble, band_count);
+  params->band_upper_weight = g_new (gdouble, band_count);
+  for (k = 0; k < band_count; k++) {
     params->band_lower_end[k]
       = (guint) round (fl[k] / SAMPLINGRATE * FFT_FRAMESIZE);
     params->band_upper_end[k]
@@ -242,30 +237,22 @@ params_init (GTypeInstance *obj, gpointer klass)
 
   /* pre-compute internal noise, time constants for time smearing, thresholds 
    * and helper data for spreading */
-  params->internal_noise_level = g_new (gdouble, params->parent.band_count);
-  params->ear_time_constants = g_new (gdouble, params->parent.band_count);
   params->spreading_normalization =
-    g_new (gdouble, params->parent.band_count);
-  params->aUC = g_new (gdouble, params->parent.band_count);
-  params->gIL = g_new (gdouble, params->parent.band_count);
+    g_new (gdouble, band_count);
+  params->aUC = g_new (gdouble, band_count);
+  params->gIL = g_new (gdouble, band_count);
   params->lower_spreading = pow (10, -2.7 * params->deltaZ);
   params->lower_spreading_exponantiated = pow (params->lower_spreading, 0.4);
-  for (k = 0; k < params->parent.band_count; k++) {
-    gdouble tau;
+  for (k = 0; k < band_count; k++) {
     gdouble curr_fc = fc[k];
     const gdouble aL = params->lower_spreading;
-    params->internal_noise_level[k] =
-      pow (10, 0.4 * 0.364 * pow (curr_fc / 1000, -0.8));
-    tau = 0.008 + 100 / curr_fc * (0.03 - 0.008);
-    params->ear_time_constants[k] =
-      exp (-(gdouble) FFT_FRAMESIZE / (2 * SAMPLINGRATE) / tau);
     params->aUC[k] = pow (10, (-2.4 - 23 / curr_fc) * params->deltaZ);
     params->gIL[k] = (1 - pow (aL, k + 1)) / (1 - aL);
     params->spreading_normalization[k] = 1.;
   }
-  spread = g_newa (gdouble, params->parent.band_count);
+  spread = g_newa (gdouble, band_count);
   params_do_spreading (params, params->spreading_normalization, spread);
-  for (k = 0; k < params->parent.band_count; k++)
+  for (k = 0; k < band_count; k++)
     params->spreading_normalization[k] = spread[k];
 }
 
@@ -287,20 +274,11 @@ params_finalize (GObject *obj)
   g_free (params->band_upper_end);
   g_free (params->band_lower_weight);
   g_free (params->band_upper_weight);
-  g_free (params->internal_noise_level);
-  g_free (params->ear_time_constants);
   g_free (params->spreading_normalization);
   g_free (params->aUC);
   g_free (params->gIL);
 
   parent_class->finalize (obj);
-}
-
-static gdouble
-params_get_band_center_frequency (PeaqEarModelParams const *params,
-                                  guint band)
-{
-  return fc[band];
 }
 
 /*
@@ -394,7 +372,8 @@ peaq_fftearmodel_process (PeaqFFTEarModel *ear, gfloat *sample_data,
 
   for (i = 0; i < params->parent.band_count; i++)
     noisy_band_power[i] =
-      output->band_power[i] + params->internal_noise_level[i];
+      output->band_power[i] +
+      peaq_earmodelparams_get_internal_noise(PEAQ_EARMODELPARAMS (params), i);
 
   params_do_spreading (params, noisy_band_power,
                        output->unsmeared_excitation);
@@ -403,9 +382,12 @@ peaq_fftearmodel_process (PeaqFFTEarModel *ear, gfloat *sample_data,
    * first frame should be all zero; we follow the interpretation of [Kabal03]
    * and only initialize to zero before the first frame. */
   for (i = 0; i < params->parent.band_count; i++) {
-    ear->filtered_excitation[i] = params->ear_time_constants[i] *
-      ear->filtered_excitation[i] + (1 - params->ear_time_constants[i]) *
-      output->unsmeared_excitation[i];
+    gdouble a =
+      peaq_earmodelparams_get_ear_time_constant (PEAQ_EARMODELPARAMS (params),
+                                                 i);
+    ear->filtered_excitation[i] =
+      a * ear->filtered_excitation[i] +
+      (1 - a) * output->unsmeared_excitation[i];
     output->excitation[i] =
       ear->filtered_excitation[i] > output->unsmeared_excitation[i] ?
       ear->filtered_excitation[i] : output->unsmeared_excitation[i];
@@ -486,13 +468,6 @@ params_do_spreading (PeaqFFTEarModelParams const *params, gdouble *Pp,
   }
 }
 
-
-static gdouble
-params_get_internal_noise (PeaqEarModelParams const *params, guint band)
-{
-  return PEAQ_FFTEARMODELPARAMS (params)->internal_noise_level[band];
-}
-
 GType
 peaq_fftearmodel_get_type ()
 {
@@ -528,8 +503,22 @@ static void
 peaq_ear_init (GTypeInstance *obj, gpointer klass)
 {
   PeaqFFTEarModel *ear = PEAQ_FFTEARMODEL (obj);
+  guint band;
 
-  ear->parent.params = g_object_new (PEAQ_TYPE_FFTEARMODELPARAMS, NULL);
+#ifdef ADVANCED
+  GArray *fc_array = g_array_sized_new (FALSE, FALSE, sizeof (gdouble), 55);
+  for (band = 0; band < 55; band++) {
+#else
+  GArray *fc_array = g_array_sized_new (FALSE, FALSE, sizeof (gdouble), 109);
+  for (band = 0; band < 109; band++) {
+#endif
+    gdouble curr_fc = fc[band];
+    g_array_append_val (fc_array, curr_fc);
+  }
+
+  ear->parent.params = g_object_new (PEAQ_TYPE_FFTEARMODELPARAMS, 
+                                     "band-centers", fc_array,
+                                     NULL);
 
   ear->gstfft = gst_fft_f64_new (FFT_FRAMESIZE, FALSE);
 

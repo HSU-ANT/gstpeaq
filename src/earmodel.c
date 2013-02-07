@@ -63,6 +63,7 @@ static void peaq_earmodelparams_class_init (gpointer klass,
                                             gpointer class_data);
 static void peaq_earmodelparams_init (GTypeInstance *obj, gpointer klass);
 static void peaq_earmodelparams_finalize (GObject *obj);
+static void update_ear_time_constants (PeaqEarModelParams *params);
 static void peaq_earmodelparams_get_property (GObject *obj, guint id,
                                               GValue *value,
                                               GParamSpec *pspec);
@@ -117,17 +118,11 @@ peaq_earmodelparams_class_init (gpointer klass, gpointer class_data)
                                                         G_PARAM_CONSTRUCT));
   g_object_class_install_property (object_class,
                                    PROP_BAND_CENTER_FREQUENCIES,
-                                   g_param_spec_value_array ("band-centers",
-                                                             "band center frequencies",
-                                                             "Band center frequencies in Hz",
-                                                             g_param_spec_double ("frequency",
-                                                                                  "frequency",
-                                                                                  "Frequency in Hz",
-                                                                                  0, 24000, 1000,
-                                                                                  G_PARAM_READWRITE |
-                                                                                  G_PARAM_CONSTRUCT),
-                                                             G_PARAM_READWRITE |
-                                                             G_PARAM_CONSTRUCT));
+                                   g_param_spec_pointer ("band-centers",
+                                                         "band center frequencies",
+                                                         "Band center frequencies in Hz as gdoubles in a GArray",
+                                                         G_PARAM_READWRITE |
+                                                         G_PARAM_CONSTRUCT));
 }
 
 static void
@@ -137,6 +132,9 @@ peaq_earmodelparams_init (GTypeInstance *obj, gpointer klass)
 
   params->band_count = 0;
 
+  params->fc = g_new (gdouble, params->band_count);
+  params->internal_noise = g_new (gdouble, params->band_count);
+  params->ear_time_constants = g_new (gdouble, params->band_count);
   params->excitation_threshold = g_new (gdouble, params->band_count);
   params->threshold = g_new (gdouble, params->band_count);
   params->loudness_factor = g_new (gdouble, params->band_count);
@@ -149,6 +147,9 @@ peaq_earmodelparams_finalize (GObject *obj)
   GObjectClass *parent_class =
     G_OBJECT_CLASS (g_type_class_peek_parent
                     (g_type_class_peek (PEAQ_TYPE_FFTEARMODELPARAMS)));
+  g_free (params->fc);
+  g_free (params->internal_noise);
+  g_free (params->ear_time_constants);
   g_free (params->excitation_threshold);
   g_free (params->threshold);
   g_free (params->loudness_factor);
@@ -162,26 +163,33 @@ peaq_earmodelparams_get_band_count (PeaqEarModelParams const *params)
   return params->band_count;
 }
 
-void
-peaq_earmodelparams_set_band_count (PeaqEarModelParams * params,
-                                    guint band_count)
+static void
+params_set_bands (PeaqEarModelParams *params, gdouble *fc, guint band_count)
 {
   if (band_count != params->band_count) {
     guint band;
 
     params->band_count = band_count;
 
+    g_free (params->fc);
+    g_free (params->internal_noise);
+    g_free (params->ear_time_constants);
     g_free (params->excitation_threshold);
     g_free (params->threshold);
     g_free (params->loudness_factor);
 
+    params->fc = g_new (gdouble, params->band_count);
+    params->internal_noise = g_new (gdouble, params->band_count);
+    params->ear_time_constants = g_new (gdouble, params->band_count);
     params->excitation_threshold = g_new (gdouble, params->band_count);
     params->threshold = g_new (gdouble, params->band_count);
     params->loudness_factor = g_new (gdouble, params->band_count);
 
     for (band = 0; band < params->band_count; band++) {
-      gdouble curr_fc =
-        peaq_earmodelparams_get_band_center_frequency (params, band);
+      gdouble curr_fc = fc[band];
+      params->fc[band] = curr_fc;
+      params->internal_noise[band] =
+        pow (10., 0.4 * 0.364 * pow (curr_fc / 1000., -0.8));
       params->excitation_threshold[band] =
         pow (10, 0.364 * pow (curr_fc / 1000, -0.8));
       params->threshold[band] =
@@ -193,30 +201,36 @@ peaq_earmodelparams_set_band_count (PeaqEarModelParams * params,
         pow (params->excitation_threshold[band] /
              (1e4 * params->threshold[band]), 0.23);
     }
+
+    update_ear_time_constants (params);
   }
 }
 
 guint
 peaq_earmodelparams_get_step_size (PeaqEarModelParams const *params)
 {
-  return params->step_size;
+  return PEAQ_EARMODELPARAMS_GET_CLASS (params)->step_size;
 }
 
 gdouble
 peaq_earmodelparams_get_band_center_frequency (PeaqEarModelParams const
                                                *params, guint band)
 {
-  return
-    PEAQ_EARMODELPARAMS_GET_CLASS (params)->get_band_center_frequency (params,
-                                                                       band);
+  return params->fc[band];
 }
 
 gdouble
 peaq_earmodelparams_get_internal_noise (PeaqEarModelParams const *params,
                                         guint band)
 {
-  return PEAQ_EARMODELPARAMS_GET_CLASS (params)->get_internal_noise (params,
-                                                                     band);
+  return params->internal_noise[band];
+}
+
+gdouble
+peaq_earmodelparams_get_ear_time_constant (PeaqEarModelParams const *params,
+                                           guint band)
+{
+  return params->ear_time_constants[band];
 }
 
 gdouble
@@ -237,6 +251,22 @@ peaq_earmodelparams_calc_loudness (PeaqEarModelParams const *params,
 }
 
 static void
+update_ear_time_constants(PeaqEarModelParams *params)
+{
+  guint band;
+  PeaqEarModelParamsClass *params_class =
+    PEAQ_EARMODELPARAMS_GET_CLASS (params);
+  guint step_size = params_class->step_size;
+  gdouble tau_min = params_class->tau_min;
+  gdouble tau_100 = params_class->tau_100;
+
+  for (band = 0; band < params->band_count; band++) {
+    gdouble tau = tau_min + 100. / params->fc[band] * (tau_100 - tau_min);
+    params->ear_time_constants[band] = exp (step_size / (-48000 * tau));
+  }
+}
+
+static void
 peaq_earmodelparams_get_property (GObject *obj, guint id, GValue *value,
                                   GParamSpec *pspec)
 {
@@ -254,7 +284,7 @@ peaq_earmodelparams_get_property (GObject *obj, guint id, GValue *value,
 }
 
 /*
- * peaq_earmodel_get_property:
+ * peaq_earmodel_set_property:
  * @obj: the object structure.
  * @id: the id of the property to be set.
  * @value: the value to set the property to.
@@ -273,6 +303,17 @@ peaq_earmodelparams_set_property (GObject *obj, guint id,
                                                                g_value_get_double
                                                                (value));
       break;
+    case PROP_BAND_CENTER_FREQUENCIES:
+      {
+        GArray *fc_array;
+        fc_array = g_value_get_pointer (value);
+        if (fc_array) {
+          params_set_bands (params, (gdouble *) fc_array->data, fc_array->len);
+        } else {
+          params_set_bands (params, NULL, 0);
+        }
+        break;
+      }
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (obj, id, pspec);
       break;
