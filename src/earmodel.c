@@ -54,7 +54,8 @@
 enum
 {
   PROP_0,
-  PROP_PLAYBACK_LEVEL
+  PROP_PLAYBACK_LEVEL,
+  PROP_BAND_CENTER_FREQUENCIES
 };
 
 
@@ -114,6 +115,19 @@ peaq_earmodelparams_class_init (gpointer klass, gpointer class_data)
                                                         0, 130, 92,
                                                         G_PARAM_READWRITE |
                                                         G_PARAM_CONSTRUCT));
+  g_object_class_install_property (object_class,
+                                   PROP_BAND_CENTER_FREQUENCIES,
+                                   g_param_spec_value_array ("band-centers",
+                                                             "band center frequencies",
+                                                             "Band center frequencies in Hz",
+                                                             g_param_spec_double ("frequency",
+                                                                                  "frequency",
+                                                                                  "Frequency in Hz",
+                                                                                  0, 24000, 1000,
+                                                                                  G_PARAM_READWRITE |
+                                                                                  G_PARAM_CONSTRUCT),
+                                                             G_PARAM_READWRITE |
+                                                             G_PARAM_CONSTRUCT));
 }
 
 static void
