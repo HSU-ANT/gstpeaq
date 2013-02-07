@@ -30,6 +30,7 @@
 #include <string.h>
 
 #define BUFFER_LENGTH 1457
+#define SLOPE_FILTER_A 0.993355506255034        /* exp (-32 / (48000 * 0.1)) */
 
 const guint filter_length[40] = {
   1456,
@@ -84,6 +85,8 @@ struct _PeaqFilterbankEarModelParams
 {
   PeaqEarModelParams parent;
   gdouble level_factor;
+  gdouble fc[40];
+  gdouble internal_noise[40];
 };
 
 struct _PeaqFilterbankEarModelParamsClass
@@ -102,13 +105,12 @@ struct _PeaqFilterbankEarModel
 
   gdouble *fbh_re[40];
   gdouble *fbh_im[40];
+  gdouble ear_time_constants[40];
 
   gdouble hpfilter1_x1;
   gdouble hpfilter1_x2;
   gdouble hpfilter1_y1;
   gdouble hpfilter1_y2;
-  gdouble hpfilter2_x1;
-  gdouble hpfilter2_x2;
   gdouble hpfilter2_y1;
   gdouble hpfilter2_y2;
   gdouble fb_buf[BUFFER_LENGTH];
@@ -183,10 +185,22 @@ params_class_init (gpointer klass, gpointer class_data)
 static void
 params_init (GTypeInstance *obj, gpointer klass)
 {
+  guint band;
   PeaqEarModelParams *params = PEAQ_EARMODELPARAMS (obj);
+  PeaqFilterbankEarModelParams *fb_params =
+    PEAQ_FILTERBANKEARMODELPARAMS (obj);
 
   peaq_earmodelparams_set_band_count (PEAQ_EARMODELPARAMS (obj), 40);
   params->step_size = 192;
+  for (band = 0; band < 40; band++) {
+    gdouble fc =
+      sinh ((asinh (50. / 650.) +
+             band * (asinh (18000. / 650.) -
+                     asinh (50. / 650.)) / 39.)) * 650.;
+    fb_params->fc[band] = fc;
+    fb_params->internal_noise[band] =
+      pow (10., 0.4 * 0.364 * pow (fc / 1000., -0.8));
+  }
 }
 
 static gdouble
@@ -206,18 +220,13 @@ static gdouble
 params_get_band_center_frequency (PeaqEarModelParams const *params,
                                   guint band)
 {
-  return
-    sinh ((asinh (50. / 650.) +
-           band * (asinh (18000. / 650.) - asinh (50. / 650.)) / 39.)) * 650.;
+  return PEAQ_FILTERBANKEARMODELPARAMS (params)->fc[band];
 }
 
 static gdouble
 params_get_internal_noise (PeaqEarModelParams const *params, guint band)
 {
-  gdouble fc =
-    sinh ((asinh (50. / 650.) +
-           band * (asinh (18000. / 650.) - asinh (50. / 650.)) / 39.)) * 650.;
-  return pow (10., 0.4 * 0.364 * pow (fc / 1000., -0.8));
+  return PEAQ_FILTERBANKEARMODELPARAMS (params)->internal_noise[band];
 }
 
 
@@ -265,9 +274,8 @@ peaq_filterbankearmodel_init (GTypeInstance *obj, gpointer klass)
   for (band = 0; band < 40; band++) {
     guint n;
     gdouble fc =
-      sinh ((asinh (50. / 650.) +
-             band * (asinh (18000. / 650.) -
-                     asinh (50. / 650.)) / 39.)) * 650.;
+      peaq_earmodelparams_get_band_center_frequency (ear->parent.params,
+                                                     band);
     guint N = filter_length[band];
     /* include outer and middle ear filtering in filter bank coefficients */
     gdouble W =
@@ -285,14 +293,14 @@ peaq_filterbankearmodel_init (GTypeInstance *obj, gpointer klass)
         win * sin (2 * M_PI * fc * (n - N / 2.) / 48000.);
     }
     ear->E0_buf[band] = g_new0 (gdouble, 12);
+    gdouble tau = 0.004 + 100. / fc * (0.02 - 0.004);
+    ear->ear_time_constants[band] = exp (-192. / (48000. * tau));
   }
 
   ear->hpfilter1_x1 = 0.;
   ear->hpfilter1_x2 = 0.;
   ear->hpfilter1_y1 = 0.;
   ear->hpfilter1_y2 = 0.;
-  ear->hpfilter2_x1 = 0.;
-  ear->hpfilter2_x2 = 0.;
   ear->hpfilter2_y1 = 0.;
   ear->hpfilter2_y2 = 0.;
   memset (ear->fb_buf, 0, BUFFER_LENGTH * sizeof (gdouble));
@@ -322,26 +330,28 @@ peaq_filterbankearmodel_process (PeaqFilterbankEarModel *ear,
 {
   guint k;
   guint band;
+  gdouble level_factor =
+    PEAQ_FILTERBANKEARMODELPARAMS (ear->parent.params)->level_factor;
+  gdouble dist = pow (0.1,
+                      7. * (asinh (18000. / 650.) -
+                            asinh (50. / 650.)) / (39. * 20.));
+  gdouble cl = pow (dist, 31);
 
   for (k = 0; k < FB_FRAMESIZE; k++) {
     /* 2.2.3 Setting of playback level */
-    gdouble scaled_input =
-      sample_data[k] *
-      PEAQ_FILTERBANKEARMODELPARAMS (ear->parent.params)->level_factor;
+    gdouble scaled_input = sample_data[k] * level_factor;
 
     /* 2.2.4 DC rejection filter */
     gdouble hpfilter1_out
       = scaled_input - 2. * ear->hpfilter1_x1 + ear->hpfilter1_x2
       + 1.99517 * ear->hpfilter1_y1 - 0.995174 * ear->hpfilter1_y2;
+    gdouble hpfilter2_out
+      = hpfilter1_out - 2. * ear->hpfilter1_y1 + ear->hpfilter1_y2
+      + 1.99799 * ear->hpfilter2_y1 - 0.997998 * ear->hpfilter2_y2;
     ear->hpfilter1_x2 = ear->hpfilter1_x1;
     ear->hpfilter1_x1 = scaled_input;
     ear->hpfilter1_y2 = ear->hpfilter1_y1;
     ear->hpfilter1_y1 = hpfilter1_out;
-    gdouble hpfilter2_out
-      = hpfilter1_out - 2. * ear->hpfilter2_x1 + ear->hpfilter2_x2
-      + 1.99517 * ear->hpfilter2_y1 - 0.995174 * ear->hpfilter2_y2;
-    ear->hpfilter2_x2 = ear->hpfilter2_x1;
-    ear->hpfilter2_x1 = hpfilter1_out;
     ear->hpfilter2_y2 = ear->hpfilter2_y1;
     ear->hpfilter2_y1 = hpfilter2_out;
 
@@ -354,25 +364,32 @@ peaq_filterbankearmodel_process (PeaqFilterbankEarModel *ear,
       gdouble fb_out_im[40];
       for (band = 0; band < 40; band++) {
         guint n;
-        guint D = 1 + (filter_length[0] - filter_length[band]) / 2;
-        fb_out_re[band] = 0.;
-        fb_out_im[band] = 0.;
-        for (n = 0; n < filter_length[band]; n++) {
-          fb_out_re[band] += ear->fb_buf[D + n] * ear->fbh_re[band][n];
-          fb_out_im[band] += ear->fb_buf[D + n] * ear->fbh_im[band][n];
+        guint N = filter_length[band];
+        guint D = 1 + (filter_length[0] - N) / 2;
+        guint N_2 = N / 2;
+        gdouble re_out = 0;
+        gdouble im_out = 0;
+        /* exploit symmetry in filter responses */
+        gdouble *in1 = ear->fb_buf + D;
+        gdouble *in2 = ear->fb_buf + D + N;
+        gdouble *h_re = ear->fbh_re[band];
+        gdouble *h_im = ear->fbh_im[band];
+        for (n = 1; n < N_2; n++) {
+          in1++;
+          h_re++;
+          h_im++;
+          in2--;
+          re_out += (*in1 + *in2) * *h_re;
+          im_out += (*in1 - *in2) * *h_im;
         }
+        re_out += ear->fb_buf[D + N_2] * ear->fbh_re[band][N_2];
+        im_out += ear->fb_buf[D + N_2] * ear->fbh_im[band][N_2];
+        fb_out_re[band] = re_out;
+        fb_out_im[band] = im_out;
       }
 
       /* 2.2.7 Frequency domain spreading */
-      gdouble fc =
-        sinh ((asinh (50. / 650.) +
-               band * (asinh (18000. / 650.) -
-                       asinh (50. / 650.)) / 39.)) * 650.;
-      gdouble dist = pow (0.1,
-                          7. * (asinh (18000. / 650.) -
-                                asinh (50. / 650.)) / (39. * 20.));
-      gdouble a = exp (-32 / (48000 * 0.1));
-      gdouble b = 1 - a;
+      //gdouble b = 1 - a;
       gdouble A_re[40];
       gdouble A_im[40];
       for (band = 0; band < 40; band++) {
@@ -380,13 +397,18 @@ peaq_filterbankearmodel_process (PeaqFilterbankEarModel *ear,
         A_im[band] = fb_out_im[band];
       }
       for (band = 0; band < 40; band++) {
+        gdouble fc =
+          peaq_earmodelparams_get_band_center_frequency (ear->parent.params,
+                                                         band);
         gdouble L =
           10 * log10 (fb_out_re[band] * fb_out_re[band] +
                       fb_out_im[band] * fb_out_im[band]);
         gdouble s = MAX (4, 24 + 230 / fc - 0.2 * L);
         /* a and b are probably swapped in the standard's pseudo code */
         // ear->cu[band] = a * pow(dist, s) + b * ear->cu[band];
-        ear->cu[band] = b * pow (dist, s) + a * ear->cu[band];
+        // ear->cu[band] = b * pow (dist, s) + a * ear->cu[band];
+        gdouble dist_s = pow (dist, s);
+        ear->cu[band] = dist_s + SLOPE_FILTER_A * (ear->cu[band] - dist_s);
         gdouble d1 = fb_out_re[band];
         gdouble d2 = fb_out_im[band];
         guint j;
@@ -398,7 +420,6 @@ peaq_filterbankearmodel_process (PeaqFilterbankEarModel *ear,
         }
       }
 
-      gdouble cl = pow (dist, 31);
       gdouble d1 = 0.;
       gdouble d2 = 0.;
       for (band = 0; band < 40; band++) {
@@ -434,16 +455,12 @@ peaq_filterbankearmodel_process (PeaqFilterbankEarModel *ear,
     E1[band] *= 0.9761 / 6;
 
     /* 2.2.10 Adding of internal noise */
-    gdouble fc =
-      sinh ((asinh (50. / 650.) +
-             band * (asinh (18000. / 650.) -
-                     asinh (50. / 650.)) / 39.)) * 650.;
-    gdouble EThres = pow (10., 0.4 * 0.364 * pow (fc / 1000., -0.8));
+    gdouble EThres =
+      peaq_earmodelparams_get_internal_noise (ear->parent.params, band);
     output->unsmeared_excitation[band] = E1[band] + EThres;
 
     /* 2.2.11 Time domain smearing (2) - Forward masking */
-    gdouble tau = 0.004 + 100. / fc * (0.02 - 0.004);
-    gdouble a = exp (-192. / (48000. * tau));
+    gdouble a = ear->ear_time_constants[band];
 
     ear->excitation[band] =
       a * ear->excitation[band] +
