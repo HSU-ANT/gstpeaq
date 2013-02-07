@@ -2,7 +2,6 @@
 #include "fbearmodel.h"
 #include "leveladapter.h"
 #include "modpatt.h"
-#include "earmodel_bands.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -373,7 +372,7 @@ static double band_power_ref[] = { 10070.506160,
   0.009006, 0.008034, 0.007186, 0.006495, 0.005873, 0.005346,
   0.004874, 0.004443, 0.004041, 0.003646, 0.003267, 0.002879,
   0.002497, 0.002117, 0.001751, 0.001406, 0.001100, 0.000835,
-  0.000618, 0.000448, 0.000321, 0.000228, 0.000184, 0.000117,
+  0.000618, 0.000448, 0.000321, 0.000228, 0.000163, 0.000117,
   0.000085, 0.000063, 0.000048, 0.000037, 0.000029, 0.000023,
   0.000019, 0.000015, 0.000012, 0.000010, 0.000008, 0.000006,
   0.000005, 0.000004, 0.000003, 0.000002, 0.000002, 0.000001,
@@ -419,16 +418,16 @@ static double excitation_ref[] = {
   349773.798317, 348840.194206, 349810.185964, 352763.857065, 357780.074455,
   364925.163245, 374218.430049, 385632.659205, 399017.183416, 414087.711983,
   430359.532681, 447099.872855, 463293.955467, 477631.774673, 488576.621667,
-  494492.510166, 493837.923811, 485427.021495, 468677.401704, 443887.730700,
-  412123.066760, 375266.199841, 335623.185541, 295654.757437, 257586.231306,
-  223295.858853, 189816.286922, 161053.808039, 136881.346311, 116887.629073,
-  100515.264869, 87164.386849, 76253.860639, 67274.394313, 59796.109652,
-  53471.716579, 48029.415494, 43260.818559, 39011.218117, 35164.945648,
-  31638.495337, 28371.870488, 25323.979912, 22466.960114, 19784.374934,
-  17267.547433, 14914.647607, 12727.799562, 10712.667788, 8875.860072,
-  7224.337046, 5763.377959, 4495.533484, 3419.672996, 2529.820845,
-  1815.094177, 1259.713336, 844.000449, 545.506778, 340.815298, 207.355402,
-  125.143970, 78.226738, 56.837145
+  494492.510166, 493809.460148, 485375.283461, 468583.173650, 443718.541979,
+  411822.562607, 374738.693876, 334706.889466, 294078.025873, 254892.742017,
+  218715.171838, 186506.501453, 158671.031052, 135168.154347, 115654.947163,
+  99626.273998, 86521.161825, 75786.724728, 66933.946355, 59547.204025,
+  53289.301379, 47895.540142, 43162.497533, 38939.031544, 35112.016971,
+  31599.764810, 28343.616150, 25303.437696, 22452.092805, 19773.664806,
+  17259.885826, 14909.199501, 12723.956083, 10709.982076, 8874.001205,
+  7223.065717, 5762.520315, 4494.961120, 3419.298291, 2529.579813,
+  1814.927982, 1259.618627, 843.943007, 545.472704, 340.795366, 207.343792,
+  125.137131, 78.222451, 56.833883
 };
 
 static double spectrally_adapted_ref_patterns1_ref[] = { 0.327362, 0.762315,
@@ -746,21 +745,17 @@ test_ear ()
 static void
 test_leveladapt ()
 {
-  guint i, band, band_count;
+  guint i, band_count;
   gdouble input_data_ref[109];
   gdouble input_data_test[109];
+  PeaqEarModel *ear;
   PeaqEarModelParams *model_params;
   PeaqLevelAdapter *level;
   LevelAdapterOutput output;
 
-  GArray *fc_array = g_array_sized_new (FALSE, FALSE, sizeof (gdouble), 109);
-  for (band = 0; band < 109; band++) {
-    gdouble curr_fc = fc[band];
-    g_array_append_val (fc_array, curr_fc);
-  }
-  model_params = g_object_new (PEAQ_TYPE_FFTEARMODELPARAMS,
-                               "band-centers", fc_array,
-                               NULL);
+  ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
+  model_params = peaq_earmodel_get_model_params (ear);
+
   band_count = peaq_earmodelparams_get_band_count (model_params);
   output.spectrally_adapted_ref_patterns = g_newa (gdouble, band_count);
   output.spectrally_adapted_test_patterns = g_newa (gdouble, band_count);
@@ -788,20 +783,16 @@ test_leveladapt ()
 static void
 test_modulationproc ()
 {
-  guint i, band, band_count;
+  guint i, band_count;
   gdouble input_data[109];
+  PeaqEarModel *ear;
   PeaqEarModelParams *model_params;
   PeaqModulationProcessor *modproc;
   ModulationProcessorOutput output;
 
-  GArray *fc_array = g_array_sized_new (FALSE, FALSE, sizeof (gdouble), 109);
-  for (band = 0; band < 109; band++) {
-    gdouble curr_fc = fc[band];
-    g_array_append_val (fc_array, curr_fc);
-  }
-  model_params = g_object_new (PEAQ_TYPE_FFTEARMODELPARAMS,
-                               "band-centers", fc_array,
-                               NULL);
+  ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
+  model_params = peaq_earmodel_get_model_params (ear);
+
   band_count = peaq_earmodelparams_get_band_count (model_params);
   output.modulation = g_newa (gdouble, band_count);
   modproc = peaq_modulationprocessor_new (model_params);
