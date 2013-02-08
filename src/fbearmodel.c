@@ -454,7 +454,5 @@ peaq_filterbankearmodel_process (PeaqFilterbankEarModel *ear,
   }
 
   output->overall_loudness =
-    peaq_earmodelparams_calc_loudness (PEAQ_EARMODELPARAMS
-                                       (ear->parent.params),
-                                       output->excitation);
+    peaq_earmodel_calc_loudness (PEAQ_EARMODEL (ear), output->excitation);
 }

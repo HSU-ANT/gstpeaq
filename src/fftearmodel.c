@@ -413,8 +413,7 @@ peaq_fftearmodel_process (PeaqFFTEarModel *ear, gfloat *sample_data,
   }
 
   output->overall_loudness =
-    peaq_earmodelparams_calc_loudness (PEAQ_EARMODELPARAMS (params),
-                                       output->excitation);
+    peaq_earmodel_calc_loudness (PEAQ_EARMODEL (ear), output->excitation);
 }
 
 /*

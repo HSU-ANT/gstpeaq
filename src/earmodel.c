@@ -233,23 +233,6 @@ peaq_earmodelparams_get_ear_time_constant (PeaqEarModelParams const *params,
   return params->ear_time_constants[band];
 }
 
-gdouble
-peaq_earmodelparams_calc_loudness (PeaqEarModelParams const *params,
-                                   gdouble * excitation)
-{
-  guint i;
-  gdouble overall_loudness = 0.;
-  for (i = 0; i < params->band_count; i++) {
-    gdouble loudness = params->loudness_factor[i]
-      * (pow (1. - params->threshold[i] +
-              params->threshold[i] * excitation[i] /
-              params->excitation_threshold[i], 0.23) - 1.);
-    overall_loudness += MAX (loudness, 0.);
-  }
-  overall_loudness *= 24. / params->band_count;
-  return overall_loudness;
-}
-
 static void
 update_ear_time_constants(PeaqEarModelParams *params)
 {
@@ -357,3 +340,22 @@ peaq_earmodel_get_model_params (PeaqEarModel const *model)
 {
   return model->params;
 }
+
+gdouble
+peaq_earmodel_calc_loudness (PeaqEarModel const *model, gdouble * excitation)
+{
+
+  guint i;
+  PeaqEarModelParams const *params = peaq_earmodel_get_model_params (model);
+  gdouble overall_loudness = 0.;
+  for (i = 0; i < params->band_count; i++) {
+    gdouble loudness = params->loudness_factor[i]
+      * (pow (1. - params->threshold[i] +
+              params->threshold[i] * excitation[i] /
+              params->excitation_threshold[i], 0.23) - 1.);
+    overall_loudness += MAX (loudness, 0.);
+  }
+  overall_loudness *= 24. / params->band_count;
+  return overall_loudness;
+}
+
