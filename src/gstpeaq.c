@@ -39,6 +39,8 @@
 #define EHS_ENERGY_THRESHOLD 7.45058059692383e-06
 #define MAXLAG 256
 
+// #define ADVANCED 1
+
 enum
 {
   PROP_0,
@@ -359,8 +361,17 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   peaq->frame_counter = 0;
   peaq->frame_counter_fb = 0;
 
-  peaq->ref_ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
-  peaq->test_ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
+#ifdef ADVANCED
+  peaq->ref_ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, "number-of-bands", 55,
+                                NULL);
+  peaq->test_ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, "number-of-bands", 55,
+                                 NULL);
+#else
+  peaq->ref_ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, "number-of-bands", 109,
+                                 NULL);
+  peaq->test_ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, "number-of-bands", 109,
+                                 NULL);
+#endif
   peaq->ref_ear_fb = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL, NULL);
   peaq->test_ear_fb = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL, NULL);
 

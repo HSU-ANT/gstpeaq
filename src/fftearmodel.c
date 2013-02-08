@@ -28,6 +28,12 @@
 #define GAMMA 0.84971762641205
 #define LOUDNESS_SCALE 1.07664
 
+enum
+{
+  PROP_0,
+  PROP_BAND_COUNT
+};
+
 /**
  * PeaqEarModel:
  *
@@ -96,6 +102,10 @@ static void params_do_spreading (PeaqFFTEarModelParams const *params,
 static void peaq_ear_class_init (gpointer klass, gpointer class_data);
 static void peaq_ear_init (GTypeInstance *obj, gpointer klass);
 static void peaq_ear_finalize (GObject *obj);
+static void peaq_ear_get_property (GObject *obj, guint id, GValue *value,
+                                   GParamSpec *pspec);
+static void peaq_ear_set_property (GObject *obj, guint id, const GValue *value,
+                                   GParamSpec *pspec);
 
 /*
  * peaq_fftearmodelparams_get_type:
@@ -504,40 +514,26 @@ peaq_ear_class_init (gpointer klass, gpointer class_data)
 
   /* override finalize method */
   object_class->finalize = peaq_ear_finalize;
+  object_class->set_property = peaq_ear_set_property;
+  object_class->get_property = peaq_ear_get_property;
+  g_object_class_install_property (object_class,
+                                   PROP_BAND_COUNT,
+                                   g_param_spec_uint ("number-of-bands",
+                                                      "number of bands",
+                                                      "Number of bands (55 or 109)",
+                                                      55, 109, 109,
+                                                      G_PARAM_READWRITE |
+                                                      G_PARAM_CONSTRUCT));
 }
 
 static void
 peaq_ear_init (GTypeInstance *obj, gpointer klass)
 {
   PeaqFFTEarModel *ear = PEAQ_FFTEARMODEL (obj);
-  guint band;
-
-#ifdef ADVANCED
-  gdouble delta_z = 0.5;
-#else
-  gdouble delta_z = 0.25;
-#endif
-  gdouble zL = 7. * asinh (80. / 650.);
-  gdouble zU = 7. * asinh (18000. / 650.);
-  guint band_count = ceil ((zU - zL) / delta_z);
-  GArray *fc_array = g_array_sized_new (FALSE, FALSE, sizeof (gdouble),
-                                        band_count);
-  for (band = 0; band < band_count; band++) {
-    gdouble zl = zL + band * delta_z;
-    gdouble zu = MIN(zU, zL + (band + 1) * delta_z);
-    gdouble zc = (zu + zl) / 2.;
-    gdouble curr_fc = 650. * sinh (zc / 7.);
-    g_array_append_val (fc_array, curr_fc);
-  }
-
-  ear->parent.params = g_object_new (PEAQ_TYPE_FFTEARMODELPARAMS, 
-                                     "band-centers", fc_array,
-                                     NULL);
+  ear->parent.params = NULL;
 
   ear->gstfft = gst_fft_f64_new (FFT_FRAMESIZE, FALSE);
-
-  ear->filtered_excitation =
-    g_new0 (gdouble, peaq_earmodelparams_get_band_count (ear->parent.params));
+  ear->filtered_excitation = NULL;
 }
 
 static void
@@ -552,6 +548,63 @@ peaq_ear_finalize (GObject *obj)
   gst_fft_f64_free (ear->gstfft);
 
   parent_class->finalize (obj);
+}
+
+static void
+peaq_ear_get_property (GObject *obj, guint id, GValue *value, GParamSpec *pspec)
+{
+  PeaqEarModel *model = PEAQ_EARMODEL (obj);
+  switch (id) {
+    case PROP_BAND_COUNT:
+      g_value_set_uint (value,
+                        peaq_earmodelparams_get_band_count
+                        (peaq_earmodel_get_model_params (model)));
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (obj, id, pspec);
+      break;
+  }
+}
+
+static void
+peaq_ear_set_property (GObject *obj, guint id, const GValue *value,
+                       GParamSpec *pspec)
+{
+  PeaqFFTEarModel *ear = PEAQ_FFTEARMODEL (obj);
+  switch (id) {
+    case PROP_BAND_COUNT:
+      {
+        guint band;
+        gdouble delta_z = 27. / (g_value_get_uint(value) - 1);
+        gdouble zL = 7. * asinh (80. / 650.);
+        gdouble zU = 7. * asinh (18000. / 650.);
+        guint band_count = ceil ((zU - zL) / delta_z);
+        g_assert (band_count == g_value_get_uint(value));
+        GArray *fc_array = g_array_sized_new (FALSE, FALSE, sizeof (gdouble),
+                                              band_count);
+        for (band = 0; band < band_count; band++) {
+          gdouble zl = zL + band * delta_z;
+          gdouble zu = MIN(zU, zL + (band + 1) * delta_z);
+          gdouble zc = (zu + zl) / 2.;
+          gdouble curr_fc = 650. * sinh (zc / 7.);
+          g_array_append_val (fc_array, curr_fc);
+        }
+
+        if (ear->parent.params)
+          g_object_set (ear->parent.params, "band-centers", fc_array, NULL);
+        else
+          ear->parent.params = g_object_new (PEAQ_TYPE_FFTEARMODELPARAMS, 
+                                             "band-centers", fc_array,
+                                             NULL);
+        if (ear->filtered_excitation)
+          g_free (ear->filtered_excitation);
+        ear->filtered_excitation = g_new0 (gdouble, band_count);
+      }
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (obj, id, pspec);
+      break;
+  }
 }
 
 PeaqFFTEarModelParams *

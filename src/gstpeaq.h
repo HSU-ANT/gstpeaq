@@ -53,8 +53,6 @@ G_BEGIN_DECLS;
 
 #define SAMPLINGRATE 48000
 
-//#define ADVANCED 1
-
 typedef struct _GstPeaq GstPeaq;
 typedef struct _GstPeaqClass GstPeaqClass;
 typedef struct _GstPeaqAggregatedData GstPeaqAggregatedData;
