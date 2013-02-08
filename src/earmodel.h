@@ -113,12 +113,11 @@ typedef struct _EarModelOutput EarModelOutput;
  */
 struct _EarModelOutput
 {
-  gdouble power_spectrum[FRAMESIZE / 2 + 1];
-  gdouble weighted_power_spectrum[FRAMESIZE / 2 + 1];
-  gdouble *band_power;
   gdouble *unsmeared_excitation;
   gdouble *excitation;
   gdouble overall_loudness;
+  gdouble power_spectrum[FRAMESIZE / 2 + 1];
+  gdouble weighted_power_spectrum[FRAMESIZE / 2 + 1];
 };
 
 struct _PeaqEarModelParams

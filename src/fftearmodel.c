@@ -364,6 +364,8 @@ peaq_fftearmodel_process (PeaqFFTEarModel *ear, gfloat *sample_data,
   gdouble *windowed_data = g_newa (gdouble, FFT_FRAMESIZE);
   GstFFTF64Complex *fftoutput =
     g_newa (GstFFTF64Complex, FFT_FRAMESIZE / 2 + 1);
+  gdouble *band_power =
+    g_newa (gdouble, peaq_earmodelparams_get_band_count (ear->parent.params));
   gdouble *noisy_band_power =
     g_newa (gdouble, peaq_earmodelparams_get_band_count (ear->parent.params));
 
@@ -385,11 +387,11 @@ peaq_fftearmodel_process (PeaqFFTEarModel *ear, gfloat *sample_data,
 
   peaq_fftearmodelparams_group_into_bands (params,
                                            output->weighted_power_spectrum,
-                                           output->band_power);
+                                           band_power);
 
   for (i = 0; i < params->parent.band_count; i++)
     noisy_band_power[i] =
-      output->band_power[i] +
+      band_power[i] +
       peaq_earmodelparams_get_internal_noise(PEAQ_EARMODELPARAMS (params), i);
 
   params_do_spreading (params, noisy_band_power,

@@ -650,10 +650,8 @@ gst_peaq_process_fft_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
 
   noise_in_bands = g_newa (gdouble, band_count);
 
-  ref_ear_output.band_power = g_newa (gdouble, band_count);
   ref_ear_output.unsmeared_excitation = g_newa (gdouble, band_count);
   ref_ear_output.excitation = g_newa (gdouble, band_count);
-  test_ear_output.band_power = g_newa (gdouble, band_count);
   test_ear_output.unsmeared_excitation = g_newa (gdouble, band_count);
   test_ear_output.excitation = g_newa (gdouble, band_count);
   peaq_fftearmodel_process (peaq->ref_ear, refdata, &ref_ear_output);
@@ -856,10 +854,8 @@ gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
     peaq_earmodel_get_model_params(PEAQ_EARMODEL(peaq->ref_ear_fb));
   guint band_count = peaq_earmodelparams_get_band_count (ear_params);
 
-  ref_ear_output.band_power = g_newa (gdouble, band_count);
   ref_ear_output.unsmeared_excitation = g_newa (gdouble, band_count);
   ref_ear_output.excitation = g_newa (gdouble, band_count);
-  test_ear_output.band_power = g_newa (gdouble, band_count);
   test_ear_output.unsmeared_excitation = g_newa (gdouble, band_count);
   test_ear_output.excitation = g_newa (gdouble, band_count);
   peaq_filterbankearmodel_process (peaq->ref_ear_fb, refdata, &ref_ear_output);
