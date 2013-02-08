@@ -635,15 +635,15 @@ test_ear ()
   gfloat input_data[2048];
   PeaqFFTEarModel *ear;
   PeaqFilterbankEarModel *fb_ear;
-  EarModelOutput output;
+  FFTEarModelOutput output;
 
   ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
   fb_ear = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL, NULL);
 
   band_count = peaq_earmodelparams_get_band_count (peaq_earmodel_get_model_params (PEAQ_EARMODEL(ear)));
 
-  output.unsmeared_excitation = g_newa (gdouble, band_count);
-  output.excitation = g_newa (gdouble, band_count);
+  output.ear_model_output.unsmeared_excitation = g_newa (gdouble, band_count);
+  output.ear_model_output.excitation = g_newa (gdouble, band_count);
 
   for (i = 0; i < 1024; i++)
     input_data[i] = -1;
@@ -661,11 +661,12 @@ test_ear ()
   assertArrayEqualsSq (output.weighted_power_spectrum, weighted_fft_ref_data,
 		       1025, "weighted_fft");
 
-  assertArrayEquals (output.unsmeared_excitation, unsmeared_excitation_ref,
-		     band_count, "unsmeared_excitation");
+  assertArrayEquals (output.ear_model_output.unsmeared_excitation,
+                     unsmeared_excitation_ref, band_count,
+                     "unsmeared_excitation");
 
-  assertArrayEquals (output.excitation, excitation_ref, band_count,
-		     "excitation");
+  assertArrayEquals (output.ear_model_output.excitation, excitation_ref,
+                     band_count, "excitation");
 
   for (frame = 0; frame < 10; frame++) {
     gdouble SPL;
@@ -691,9 +692,11 @@ test_ear ()
 #if 0
   if (output.overall_loudness > 1.01 || output.overall_loudness < 0.99) {
 #else
-  if (output.overall_loudness > 0.59 || output.overall_loudness < 0.58) {
+  if (output.ear_model_output.overall_loudness > 0.59 ||
+      output.ear_model_output.overall_loudness < 0.58) {
 #endif
-    g_printf ("loudness == %f != 1\n", output.overall_loudness);
+    g_printf ("loudness == %f != 1\n",
+              output.ear_model_output.overall_loudness);
     exit(1);
   }
 
@@ -702,16 +705,19 @@ test_ear ()
     gdouble scale = pow (10., (40. - 92.) / 20);
     for (i = 0; i < 192; i++)
       input_data[i] = scale * sin (2 * M_PI * 1000. / 48000. * (i + frame * 192));
-    peaq_filterbankearmodel_process (fb_ear, input_data, &output);
+    peaq_filterbankearmodel_process (fb_ear, input_data,
+                                     (EarModelOutput *) &output);
   }
   /* [BS1387] claims that the constants are chosen such that the loudness is 1
    * Sone, [Kabal03] already mentions that the algorithm in fact yields 0.584 */
 #if 1
-  if (output.overall_loudness > 1.04 || output.overall_loudness < 0.96) {
+  if (output.ear_model_output.overall_loudness > 1.04 ||
+      output.ear_model_output.overall_loudness < 0.96) {
 #else
   if (output.overall_loudness > 0.59 || output.overall_loudness < 0.58) {
 #endif
-    g_printf ("loudness == %f != 1\n", output.overall_loudness);
+    g_printf ("loudness == %f != 1\n",
+              output.ear_model_output.overall_loudness);
     exit(1);
   }
 }

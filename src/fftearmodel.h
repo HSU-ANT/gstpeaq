@@ -55,12 +55,21 @@ typedef struct _PeaqFFTEarModelClass PeaqFFTEarModelClass;
 typedef struct _PeaqFFTEarModel PeaqFFTEarModel;
 typedef struct _PeaqFFTEarModelParamsClass PeaqFFTEarModelParamsClass;
 typedef struct _PeaqFFTEarModelParams PeaqFFTEarModelParams;
+typedef struct _FFTEarModelOutput FFTEarModelOutput;
+
+struct _FFTEarModelOutput
+{
+  EarModelOutput ear_model_output;
+  gdouble power_spectrum[FFT_FRAMESIZE / 2 + 1];
+  gdouble weighted_power_spectrum[FFT_FRAMESIZE / 2 + 1];
+};
+
 
 GType peaq_fftearmodel_get_type ();
 PeaqFFTEarModelParams *peaq_fftearmodel_get_fftmodel_params (PeaqFFTEarModel
                                                              const *ear);
 void peaq_fftearmodel_process (PeaqFFTEarModel *ear, gfloat *sample_data,
-                               EarModelOutput *output);
+                               FFTEarModelOutput *output);
 
 GType peaq_fftearmodelparams_get_type ();
 void peaq_fftearmodelparams_group_into_bands (PeaqFFTEarModelParams const

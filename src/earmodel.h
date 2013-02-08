@@ -46,7 +46,6 @@
  * The length (in samples) of a frame to be processed by 
  * peaq_earmodel_process().
  */
-#define FRAMESIZE 2048
 
 typedef struct _PeaqEarModelClass PeaqEarModelClass;
 typedef struct _PeaqEarModel PeaqEarModel;
@@ -116,8 +115,6 @@ struct _EarModelOutput
   gdouble *unsmeared_excitation;
   gdouble *excitation;
   gdouble overall_loudness;
-  gdouble power_spectrum[FRAMESIZE / 2 + 1];
-  gdouble weighted_power_spectrum[FRAMESIZE / 2 + 1];
 };
 
 struct _PeaqEarModelParams

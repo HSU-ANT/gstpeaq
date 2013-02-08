@@ -355,7 +355,7 @@ params_set_playback_level (PeaqEarModelParams *params, gdouble level)
  */
 void
 peaq_fftearmodel_process (PeaqFFTEarModel *ear, gfloat *sample_data,
-                          EarModelOutput *output)
+                          FFTEarModelOutput *output)
 {
   guint k, i;
   PeaqFFTEarModelParams *params = PEAQ_FFTEARMODELPARAMS (ear->parent.params);
@@ -368,6 +368,7 @@ peaq_fftearmodel_process (PeaqFFTEarModel *ear, gfloat *sample_data,
     g_newa (gdouble, peaq_earmodelparams_get_band_count (ear->parent.params));
   gdouble *noisy_band_power =
     g_newa (gdouble, peaq_earmodelparams_get_band_count (ear->parent.params));
+  gdouble *unsmeared_excitation = output->ear_model_output.unsmeared_excitation;
 
   g_assert (output);
 
@@ -394,8 +395,7 @@ peaq_fftearmodel_process (PeaqFFTEarModel *ear, gfloat *sample_data,
       band_power[i] +
       peaq_earmodelparams_get_internal_noise(PEAQ_EARMODELPARAMS (params), i);
 
-  params_do_spreading (params, noisy_band_power,
-                       output->unsmeared_excitation);
+  params_do_spreading (params, noisy_band_power, unsmeared_excitation);
 
   /* NOTE: according to [BS1387], the filtered_excitation after processing the
    * first frame should be all zero; we follow the interpretation of [Kabal03]
@@ -405,15 +405,15 @@ peaq_fftearmodel_process (PeaqFFTEarModel *ear, gfloat *sample_data,
       peaq_earmodelparams_get_ear_time_constant (PEAQ_EARMODELPARAMS (params),
                                                  i);
     ear->filtered_excitation[i] =
-      a * ear->filtered_excitation[i] +
-      (1 - a) * output->unsmeared_excitation[i];
-    output->excitation[i] =
-      ear->filtered_excitation[i] > output->unsmeared_excitation[i] ?
-      ear->filtered_excitation[i] : output->unsmeared_excitation[i];
+      a * ear->filtered_excitation[i] + (1 - a) * unsmeared_excitation[i];
+    output->ear_model_output.excitation[i] =
+      ear->filtered_excitation[i] > unsmeared_excitation[i] ?
+      ear->filtered_excitation[i] : unsmeared_excitation[i];
   }
 
-  output->overall_loudness =
-    peaq_earmodel_calc_loudness (PEAQ_EARMODEL (ear), output->excitation);
+  output->ear_model_output.overall_loudness =
+    peaq_earmodel_calc_loudness (PEAQ_EARMODEL (ear),
+                                 output->ear_model_output.excitation);
 }
 
 /*
