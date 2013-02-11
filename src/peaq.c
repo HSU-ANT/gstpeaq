@@ -23,8 +23,13 @@
 #include <glib/gprintf.h>
 
 static gchar **filenames;
+static gboolean advanced = FALSE;
 
 static GOptionEntry option_entries[] = {
+  {"advanced", 0, 0, G_OPTION_ARG_NONE, &advanced, "use advanced version",
+    NULL},
+  {"basic", 0, G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &advanced,
+    "use basic version (default)", NULL},
   {G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_FILENAME_ARRAY, &filenames, NULL,
    "REFFILE TESTFILE"},
   {NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL}
@@ -122,7 +127,8 @@ main(int argc, char *argv[])
   gst_object_unref (bus);
 
   peaq = gst_element_factory_make ("peaq", "peaq");
-  g_object_set (G_OBJECT (peaq), "console_output", FALSE, NULL);
+  g_object_set (G_OBJECT (peaq), "advanced", advanced,
+                "console_output", FALSE, NULL);
   ref_source = gst_element_factory_make ("filesrc", "ref_file-source");
   ref_parser = gst_element_factory_make ("wavparse", "ref_wav-parser");
   g_object_set (G_OBJECT (ref_source), "location", reffilename, NULL);

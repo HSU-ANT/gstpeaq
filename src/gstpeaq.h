@@ -55,7 +55,8 @@ G_BEGIN_DECLS;
 
 typedef struct _GstPeaq GstPeaq;
 typedef struct _GstPeaqClass GstPeaqClass;
-typedef struct _GstPeaqAggregatedData GstPeaqAggregatedData;
+typedef struct _GstPeaqAggregatedDataFFTBasic GstPeaqAggregatedDataFFTBasic;
+typedef struct _GstPeaqAggregatedDataFFTAdvanced GstPeaqAggregatedDataFFTAdvanced;
 typedef struct _GstPeaqAggregatedDataFB GstPeaqAggregatedDataFB;
 
 struct _GstPeaq
@@ -72,6 +73,7 @@ struct _GstPeaq
   GstFFTF64 *correlator_fft;
   GstFFTF64 *correlator_inverse_fft;
   gboolean console_output;
+  gboolean advanced;
   gdouble *masking_difference;
   guint frame_counter;
   guint frame_counter_fb;
@@ -79,14 +81,13 @@ struct _GstPeaq
   PeaqFFTEarModel *test_ear;
   PeaqFilterbankEarModel *ref_ear_fb;
   PeaqFilterbankEarModel *test_ear_fb;
-  PeaqLevelAdapter *level_adapter_fft;
-  PeaqLevelAdapter *level_adapter_fb;
+  PeaqLevelAdapter *level_adapter;
   PeaqModulationProcessor *ref_modulation_processor;
   PeaqModulationProcessor *test_modulation_processor;
-  PeaqModulationProcessor *ref_modulation_processor_fb;
-  PeaqModulationProcessor *test_modulation_processor_fb;
-  GstPeaqAggregatedData *current_aggregated_data;
-  GstPeaqAggregatedData *saved_aggregated_data;
+  GstPeaqAggregatedDataFFTBasic *current_aggregated_data_fft_basic;
+  GstPeaqAggregatedDataFFTBasic *saved_aggregated_data_fft_basic;
+  GstPeaqAggregatedDataFFTAdvanced *current_aggregated_data_fft_advanced;
+  GstPeaqAggregatedDataFFTAdvanced *saved_aggregated_data_fft_advanced;
   GstPeaqAggregatedDataFB *current_aggregated_data_fb;
   GstPeaqAggregatedDataFB *saved_aggregated_data_fb;
 };

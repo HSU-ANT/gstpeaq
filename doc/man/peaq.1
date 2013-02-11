@@ -3,6 +3,8 @@
 peaq \- Perceptual Evaluation of Audio Quality
 .SH SYNOPSIS
 .SY peaq
+.RI [ --basic ]
+.RI [ --advanced ]
 .RI [ "GSTREAMER OPTIONS" ]
 .I REFFILE 
 .I TESTFILE
@@ -43,10 +45,18 @@ T}
 The calculation of the ODG is performed as described in ITU-R BS.1387-1 and
 interpreted by Peter Kabal in "An Examination and Interpretation of ITU-R
 BS.1387: Perceptual Evaluation of Audio Quality".
+Both the basic and the advanced version of the PEAQ algorithm are available.
 .SH OPTIONS
+.TP
+.B --basic
+Use basic version of the PEAQ algorithm.
+.TP
+.B --advanced
+Use advanced version of the PEAQ algorithm.
+.P
+In addition to these application specific options,
 .B peaq
-has no application specific options but supports the common GStreamer options
-as described e.g. in
+supports the common GStreamer options as described e.g. in
 .BR gst-lauch (1).
 .SH EXIT STATUS
 .TP

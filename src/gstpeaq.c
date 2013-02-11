@@ -39,19 +39,18 @@
 #define EHS_ENERGY_THRESHOLD 7.45058059692383e-06
 #define MAXLAG 256
 
-// #define ADVANCED 1
-
 enum
 {
   PROP_0,
   PROP_PLAYBACK_LEVEL,
+  PROP_MODE_ADVANCED,
   PROP_DI,
   PROP_ODG,
   PROP_TOTALSNR,
   PROP_CONSOLE_OUTPUT
 };
 
-struct _GstPeaqAggregatedData
+struct _GstPeaqAggregatedDataFFTBasic
 {
   guint frame_count;
   guint delayed_frame_count;
@@ -76,9 +75,17 @@ struct _GstPeaqAggregatedData
   gdouble max_filtered_detection_probability;
   gdouble total_signal_energy;
   gdouble total_noise_energy;
-#ifdef ADVANCED
+};
+
+struct _GstPeaqAggregatedDataFFTAdvanced
+{
+  guint frame_count;
+  guint ehs_frame_count;
+  guint loudness_reached_frame;
   gdouble nmr_local;
-#endif
+  gdouble ehs;
+  gdouble total_signal_energy;
+  gdouble total_noise_energy;
 };
 
 struct _GstPeaqAggregatedDataFB
@@ -122,7 +129,6 @@ GST_STATIC_PAD_TEMPLATE ("test",
 			 GST_PAD_ALWAYS,
 			 STATIC_CAPS);
 
-#ifdef ADVANCED
 static gdouble amin_advanced[5] = {
   13.298751, 0.041073, -25.018791, 0.061560, 0.02452
 };
@@ -142,7 +148,7 @@ static gdouble wx_advanced[5][5] = {
 static double wxb_advanced[5] = { 1.330890, 2.686103, 2.096598, -1.327851, 3.087055 };
 
 static double wy_advanced[5] = { -4.696996, -3.289959, 7.004782, 6.651897, 4.009144 };
-#else
+
 static gdouble amin[] = {
   393.916656, 361.965332, -24.045116, 1.110661, -0.206623, 0.074318, 1.113683,
   0.950345, 0.029985, 0.000101, 0
@@ -169,7 +175,6 @@ static gdouble wx[11][3] = {
 
 static double wxb[] = { -2.518254, 0.654841, -2.207228 };
 static double wy[] = { -3.817048, 4.107138, 4.629582, -0.307594 };
-#endif
 
 static void gst_peaq_finalize (GObject * object);
 static void gst_peaq_get_property (GObject * obj, guint id, GValue * value,
@@ -180,24 +185,22 @@ static GstFlowReturn gst_peaq_collected (GstCollectPads * pads,
 					 gpointer user_data);
 static GstStateChangeReturn gst_peaq_change_state (GstElement * element,
 						   GstStateChange transition);
-static void gst_peaq_process_fft_block (GstPeaq *peaq, gfloat *refdata,
-                                        gfloat *testdata);
-#ifdef ADVANCED
+static void gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
+                                              gfloat *testdata);
+static void gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
+                                                 gfloat *testdata);
 static void gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata,
                                        gfloat *testdata);
-#endif
 static void calc_modulation_difference(PeaqEarModelParams const *params,
                                        ModulationProcessorOutput const *ref_mod_output,
                                        ModulationProcessorOutput const *test_mod_output,
                                        gdouble *mod_diff_1b,
                                        gdouble *mod_diff_2b,
                                        gdouble *temp_wt);
-#ifdef ADVANCED
 static void calc_modulation_difference_A (PeaqEarModelParams const *params,
                                           ModulationProcessorOutput const *ref_mod_output,
                                           ModulationProcessorOutput const *test_mod_output,
                                           gdouble *mod_diff_a, gdouble *temp_wt);
-#endif
 static gdouble calc_noise_loudness(PeaqEarModelParams const *params,
                                    gdouble alpha, gdouble thres_fac, gdouble S0,
                                    gdouble NLmin,
@@ -219,11 +222,8 @@ static void calc_ehs (GstPeaq const *peaq, gfloat const *refdata,
                       gdouble const *ref_power_spectrum,
                       gdouble const *test_power_spectrum,
                       gboolean *ehs_valid, gdouble *ehs);
-#ifndef ADVANCED
 static double gst_peaq_calculate_di (GstPeaq * peaq);
-#else
 static double gst_peaq_calculate_di_advanced (GstPeaq *peaq);
-#endif
 static double gst_peaq_calculate_odg (GstPeaq * peaq);
 static gboolean is_frame_above_threshold (gfloat *framedata, guint framesize);
 
@@ -292,6 +292,14 @@ gst_peaq_class_init (GstPeaqClass * peaq_class)
 							G_PARAM_READWRITE |
 							G_PARAM_CONSTRUCT));
   g_object_class_install_property (object_class,
+				   PROP_MODE_ADVANCED,
+				   g_param_spec_boolean ("advanced",
+                                                         "Advanced mode enabled",
+                                                         "True if advanced mode is used",
+                                                         FALSE,
+                                                         G_PARAM_READWRITE |
+                                                         G_PARAM_CONSTRUCT));
+  g_object_class_install_property (object_class,
 				   PROP_DI,
 				   g_param_spec_double ("di",
 							"distortion index",
@@ -325,10 +333,7 @@ gst_peaq_class_init (GstPeaqClass * peaq_class)
 static void
 gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
 {
-  guint band_count, i;
   GstPadTemplate *template;
-  PeaqEarModelParams *fft_model_params;
-  PeaqEarModelParams *fb_model_params;
 
   peaq->collect = gst_collect_pads_new ();
   gst_collect_pads_set_function (peaq->collect, gst_peaq_collected, peaq);
@@ -361,46 +366,21 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   peaq->frame_counter = 0;
   peaq->frame_counter_fb = 0;
 
-#ifdef ADVANCED
-  peaq->ref_ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, "number-of-bands", 55,
-                                NULL);
-  peaq->test_ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, "number-of-bands", 55,
-                                 NULL);
-#else
-  peaq->ref_ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, "number-of-bands", 109,
-                                 NULL);
-  peaq->test_ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, "number-of-bands", 109,
-                                 NULL);
-#endif
-  peaq->ref_ear_fb = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL, NULL);
-  peaq->test_ear_fb = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL, NULL);
+  peaq->ref_ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
+  peaq->test_ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
 
-  fft_model_params =
-    peaq_earmodel_get_model_params (PEAQ_EARMODEL(peaq->ref_ear));
-  fb_model_params =
-    peaq_earmodel_get_model_params (PEAQ_EARMODEL(peaq->ref_ear_fb));
-
-  band_count =
-    peaq_earmodelparams_get_band_count (fft_model_params);
-
-  peaq->masking_difference = g_new (gdouble, band_count);
-  for (i = 0; i < band_count; i++)
-    peaq->masking_difference[i] =
-      pow (10, (i * 0.25 <= 12 ? 3 : 0.25 * i * 0.25) / 10);
-
-  peaq->level_adapter_fft = peaq_leveladapter_new (fft_model_params);
-  peaq->level_adapter_fb = peaq_leveladapter_new (fb_model_params);
-  peaq->ref_modulation_processor =
-    peaq_modulationprocessor_new (fft_model_params);
-  peaq->test_modulation_processor =
-    peaq_modulationprocessor_new (fft_model_params);
-  peaq->ref_modulation_processor_fb =
-    peaq_modulationprocessor_new (fb_model_params);
-  peaq->test_modulation_processor_fb =
-    peaq_modulationprocessor_new (fb_model_params);
-
-  peaq->current_aggregated_data = NULL;
-  peaq->saved_aggregated_data = NULL;
+  peaq->ref_ear_fb = NULL;
+  peaq->test_ear_fb = NULL;
+  peaq->masking_difference = NULL;
+  peaq->level_adapter = NULL;
+  peaq->ref_modulation_processor = NULL;
+  peaq->test_modulation_processor = NULL;
+  peaq->current_aggregated_data_fft_basic = NULL;
+  peaq->saved_aggregated_data_fft_basic = NULL;
+  peaq->current_aggregated_data_fft_advanced = NULL;
+  peaq->saved_aggregated_data_fft_advanced = NULL;
+  peaq->current_aggregated_data_fb = NULL;
+  peaq->saved_aggregated_data_fb = NULL;
 }
 
 static void
@@ -414,19 +394,24 @@ gst_peaq_finalize (GObject * object)
   g_object_unref (peaq->test_adapter_fb);
   g_object_unref (peaq->ref_ear);
   g_object_unref (peaq->test_ear);
-  g_object_unref (peaq->level_adapter_fft);
-  g_object_unref (peaq->level_adapter_fb);
+  g_object_unref (peaq->level_adapter);
   g_object_unref (peaq->ref_modulation_processor);
   g_object_unref (peaq->test_modulation_processor);
-  g_object_unref (peaq->ref_modulation_processor_fb);
-  g_object_unref (peaq->test_modulation_processor_fb);
   gst_fft_f64_free (peaq->correlation_fft);
   gst_fft_f64_free (peaq->correlator_fft);
   gst_fft_f64_free (peaq->correlator_inverse_fft);
-  if (peaq->current_aggregated_data != NULL)
-    g_free (peaq->current_aggregated_data);
-  if (peaq->saved_aggregated_data != NULL)
-    g_free (peaq->saved_aggregated_data);
+  if (peaq->current_aggregated_data_fft_basic != NULL)
+    g_free (peaq->current_aggregated_data_fft_basic);
+  if (peaq->saved_aggregated_data_fft_basic != NULL)
+    g_free (peaq->saved_aggregated_data_fft_basic);
+  if (peaq->current_aggregated_data_fft_advanced != NULL)
+    g_free (peaq->current_aggregated_data_fft_advanced);
+  if (peaq->saved_aggregated_data_fft_advanced != NULL)
+    g_free (peaq->saved_aggregated_data_fft_advanced);
+  if (peaq->current_aggregated_data_fb != NULL)
+    g_free (peaq->current_aggregated_data_fb);
+  if (peaq->saved_aggregated_data_fb != NULL)
+    g_free (peaq->saved_aggregated_data_fb);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -441,29 +426,36 @@ gst_peaq_get_property (GObject * obj, guint id, GValue * value,
 			     "playback_level", value);
       break;
     case PROP_DI:
-#ifdef ADVANCED
-      g_value_set_double (value, gst_peaq_calculate_di_advanced (peaq));
-#else
-      g_value_set_double (value, gst_peaq_calculate_di (peaq));
-#endif
+      if (peaq->advanced)
+        g_value_set_double (value, gst_peaq_calculate_di_advanced (peaq));
+      else
+        g_value_set_double (value, gst_peaq_calculate_di (peaq));
       break;
     case PROP_ODG:
       g_value_set_double (value, gst_peaq_calculate_odg (peaq));
       break;
     case PROP_TOTALSNR:
       {
-	GstPeaqAggregatedData *agg_data;
+        gdouble snr = 0;
+        if (peaq->advanced) {
+          GstPeaqAggregatedDataFFTAdvanced *agg_data;
 
-	if (peaq->saved_aggregated_data)
-	  agg_data = peaq->saved_aggregated_data;
-	else
-	  agg_data = peaq->current_aggregated_data;
+          if (peaq->saved_aggregated_data_fft_advanced)
+            agg_data = peaq->saved_aggregated_data_fft_advanced;
+          else
+            agg_data = peaq->current_aggregated_data_fft_advanced;
+          snr = agg_data->total_signal_energy / agg_data->total_noise_energy;
+        } else {
+          GstPeaqAggregatedDataFFTBasic *agg_data;
 
-	if (agg_data)
-	  g_value_set_double (value, 10 * log10 (agg_data->total_signal_energy 
-						 / agg_data->total_noise_energy));
-	else
-	  g_value_set_double (value, 0);
+          if (peaq->saved_aggregated_data_fft_basic)
+            agg_data = peaq->saved_aggregated_data_fft_basic;
+          else
+            agg_data = peaq->current_aggregated_data_fft_basic;
+          snr = agg_data->total_signal_energy / agg_data->total_noise_energy;
+        }
+
+        g_value_set_double (value, 10 * log10 (snr));
       }
       break;
     case PROP_CONSOLE_OUTPUT:
@@ -483,6 +475,60 @@ gst_peaq_set_property (GObject * obj, guint id, const GValue * value,
 			     "playback_level", value);
       g_object_set_property (G_OBJECT (peaq_earmodel_get_model_params(PEAQ_EARMODEL(peaq->test_ear))),
 			     "playback_level", value);
+      // TODO: also set playback level for filterbank ears
+      break;
+    case PROP_MODE_ADVANCED:
+      {
+        guint band_count;
+        guint i;
+        PeaqEarModelParams *model_params;
+        peaq->advanced = g_value_get_boolean (value);
+        if (peaq->advanced)
+          band_count = 55;
+        else
+          band_count = 109;
+        g_object_set (peaq->ref_ear, "number-of-bands", band_count, NULL);
+        g_object_set (peaq->test_ear, "number-of-bands", band_count, NULL);
+        if (peaq->advanced) {
+          if (peaq->ref_ear_fb == NULL)
+            peaq->ref_ear_fb = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL,
+                                             NULL);
+          if (peaq->test_ear_fb == NULL)
+            peaq->test_ear_fb = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL,
+                                              NULL);
+          model_params =
+            peaq_earmodel_get_model_params (PEAQ_EARMODEL(peaq->ref_ear_fb));
+        } else {
+          if (peaq->ref_ear_fb) {
+            g_object_unref (peaq->ref_ear_fb);
+            peaq->ref_ear_fb = NULL;
+          }
+          if (peaq->test_ear_fb) {
+            g_object_unref (peaq->test_ear_fb);
+            peaq->test_ear_fb = NULL;
+          }
+          model_params =
+            peaq_earmodel_get_model_params (PEAQ_EARMODEL(peaq->ref_ear));
+        }
+        if (peaq->masking_difference)
+          g_free (peaq->masking_difference);
+        peaq->masking_difference = g_new (gdouble, band_count);
+        for (i = 0; i < band_count; i++)
+          peaq->masking_difference[i] =
+            // TODO: replace 0.25 with true deltaZ
+            pow (10, (i * 0.25 <= 12 ? 3 : 0.25 * i * 0.25) / 10);
+        if (peaq->level_adapter)
+          g_object_unref (peaq->level_adapter);
+        peaq->level_adapter = peaq_leveladapter_new (model_params);
+        if (peaq->ref_modulation_processor)
+          g_object_unref (peaq->ref_modulation_processor);
+        peaq->ref_modulation_processor =
+          peaq_modulationprocessor_new (model_params);
+        if (peaq->test_modulation_processor)
+          g_object_unref (peaq->test_modulation_processor);
+        peaq->test_modulation_processor =
+          peaq_modulationprocessor_new (model_params);
+      }
       break;
     case PROP_CONSOLE_OUTPUT:
       peaq->console_output = g_value_get_boolean (value);
@@ -510,10 +556,12 @@ gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
     while (buf != NULL) {
       data_received = TRUE;
       if (data->pad == peaq->refpad) {
-	gst_adapter_push (peaq->ref_adapter_fb, gst_buffer_copy (buf));
+        if (peaq->advanced)
+          gst_adapter_push (peaq->ref_adapter_fb, gst_buffer_copy (buf));
 	gst_adapter_push (peaq->ref_adapter_fft, buf);
       } else if (data->pad == peaq->testpad) {
-	gst_adapter_push (peaq->test_adapter_fb, gst_buffer_copy (buf));
+        if (peaq->advanced)
+          gst_adapter_push (peaq->test_adapter_fb, gst_buffer_copy (buf));
 	gst_adapter_push (peaq->test_adapter_fft, buf);
       }
       buf = gst_collect_pads_pop (pads, data);
@@ -527,7 +575,10 @@ gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
                                                     FFT_BLOCKSIZE_BYTES);
     gfloat *testframe = (gfloat *) gst_adapter_peek (peaq->test_adapter_fft,
 						     FFT_BLOCKSIZE_BYTES);
-    gst_peaq_process_fft_block (peaq, refframe, testframe);
+    if (peaq->advanced)
+      gst_peaq_process_fft_block_advanced (peaq, refframe, testframe);
+    else
+      gst_peaq_process_fft_block_basic (peaq, refframe, testframe);
     g_assert (gst_adapter_available (peaq->ref_adapter_fft) >=
               FFT_BLOCKSIZE_BYTES);
     gst_adapter_flush (peaq->ref_adapter_fft, FFT_STEPSIZE_BYTES);
@@ -536,21 +587,22 @@ gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
     gst_adapter_flush (peaq->test_adapter_fft, FFT_STEPSIZE_BYTES);
   }
 
-  while (gst_adapter_available (peaq->ref_adapter_fb) >= FB_BLOCKSIZE_BYTES &&
-         gst_adapter_available (peaq->test_adapter_fb) >= FB_BLOCKSIZE_BYTES) {
-#ifdef ADVANCED
-    gfloat *refframe = (gfloat *) gst_adapter_peek (peaq->ref_adapter_fb,
-						    FB_BLOCKSIZE_BYTES);
-    gfloat *testframe = (gfloat *) gst_adapter_peek (peaq->test_adapter_fb,
-						     FB_BLOCKSIZE_BYTES);
-    gst_peaq_process_fb_block (peaq, refframe, testframe);
-#endif
-    g_assert (gst_adapter_available (peaq->ref_adapter_fb) >=
-              FB_BLOCKSIZE_BYTES);
-    gst_adapter_flush (peaq->ref_adapter_fb, FB_BLOCKSIZE_BYTES);
-    g_assert (gst_adapter_available (peaq->test_adapter_fb) >=
-              FB_BLOCKSIZE_BYTES);
-    gst_adapter_flush (peaq->test_adapter_fb, FB_BLOCKSIZE_BYTES);
+  if (peaq->advanced) {
+    while (gst_adapter_available (peaq->ref_adapter_fb) >= FB_BLOCKSIZE_BYTES &&
+           gst_adapter_available (peaq->test_adapter_fb) >= FB_BLOCKSIZE_BYTES)
+    {
+      gfloat *refframe = (gfloat *) gst_adapter_peek (peaq->ref_adapter_fb,
+                                                      FB_BLOCKSIZE_BYTES);
+      gfloat *testframe = (gfloat *) gst_adapter_peek (peaq->test_adapter_fb,
+                                                       FB_BLOCKSIZE_BYTES);
+      gst_peaq_process_fb_block (peaq, refframe, testframe);
+      g_assert (gst_adapter_available (peaq->ref_adapter_fb) >=
+                FB_BLOCKSIZE_BYTES);
+      gst_adapter_flush (peaq->ref_adapter_fb, FB_BLOCKSIZE_BYTES);
+      g_assert (gst_adapter_available (peaq->test_adapter_fb) >=
+                FB_BLOCKSIZE_BYTES);
+      gst_adapter_flush (peaq->test_adapter_fb, FB_BLOCKSIZE_BYTES);
+    }
   }
 
   if (!data_received) {
@@ -600,7 +652,12 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
 	g_memmove (padded_test_frame, testframe, test_data_count);
 	memset (((char *) padded_test_frame) + test_data_count, 0,
                 FFT_BLOCKSIZE_BYTES - test_data_count);
-	gst_peaq_process_fft_block (peaq, padded_ref_frame, padded_test_frame);
+        if (peaq->advanced)
+          gst_peaq_process_fft_block_advanced (peaq, padded_ref_frame,
+                                               padded_test_frame);
+        else
+          gst_peaq_process_fft_block_basic (peaq, padded_ref_frame,
+                                            padded_test_frame);
 	g_assert (gst_adapter_available (peaq->ref_adapter_fft) >= 
 		  ref_data_count);
 	gst_adapter_flush (peaq->ref_adapter_fft, ref_data_count);
@@ -619,7 +676,7 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
 }
 
 static void
-gst_peaq_process_fft_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
+gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
 {
   guint i;
   FFTEarModelOutput ref_ear_output;
@@ -669,7 +726,7 @@ gst_peaq_process_fft_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
 
   level_output.spectrally_adapted_ref_patterns = g_newa (gdouble, band_count);
   level_output.spectrally_adapted_test_patterns = g_newa (gdouble, band_count);
-  peaq_leveladapter_process (peaq->level_adapter_fft,
+  peaq_leveladapter_process (peaq->level_adapter,
                              ref_ear_output.ear_model_output.excitation,
 			     test_ear_output.ear_model_output.excitation,
                              &level_output);
@@ -731,115 +788,209 @@ gst_peaq_process_fft_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
   }
 
   if (is_frame_above_threshold (refdata, FFT_FRAMESIZE)) {
-    if (peaq->current_aggregated_data == NULL) {
-      peaq->current_aggregated_data = g_new (GstPeaqAggregatedData, 1);
-      peaq->current_aggregated_data->frame_count = 0;
-      peaq->current_aggregated_data->delayed_frame_count = 0;
-      peaq->current_aggregated_data->distorted_frame_count = 0;
-      peaq->current_aggregated_data->ehs_frame_count = 0;
-      peaq->current_aggregated_data->bandwidth_frame_count = 0;
-      peaq->current_aggregated_data->noise_loud_frame_count = 0;
-      peaq->current_aggregated_data->disturbed_frame_count = 0;
-      peaq->current_aggregated_data->loudness_reached_frame = G_MAXUINT;
-      peaq->current_aggregated_data->ref_bandwidth_sum = 0;
-      peaq->current_aggregated_data->test_bandwidth_sum = 0;
-      peaq->current_aggregated_data->nmr_sum = 0;
-      peaq->current_aggregated_data->win_mod_diff1 = 0;
-      peaq->current_aggregated_data->past_mod_diff1[0] = 0;
-      peaq->current_aggregated_data->past_mod_diff1[1] = 0;
-      peaq->current_aggregated_data->past_mod_diff1[2] = 0;
-      peaq->current_aggregated_data->avg_mod_diff1 = 0;
-      peaq->current_aggregated_data->avg_mod_diff2 = 0;
-      peaq->current_aggregated_data->temp_weight = 0;
-      peaq->current_aggregated_data->detection_steps = 0;
-      peaq->current_aggregated_data->ehs = 0;
-      peaq->current_aggregated_data->noise_loudness = 0;
-      peaq->current_aggregated_data->filtered_detection_probability = 0;
-      peaq->current_aggregated_data->max_filtered_detection_probability = 0;
-      peaq->current_aggregated_data->total_signal_energy = 0;
-      peaq->current_aggregated_data->total_noise_energy = 0;
-#ifdef ADVANCED
-      peaq->current_aggregated_data->nmr_local = 0.;
-#endif
+    if (peaq->current_aggregated_data_fft_basic == NULL) {
+      peaq->current_aggregated_data_fft_basic
+        = g_new (GstPeaqAggregatedDataFFTBasic, 1);
+      peaq->current_aggregated_data_fft_basic->frame_count = 0;
+      peaq->current_aggregated_data_fft_basic->delayed_frame_count = 0;
+      peaq->current_aggregated_data_fft_basic->distorted_frame_count = 0;
+      peaq->current_aggregated_data_fft_basic->ehs_frame_count = 0;
+      peaq->current_aggregated_data_fft_basic->bandwidth_frame_count = 0;
+      peaq->current_aggregated_data_fft_basic->noise_loud_frame_count = 0;
+      peaq->current_aggregated_data_fft_basic->disturbed_frame_count = 0;
+      peaq->current_aggregated_data_fft_basic->loudness_reached_frame = G_MAXUINT;
+      peaq->current_aggregated_data_fft_basic->ref_bandwidth_sum = 0;
+      peaq->current_aggregated_data_fft_basic->test_bandwidth_sum = 0;
+      peaq->current_aggregated_data_fft_basic->nmr_sum = 0;
+      peaq->current_aggregated_data_fft_basic->win_mod_diff1 = 0;
+      peaq->current_aggregated_data_fft_basic->past_mod_diff1[0] = 0;
+      peaq->current_aggregated_data_fft_basic->past_mod_diff1[1] = 0;
+      peaq->current_aggregated_data_fft_basic->past_mod_diff1[2] = 0;
+      peaq->current_aggregated_data_fft_basic->avg_mod_diff1 = 0;
+      peaq->current_aggregated_data_fft_basic->avg_mod_diff2 = 0;
+      peaq->current_aggregated_data_fft_basic->temp_weight = 0;
+      peaq->current_aggregated_data_fft_basic->detection_steps = 0;
+      peaq->current_aggregated_data_fft_basic->ehs = 0;
+      peaq->current_aggregated_data_fft_basic->noise_loudness = 0;
+      peaq->current_aggregated_data_fft_basic->filtered_detection_probability = 0;
+      peaq->current_aggregated_data_fft_basic->max_filtered_detection_probability = 0;
+      peaq->current_aggregated_data_fft_basic->total_signal_energy = 0;
+      peaq->current_aggregated_data_fft_basic->total_noise_energy = 0;
     }
-    if (peaq->saved_aggregated_data != NULL) {
-      g_free (peaq->saved_aggregated_data);
-      peaq->saved_aggregated_data = NULL;
+    if (peaq->saved_aggregated_data_fft_basic != NULL) {
+      g_free (peaq->saved_aggregated_data_fft_basic);
+      peaq->saved_aggregated_data_fft_basic = NULL;
     }
   } else {
-    if (peaq->saved_aggregated_data == NULL) {
-      peaq->saved_aggregated_data = g_memdup (peaq->current_aggregated_data,
-					      sizeof (GstPeaqAggregatedData));
+    if (peaq->saved_aggregated_data_fft_basic == NULL) {
+      peaq->saved_aggregated_data_fft_basic =
+        g_memdup (peaq->current_aggregated_data_fft_basic,
+                  sizeof (GstPeaqAggregatedDataFFTBasic));
     }
   }
 
-  if (peaq->current_aggregated_data != NULL) {
-    peaq->current_aggregated_data->frame_count++;
+  if (peaq->current_aggregated_data_fft_basic != NULL) {
+    peaq->current_aggregated_data_fft_basic->frame_count++;
     if (bw_ref > 346) {
-      peaq->current_aggregated_data->ref_bandwidth_sum += bw_ref;
-      peaq->current_aggregated_data->test_bandwidth_sum += bw_test;
-      peaq->current_aggregated_data->bandwidth_frame_count++;
+      peaq->current_aggregated_data_fft_basic->ref_bandwidth_sum += bw_ref;
+      peaq->current_aggregated_data_fft_basic->test_bandwidth_sum += bw_test;
+      peaq->current_aggregated_data_fft_basic->bandwidth_frame_count++;
     }
-    peaq->current_aggregated_data->nmr_sum += nmr;
-#ifdef ADVANCED
-    peaq->current_aggregated_data->nmr_local += 10. * log10 (nmr);
-#endif
-    if (peaq->current_aggregated_data->loudness_reached_frame == G_MAXUINT &&
+    peaq->current_aggregated_data_fft_basic->nmr_sum += nmr;
+    if (peaq->current_aggregated_data_fft_basic->loudness_reached_frame == G_MAXUINT &&
         ref_ear_output.ear_model_output.overall_loudness > 0.1 &&
 	test_ear_output.ear_model_output.overall_loudness > 0.1)
-      peaq->current_aggregated_data->loudness_reached_frame = peaq->frame_counter;
+      peaq->current_aggregated_data_fft_basic->loudness_reached_frame = peaq->frame_counter;
     if (peaq->frame_counter >= 24) {
       gdouble winsum;
-      peaq->current_aggregated_data->delayed_frame_count++;
+      peaq->current_aggregated_data_fft_basic->delayed_frame_count++;
       winsum = sqrt (mod_diff_1b);
       for (i = 0; i < 3; i++) {
-	winsum += sqrt (peaq->current_aggregated_data->past_mod_diff1[i]);
+	winsum += sqrt (peaq->current_aggregated_data_fft_basic->past_mod_diff1[i]);
       }
       for (i = 0; i < 2; i++) {
-	peaq->current_aggregated_data->past_mod_diff1[i] =
-	  peaq->current_aggregated_data->past_mod_diff1[i + 1];
+	peaq->current_aggregated_data_fft_basic->past_mod_diff1[i] =
+	  peaq->current_aggregated_data_fft_basic->past_mod_diff1[i + 1];
       }
-      peaq->current_aggregated_data->past_mod_diff1[2] = mod_diff_1b;
+      peaq->current_aggregated_data_fft_basic->past_mod_diff1[2] = mod_diff_1b;
       if (peaq->frame_counter >= 27)
-	peaq->current_aggregated_data->win_mod_diff1 += pow (winsum / 4, 4);
-      peaq->current_aggregated_data->avg_mod_diff1 += temp_wt * mod_diff_1b;
-      peaq->current_aggregated_data->avg_mod_diff2 += temp_wt * mod_diff_2b;
-      peaq->current_aggregated_data->temp_weight += temp_wt;
-      if (peaq->frame_counter >= peaq->current_aggregated_data->loudness_reached_frame + 3) {
-	peaq->current_aggregated_data->noise_loud_frame_count++;
-	peaq->current_aggregated_data->noise_loudness +=
+	peaq->current_aggregated_data_fft_basic->win_mod_diff1 += pow (winsum / 4, 4);
+      peaq->current_aggregated_data_fft_basic->avg_mod_diff1 += temp_wt * mod_diff_1b;
+      peaq->current_aggregated_data_fft_basic->avg_mod_diff2 += temp_wt * mod_diff_2b;
+      peaq->current_aggregated_data_fft_basic->temp_weight += temp_wt;
+      if (peaq->frame_counter >= peaq->current_aggregated_data_fft_basic->loudness_reached_frame + 3) {
+	peaq->current_aggregated_data_fft_basic->noise_loud_frame_count++;
+	peaq->current_aggregated_data_fft_basic->noise_loudness +=
 	  noise_loudness * noise_loudness;
       }
     }
     if (detection_probability > 0.5) {
-      peaq->current_aggregated_data->distorted_frame_count++;
-      peaq->current_aggregated_data->detection_steps += detection_steps;
+      peaq->current_aggregated_data_fft_basic->distorted_frame_count++;
+      peaq->current_aggregated_data_fft_basic->detection_steps += detection_steps;
     }
     if (ehs_valid) {
-      peaq->current_aggregated_data->ehs_frame_count++;
-      peaq->current_aggregated_data->ehs += ehs;
+      peaq->current_aggregated_data_fft_basic->ehs_frame_count++;
+      peaq->current_aggregated_data_fft_basic->ehs += ehs;
     }
-    peaq->current_aggregated_data->filtered_detection_probability =
-      0.9 * peaq->current_aggregated_data->filtered_detection_probability +
+    peaq->current_aggregated_data_fft_basic->filtered_detection_probability =
+      0.9 * peaq->current_aggregated_data_fft_basic->filtered_detection_probability +
       0.1 * detection_probability;
-    if (peaq->current_aggregated_data->filtered_detection_probability >
-	peaq->current_aggregated_data->max_filtered_detection_probability)
-      peaq->current_aggregated_data->max_filtered_detection_probability =
-	peaq->current_aggregated_data->filtered_detection_probability;
+    if (peaq->current_aggregated_data_fft_basic->filtered_detection_probability >
+	peaq->current_aggregated_data_fft_basic->max_filtered_detection_probability)
+      peaq->current_aggregated_data_fft_basic->max_filtered_detection_probability =
+	peaq->current_aggregated_data_fft_basic->filtered_detection_probability;
     if (nmr_max > 1.41253754462275)
-      peaq->current_aggregated_data->disturbed_frame_count++;
+      peaq->current_aggregated_data_fft_basic->disturbed_frame_count++;
 
     for (i = 0; i < FFT_FRAMESIZE / 2; i++) {
-      peaq->current_aggregated_data->total_signal_energy
+      peaq->current_aggregated_data_fft_basic->total_signal_energy
         += refdata[i] * refdata[i];
-      peaq->current_aggregated_data->total_noise_energy 
+      peaq->current_aggregated_data_fft_basic->total_noise_energy 
 	+= (refdata[i] - testdata[i]) * (refdata[i] - testdata[i]);
     }
   }
   peaq->frame_counter++;
 }
 
-#ifdef ADVANCED
+static void
+gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
+                                     gfloat *testdata)
+{
+  guint i;
+  FFTEarModelOutput ref_ear_output;
+  FFTEarModelOutput test_ear_output;
+  gdouble noise_spectrum[FFT_FRAMESIZE / 2 + 1];
+  gdouble *noise_in_bands;
+  gdouble nmr;
+  gdouble nmr_max;
+  gboolean ehs_valid;
+  gdouble ehs = 0.;
+
+  PeaqEarModelParams *ear_params =
+    peaq_earmodel_get_model_params(PEAQ_EARMODEL(peaq->ref_ear));
+  PeaqFFTEarModelParams *fft_ear_params =
+    peaq_fftearmodel_get_fftmodel_params(peaq->ref_ear);
+  guint band_count = peaq_earmodelparams_get_band_count (ear_params);
+
+  noise_in_bands = g_newa (gdouble, band_count);
+
+  ref_ear_output.ear_model_output.unsmeared_excitation =
+    g_newa (gdouble, band_count);
+  ref_ear_output.ear_model_output.excitation = g_newa (gdouble, band_count);
+  test_ear_output.ear_model_output.unsmeared_excitation =
+    g_newa (gdouble, band_count);
+  test_ear_output.ear_model_output.excitation = g_newa (gdouble, band_count);
+  peaq_fftearmodel_process (peaq->ref_ear, refdata, &ref_ear_output);
+  peaq_fftearmodel_process (peaq->test_ear, testdata, &test_ear_output);
+  for (i = 0; i < FFT_FRAMESIZE / 2 + 1; i++)
+    noise_spectrum[i] =
+      ref_ear_output.weighted_power_spectrum[i] -
+      2 * sqrt (ref_ear_output.weighted_power_spectrum[i] *
+		test_ear_output.weighted_power_spectrum[i]) +
+      test_ear_output.weighted_power_spectrum[i];
+  peaq_fftearmodelparams_group_into_bands (fft_ear_params, noise_spectrum,
+                                           noise_in_bands);
+
+  /* noise-to-mask ratio */
+  calc_nmr (peaq, ref_ear_output.ear_model_output.excitation,
+            noise_in_bands, &nmr, &nmr_max);
+
+  /* error harmonic structure */
+  calc_ehs (peaq, refdata, testdata, ref_ear_output.power_spectrum,
+            test_ear_output.power_spectrum, &ehs_valid, &ehs);
+
+  if (peaq->console_output) {
+    g_printf ("  NMR    : %f\n"
+	      "  EHS    : %f\n",
+	      nmr,
+	      ehs_valid ? 1000 * ehs : -1);
+  }
+
+  if (is_frame_above_threshold (refdata, FFT_FRAMESIZE)) {
+    if (peaq->current_aggregated_data_fft_advanced == NULL) {
+      peaq->current_aggregated_data_fft_advanced = g_new (GstPeaqAggregatedDataFFTAdvanced, 1);
+      peaq->current_aggregated_data_fft_advanced->frame_count = 0;
+      peaq->current_aggregated_data_fft_advanced->ehs_frame_count = 0;
+      peaq->current_aggregated_data_fft_advanced->loudness_reached_frame = G_MAXUINT;
+      peaq->current_aggregated_data_fft_advanced->ehs = 0;
+      peaq->current_aggregated_data_fft_advanced->total_signal_energy = 0;
+      peaq->current_aggregated_data_fft_advanced->total_noise_energy = 0;
+      peaq->current_aggregated_data_fft_advanced->nmr_local = 0.;
+    }
+    if (peaq->saved_aggregated_data_fft_advanced != NULL) {
+      g_free (peaq->saved_aggregated_data_fft_advanced);
+      peaq->saved_aggregated_data_fft_advanced = NULL;
+    }
+  } else {
+    if (peaq->saved_aggregated_data_fft_advanced == NULL) {
+      peaq->saved_aggregated_data_fft_advanced =
+        g_memdup (peaq->current_aggregated_data_fft_advanced,
+                  sizeof (GstPeaqAggregatedDataFFTAdvanced));
+    }
+  }
+
+  if (peaq->current_aggregated_data_fft_advanced != NULL) {
+    peaq->current_aggregated_data_fft_advanced->frame_count++;
+    peaq->current_aggregated_data_fft_advanced->nmr_local += 10. * log10 (nmr);
+    if (peaq->current_aggregated_data_fft_advanced->loudness_reached_frame == G_MAXUINT &&
+        ref_ear_output.ear_model_output.overall_loudness > 0.1 &&
+	test_ear_output.ear_model_output.overall_loudness > 0.1)
+      peaq->current_aggregated_data_fft_advanced->loudness_reached_frame = peaq->frame_counter;
+    if (ehs_valid) {
+      peaq->current_aggregated_data_fft_advanced->ehs_frame_count++;
+      peaq->current_aggregated_data_fft_advanced->ehs += ehs;
+    }
+
+    for (i = 0; i < FFT_FRAMESIZE / 2; i++) {
+      peaq->current_aggregated_data_fft_advanced->total_signal_energy
+        += refdata[i] * refdata[i];
+      peaq->current_aggregated_data_fft_advanced->total_noise_energy 
+	+= (refdata[i] - testdata[i]) * (refdata[i] - testdata[i]);
+    }
+  }
+  peaq->frame_counter++;
+}
+
 static void
 gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
 {
@@ -868,15 +1019,15 @@ gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
 
   level_output.spectrally_adapted_ref_patterns = g_newa (gdouble, band_count);
   level_output.spectrally_adapted_test_patterns = g_newa (gdouble, band_count);
-  peaq_leveladapter_process (peaq->level_adapter_fb, ref_ear_output.excitation,
+  peaq_leveladapter_process (peaq->level_adapter, ref_ear_output.excitation,
                              test_ear_output.excitation, &level_output);
 
   ref_mod_output.modulation = g_newa (gdouble, band_count);
-  peaq_modulationprocessor_process (peaq->ref_modulation_processor_fb,
+  peaq_modulationprocessor_process (peaq->ref_modulation_processor,
                                     ref_ear_output.unsmeared_excitation,
                                     &ref_mod_output);
   test_mod_output.modulation = g_newa (gdouble, band_count);
-  peaq_modulationprocessor_process (peaq->test_modulation_processor_fb,
+  peaq_modulationprocessor_process (peaq->test_modulation_processor,
                                     test_ear_output.unsmeared_excitation,
                                     &test_mod_output);
 
@@ -946,7 +1097,7 @@ gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
     }
   }
 
-  if (peaq->current_aggregated_data != NULL) {
+  if (peaq->current_aggregated_data_fb != NULL) {
     if (peaq->current_aggregated_data_fb->loudness_reached_frame == G_MAXUINT &&
         ref_ear_output.overall_loudness > 0.1 &&
 	test_ear_output.overall_loudness > 0.1)
@@ -969,7 +1120,6 @@ gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
   }
   peaq->frame_counter_fb++;
 }
-#endif
 
 static void
 calc_modulation_difference (PeaqEarModelParams const *params,
@@ -999,7 +1149,6 @@ calc_modulation_difference (PeaqEarModelParams const *params,
   *mod_diff_2b *= 100. / band_count;
 }
 
-#ifdef ADVANCED
 static void
 calc_modulation_difference_A (PeaqEarModelParams const *params,
                               ModulationProcessorOutput const *ref_mod_output,
@@ -1020,7 +1169,6 @@ calc_modulation_difference_A (PeaqEarModelParams const *params,
   }
   *mod_diff_a *= 100. / band_count;
 }
-#endif
 
 static gdouble
 calc_noise_loudness (PeaqEarModelParams const *params,
@@ -1220,16 +1368,15 @@ calc_ehs (GstPeaq const *peaq, gfloat const *refdata, gfloat const *testdata,
   }
 }
 
-#ifndef ADVANCED
 static double
 gst_peaq_calculate_di (GstPeaq * peaq)
 {
-  GstPeaqAggregatedData *agg_data;
+  GstPeaqAggregatedDataFFTBasic *agg_data;
 
-  if (peaq->saved_aggregated_data)
-    agg_data = peaq->saved_aggregated_data;
+  if (peaq->saved_aggregated_data_fft_basic)
+    agg_data = peaq->saved_aggregated_data_fft_basic;
   else
-    agg_data = peaq->current_aggregated_data;
+    agg_data = peaq->current_aggregated_data_fft_basic;
 
   if (agg_data) {
     guint i;
@@ -1316,12 +1463,10 @@ gst_peaq_calculate_di (GstPeaq * peaq)
   return 0;
 }
 
-#else
-
 static double
 gst_peaq_calculate_di_advanced (GstPeaq *peaq)
 {
-  GstPeaqAggregatedData *agg_data;
+  GstPeaqAggregatedDataFFTAdvanced *agg_data;
   GstPeaqAggregatedDataFB *agg_data_fb;
 
   if (peaq->saved_aggregated_data_fb)
@@ -1329,10 +1474,10 @@ gst_peaq_calculate_di_advanced (GstPeaq *peaq)
   else
     agg_data_fb = peaq->current_aggregated_data_fb;
 
-  if (peaq->saved_aggregated_data)
-    agg_data = peaq->saved_aggregated_data;
+  if (peaq->saved_aggregated_data_fft_advanced)
+    agg_data = peaq->saved_aggregated_data_fft_advanced;
   else
-    agg_data = peaq->current_aggregated_data;
+    agg_data = peaq->current_aggregated_data_fft_advanced;
 
   if (agg_data && agg_data_fb) {
     guint i;
@@ -1402,24 +1547,23 @@ gst_peaq_calculate_di_advanced (GstPeaq *peaq)
   }
   return 0;
 }
-#endif
 
 static double
 gst_peaq_calculate_odg (GstPeaq * peaq)
 {
-  if (peaq->saved_aggregated_data || peaq->current_aggregated_data) {
-#ifdef ADVANCED
-    gdouble distortion_index = gst_peaq_calculate_di_advanced (peaq);
-#else
-    gdouble distortion_index = gst_peaq_calculate_di (peaq);
-#endif
+  //if (peaq->saved_aggregated_data || peaq->current_aggregated_data) {
+    gdouble distortion_index;
+    if (peaq->advanced)
+      distortion_index = gst_peaq_calculate_di_advanced (peaq);
+    else
+      distortion_index = gst_peaq_calculate_di (peaq);
     gdouble odg = -3.98 + 4.2 / (1 + exp (-distortion_index));
     if (peaq->console_output) {
       g_printf ("Objective Difference Grade: %.3f\n", odg);
     }
     return odg;
-  }
-  return 0;
+  //}
+  //return 0;
 }
 
 static gboolean
