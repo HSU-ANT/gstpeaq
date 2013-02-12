@@ -335,6 +335,7 @@ static void
 gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
 {
   GstPadTemplate *template;
+  PeaqEarModelParams *model_params;
 
   peaq->collect = gst_collect_pads_new ();
   gst_collect_pads_set_function (peaq->collect, gst_peaq_collected, peaq);
@@ -371,16 +372,22 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   peaq->ref_ear[1] = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
   peaq->test_ear[0] = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
   peaq->test_ear[1] = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
+  model_params =
+    peaq_earmodel_get_model_params (PEAQ_EARMODEL (peaq->ref_ear[0]));
 
   peaq->ref_ear_fb = NULL;
   peaq->test_ear_fb = NULL;
   peaq->masking_difference = NULL;
-  peaq->level_adapter[0] = NULL;
-  peaq->level_adapter[1] = NULL;
-  peaq->ref_modulation_processor[0] = NULL;
-  peaq->ref_modulation_processor[1] = NULL;
-  peaq->test_modulation_processor[0] = NULL;
-  peaq->test_modulation_processor[1] = NULL;
+  peaq->level_adapter[0] = peaq_leveladapter_new (model_params);
+  peaq->level_adapter[1] = peaq_leveladapter_new (model_params);
+  peaq->ref_modulation_processor[0] =
+    peaq_modulationprocessor_new (model_params);
+  peaq->ref_modulation_processor[1] =
+    peaq_modulationprocessor_new (model_params);
+  peaq->test_modulation_processor[0] =
+    peaq_modulationprocessor_new (model_params);
+  peaq->test_modulation_processor[1] =
+    peaq_modulationprocessor_new (model_params);
   peaq->current_aggregated_data_fft_basic = NULL;
   peaq->saved_aggregated_data_fft_basic = NULL;
   peaq->current_aggregated_data_fft_advanced = NULL;
@@ -537,28 +544,18 @@ gst_peaq_set_property (GObject * obj, guint id, const GValue * value,
         for (i = 0; i < band_count; i++)
           peaq->masking_difference[i] =
             pow (10, (i * deltaZ <= 12 ? 3 : deltaZ * i * deltaZ) / 10);
-        if (peaq->level_adapter[0])
-          g_object_unref (peaq->level_adapter[0]);
-        if (peaq->level_adapter[1])
-          g_object_unref (peaq->level_adapter[1]);
-        peaq->level_adapter[0] = peaq_leveladapter_new (model_params);
-        peaq->level_adapter[1] = peaq_leveladapter_new (model_params);
-        if (peaq->ref_modulation_processor[0])
-          g_object_unref (peaq->ref_modulation_processor[0]);
-        peaq->ref_modulation_processor[0] =
-          peaq_modulationprocessor_new (model_params);
-        if (peaq->ref_modulation_processor[1])
-          g_object_unref (peaq->ref_modulation_processor[1]);
-        peaq->ref_modulation_processor[1] =
-          peaq_modulationprocessor_new (model_params);
-        if (peaq->test_modulation_processor[0])
-          g_object_unref (peaq->test_modulation_processor[0]);
-        peaq->test_modulation_processor[0] =
-          peaq_modulationprocessor_new (model_params);
-        if (peaq->test_modulation_processor[1])
-          g_object_unref (peaq->test_modulation_processor[1]);
-        peaq->test_modulation_processor[1] =
-          peaq_modulationprocessor_new (model_params);
+        peaq_leveladapter_set_ear_model_params (peaq->level_adapter[0],
+                                                model_params);
+        peaq_leveladapter_set_ear_model_params (peaq->level_adapter[1],
+                                                model_params);
+        peaq_modulationprocessor_set_ear_model_params (peaq->ref_modulation_processor[0],
+                                                       model_params);
+        peaq_modulationprocessor_set_ear_model_params (peaq->ref_modulation_processor[1],
+                                                       model_params);
+        peaq_modulationprocessor_set_ear_model_params (peaq->test_modulation_processor[0],
+                                                       model_params);
+        peaq_modulationprocessor_set_ear_model_params (peaq->test_modulation_processor[1],
+                                                       model_params);
       }
       break;
     case PROP_CONSOLE_OUTPUT:
