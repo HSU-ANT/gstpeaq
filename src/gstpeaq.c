@@ -1685,6 +1685,9 @@ gst_peaq_calculate_di_advanced (GstPeaq *peaq)
       rms_mod_diff_a += sqrt(band_count * agg_data_fb->rms_mod_diff[c] /
                              agg_data_fb->temp_weight[c]);
       rms_noise_loud_a +=
+        sqrt (agg_data_fb->noise_loudness[c] /
+              agg_data_fb->noise_loud_frame_count);
+      rms_missing_components_a +=
         sqrt (agg_data_fb->missing_components[c] /
               agg_data_fb->noise_loud_frame_count);
       avg_lin_dist_a +=
