@@ -941,7 +941,7 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
         }
         peaq->current_aggregated_data_fft_basic->past_mod_diff1[c][2] =
           mod_diff_1b[c];
-        if (peaq->frame_counter >= 27)
+        if (peaq->current_aggregated_data_fft_basic->delayed_frame_count > 3)
           peaq->current_aggregated_data_fft_basic->win_mod_diff1[c] +=
             pow (winsum / 4, 4);
         peaq->current_aggregated_data_fft_basic->avg_mod_diff1[c] +=
