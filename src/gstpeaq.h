@@ -27,6 +27,7 @@
 #include "fftearmodel.h"
 #include "leveladapter.h"
 #include "modpatt.h"
+#include "movaccum.h"
 
 #include <gst/gst.h>
 #include <gst/base/gstcollectpads.h>
@@ -78,6 +79,7 @@ struct _GstPeaq
   gdouble *masking_difference;
   guint frame_counter;
   guint frame_counter_fb;
+  guint loudness_reached_frame;
   PeaqFFTEarModel *ref_ear[2];
   PeaqFFTEarModel *test_ear[2];
   PeaqFilterbankEarModel *ref_ear_fb;
@@ -85,12 +87,21 @@ struct _GstPeaq
   PeaqLevelAdapter *level_adapter[2];
   PeaqModulationProcessor *ref_modulation_processor[2];
   PeaqModulationProcessor *test_modulation_processor[2];
-  GstPeaqAggregatedDataFFTBasic *current_aggregated_data_fft_basic;
-  GstPeaqAggregatedDataFFTBasic *saved_aggregated_data_fft_basic;
-  GstPeaqAggregatedDataFFTAdvanced *current_aggregated_data_fft_advanced;
-  GstPeaqAggregatedDataFFTAdvanced *saved_aggregated_data_fft_advanced;
-  GstPeaqAggregatedDataFB *current_aggregated_data_fb;
-  GstPeaqAggregatedDataFB *saved_aggregated_data_fb;
+  PeaqMovAccum *ref_bandwidth_accum;
+  PeaqMovAccum *test_bandwidth_accum;
+  PeaqMovAccum *nmr_accum;
+  PeaqMovAccum *mod_diff_1_accum;
+  PeaqMovAccum *mod_diff_2_accum;
+  PeaqMovAccum *win_mod_diff_accum;
+  PeaqMovAccum *noise_loud_accum;
+  PeaqMovAccum *missing_comp_accum;
+  PeaqMovAccum *lin_dist_accum;
+  PeaqMovAccum *ehs_accum;
+  PeaqMovAccum *dist_frame_accum;
+  PeaqMovAccum *prob_detect_accum;
+  PeaqMovAccum *detect_steps_accum;
+  gdouble total_signal_energy;
+  gdouble total_noise_energy;
 };
 
 struct _GstPeaqClass

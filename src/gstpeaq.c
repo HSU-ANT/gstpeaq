@@ -50,54 +50,6 @@ enum
   PROP_CONSOLE_OUTPUT
 };
 
-struct _GstPeaqAggregatedDataFFTBasic
-{
-  guint frame_count;
-  guint delayed_frame_count;
-  guint distorted_frame_count;
-  guint ehs_frame_count;
-  guint noise_loud_frame_count;
-  guint bandwidth_frame_count[2];
-  guint disturbed_frame_count[2];
-  guint loudness_reached_frame;
-  gdouble ref_bandwidth_sum[2];
-  gdouble test_bandwidth_sum[2];
-  gdouble nmr_sum[2];
-  gdouble past_mod_diff1[2][3];
-  gdouble win_mod_diff1[2];
-  gdouble avg_mod_diff1[2];
-  gdouble avg_mod_diff2[2];
-  gdouble temp_weight[2];
-  gdouble detection_steps;
-  gdouble ehs[2];
-  gdouble noise_loudness[2];
-  gdouble filtered_detection_probability;
-  gdouble max_filtered_detection_probability;
-  gdouble total_signal_energy;
-  gdouble total_noise_energy;
-};
-
-struct _GstPeaqAggregatedDataFFTAdvanced
-{
-  guint frame_count;
-  guint ehs_frame_count;
-  gdouble nmr_local[2];
-  gdouble ehs[2];
-  gdouble total_signal_energy;
-  gdouble total_noise_energy;
-};
-
-struct _GstPeaqAggregatedDataFB
-{
-  guint loudness_reached_frame;
-  gdouble rms_mod_diff[2];
-  gdouble temp_weight[2];
-  guint noise_loud_frame_count;
-  gdouble noise_loudness[2];
-  gdouble missing_components[2];
-  gdouble lin_dist[2];
-};
-
 static const GstElementDetails peaq_details =
 GST_ELEMENT_DETAILS ("Perceptual evaluation of audio quality",
 		     "Sink/Audio",
@@ -367,6 +319,9 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
 
   peaq->frame_counter = 0;
   peaq->frame_counter_fb = 0;
+  peaq->loudness_reached_frame = G_MAXUINT;
+  peaq->total_signal_energy = 0.;
+  peaq->total_noise_energy = 0.;
 
   peaq->ref_ear[0] = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
   peaq->ref_ear[1] = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
@@ -388,12 +343,25 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
     peaq_modulationprocessor_new (model_params);
   peaq->test_modulation_processor[1] =
     peaq_modulationprocessor_new (model_params);
-  peaq->current_aggregated_data_fft_basic = NULL;
-  peaq->saved_aggregated_data_fft_basic = NULL;
-  peaq->current_aggregated_data_fft_advanced = NULL;
-  peaq->saved_aggregated_data_fft_advanced = NULL;
-  peaq->current_aggregated_data_fb = NULL;
-  peaq->saved_aggregated_data_fb = NULL;
+  peaq->ref_bandwidth_accum = peaq_movaccum_new ();
+  peaq->test_bandwidth_accum = peaq_movaccum_new ();
+  peaq->nmr_accum = peaq_movaccum_new ();
+  peaq_movaccum_set_mode (peaq->nmr_accum, MODE_AVG_LOG);
+  peaq->mod_diff_1_accum = peaq_movaccum_new ();
+  peaq->mod_diff_2_accum = peaq_movaccum_new ();
+  peaq->win_mod_diff_accum = peaq_movaccum_new ();
+  peaq_movaccum_set_mode (peaq->win_mod_diff_accum, MODE_AVG_WINDOW);
+  peaq->noise_loud_accum = peaq_movaccum_new ();
+  peaq_movaccum_set_mode (peaq->noise_loud_accum, MODE_RMS);
+  peaq->missing_comp_accum = peaq_movaccum_new ();
+  peaq_movaccum_set_mode (peaq->missing_comp_accum, MODE_RMS);
+  peaq->lin_dist_accum = peaq_movaccum_new ();
+  peaq->ehs_accum = peaq_movaccum_new ();
+  peaq->dist_frame_accum = peaq_movaccum_new ();
+  peaq->prob_detect_accum = peaq_movaccum_new ();
+  peaq_movaccum_set_mode (peaq->prob_detect_accum, MODE_FILTERED_MAX);
+  peaq->detect_steps_accum = peaq_movaccum_new ();
+  peaq_movaccum_set_mode (peaq->detect_steps_accum, MODE_ADB);
 }
 
 static void
@@ -418,18 +386,19 @@ gst_peaq_finalize (GObject * object)
   gst_fft_f64_free (peaq->correlation_fft);
   gst_fft_f64_free (peaq->correlator_fft);
   gst_fft_f64_free (peaq->correlator_inverse_fft);
-  if (peaq->current_aggregated_data_fft_basic != NULL)
-    g_free (peaq->current_aggregated_data_fft_basic);
-  if (peaq->saved_aggregated_data_fft_basic != NULL)
-    g_free (peaq->saved_aggregated_data_fft_basic);
-  if (peaq->current_aggregated_data_fft_advanced != NULL)
-    g_free (peaq->current_aggregated_data_fft_advanced);
-  if (peaq->saved_aggregated_data_fft_advanced != NULL)
-    g_free (peaq->saved_aggregated_data_fft_advanced);
-  if (peaq->current_aggregated_data_fb != NULL)
-    g_free (peaq->current_aggregated_data_fb);
-  if (peaq->saved_aggregated_data_fb != NULL)
-    g_free (peaq->saved_aggregated_data_fb);
+  g_object_unref (peaq->ref_bandwidth_accum);
+  g_object_unref (peaq->test_bandwidth_accum);
+  g_object_unref (peaq->nmr_accum);
+  g_object_unref (peaq->mod_diff_1_accum);
+  g_object_unref (peaq->mod_diff_2_accum);
+  g_object_unref (peaq->win_mod_diff_accum);
+  g_object_unref (peaq->noise_loud_accum);
+  g_object_unref (peaq->missing_comp_accum);
+  g_object_unref (peaq->lin_dist_accum);
+  g_object_unref (peaq->ehs_accum);
+  g_object_unref (peaq->dist_frame_accum);
+  g_object_unref (peaq->prob_detect_accum);
+  g_object_unref (peaq->detect_steps_accum);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -454,25 +423,7 @@ gst_peaq_get_property (GObject * obj, guint id, GValue * value,
       break;
     case PROP_TOTALSNR:
       {
-        gdouble snr = 0;
-        if (peaq->advanced) {
-          GstPeaqAggregatedDataFFTAdvanced *agg_data;
-
-          if (peaq->saved_aggregated_data_fft_advanced)
-            agg_data = peaq->saved_aggregated_data_fft_advanced;
-          else
-            agg_data = peaq->current_aggregated_data_fft_advanced;
-          snr = agg_data->total_signal_energy / agg_data->total_noise_energy;
-        } else {
-          GstPeaqAggregatedDataFFTBasic *agg_data;
-
-          if (peaq->saved_aggregated_data_fft_basic)
-            agg_data = peaq->saved_aggregated_data_fft_basic;
-          else
-            agg_data = peaq->current_aggregated_data_fft_basic;
-          snr = agg_data->total_signal_energy / agg_data->total_noise_energy;
-        }
-
+        gdouble snr = peaq->total_signal_energy / peaq->total_noise_energy;
         g_value_set_double (value, 10 * log10 (snr));
       }
       break;
@@ -524,6 +475,8 @@ gst_peaq_set_property (GObject * obj, guint id, const GValue * value,
           if (peaq->test_ear_fb == NULL)
             peaq->test_ear_fb = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL,
                                               NULL);
+          peaq_movaccum_set_mode (peaq->nmr_accum, MODE_AVG);
+          peaq_movaccum_set_mode (peaq->mod_diff_1_accum, MODE_RMS);
           model_params =
             peaq_earmodel_get_model_params (PEAQ_EARMODEL(peaq->ref_ear_fb));
         } else {
@@ -535,6 +488,8 @@ gst_peaq_set_property (GObject * obj, guint id, const GValue * value,
             g_object_unref (peaq->test_ear_fb);
             peaq->test_ear_fb = NULL;
           }
+          peaq_movaccum_set_mode (peaq->nmr_accum, MODE_AVG_LOG);
+          peaq_movaccum_set_mode (peaq->mod_diff_1_accum, MODE_AVG);
           model_params =
             peaq_earmodel_get_model_params (PEAQ_EARMODEL(peaq->ref_ear[0]));
         }
@@ -728,18 +683,9 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
 {
   guint i;
   guint c;
-  gdouble mod_diff_1b[2];
-  gdouble mod_diff_2b[2];
-  gdouble temp_wt[2];
-  gdouble noise_loudness[2];
-  gboolean loudness_above_threshold;
-  guint bw_ref[2];
-  guint bw_test[2];
+  gboolean ehs_valid_any = FALSE;
   gdouble *detection_probability[2];
   gdouble *detection_steps[2];
-  gdouble nmr[2];
-  gdouble nmr_max[2];
-  gboolean ehs_valid[2];
   gdouble ehs[2] = { 0., };
 
   PeaqEarModelParams *ear_params =
@@ -748,6 +694,8 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
     peaq_fftearmodel_get_fftmodel_params(peaq->ref_ear[0]);
   guint band_count = peaq_earmodelparams_get_band_count (ear_params);
 
+  gboolean above_thres = is_frame_above_threshold (refdata, FFT_FRAMESIZE,
+                                                   channels);
 
   for (c = 0; c < channels; c++) {
     FFTEarModelOutput ref_ear_output;
@@ -756,6 +704,16 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
     ModulationProcessorOutput ref_mod_output;
     ModulationProcessorOutput test_mod_output;
     gdouble *noise_in_bands;
+
+    gdouble mod_diff_1b;
+    gdouble mod_diff_2b;
+    gdouble temp_wt;
+    gdouble noise_loudness;
+    guint bw_ref;
+    guint bw_test;
+    gdouble nmr;
+    gdouble nmr_max;
+    gboolean ehs_valid;
 
     noise_in_bands = g_newa (gdouble, band_count);
     ref_ear_output.ear_model_output.unsmeared_excitation =
@@ -813,29 +771,56 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
                                       &test_mod_output);
 
     /* modulation difference */
-    calc_modulation_difference (ear_params, &ref_mod_output,
-                                &test_mod_output, &mod_diff_1b[c],
-                                &mod_diff_2b[c], &temp_wt[c]);
+    if (peaq->frame_counter >= 24) {
+      calc_modulation_difference (ear_params, &ref_mod_output,
+                                  &test_mod_output, &mod_diff_1b,
+                                  &mod_diff_2b, &temp_wt);
+      peaq_movaccum_accumulate_weighted (peaq->mod_diff_1_accum, c,
+                                         mod_diff_1b, temp_wt,
+                                         !above_thres);
+      peaq_movaccum_accumulate_weighted (peaq->mod_diff_2_accum, c,
+                                         mod_diff_2b, temp_wt,
+                                         !above_thres);
+      peaq_movaccum_accumulate (peaq->win_mod_diff_accum, c, mod_diff_1b,
+                                !above_thres);
+    }
 
     /* noise loudness */
-    noise_loudness[c] = calc_noise_loudness (ear_params,
-                                             1.5, 0.15, 0.5, 0.,
-                                             ref_mod_output.modulation,
-                                             test_mod_output.modulation,
-                                             level_output.spectrally_adapted_ref_patterns,
-                                             level_output.spectrally_adapted_test_patterns);
-    if (ref_ear_output.ear_model_output.overall_loudness > 0.1 &&
+    if (peaq->loudness_reached_frame == G_MAXUINT &&
+        ref_ear_output.ear_model_output.overall_loudness > 0.1 &&
         test_ear_output.ear_model_output.overall_loudness > 0.1)
-      loudness_above_threshold = TRUE;
+      peaq->loudness_reached_frame = peaq->frame_counter;
+    if (peaq->frame_counter >= 24 &&
+        peaq->frame_counter - 3 >= peaq->loudness_reached_frame) {
+      noise_loudness =
+        calc_noise_loudness (ear_params,
+                             1.5, 0.15, 0.5, 0.,
+                             ref_mod_output.modulation,
+                             test_mod_output.modulation,
+                             level_output.spectrally_adapted_ref_patterns,
+                             level_output.spectrally_adapted_test_patterns);
+      peaq_movaccum_accumulate (peaq->noise_loud_accum, c, noise_loudness,
+                                !above_thres);
+    }
 
 
     /* bandwidth */
     calc_bandwidth (ref_ear_output.power_spectrum,
-                    test_ear_output.power_spectrum, &bw_test[c], &bw_ref[c]);
+                    test_ear_output.power_spectrum, &bw_test, &bw_ref);
+    if (bw_ref > 346) {
+      peaq_movaccum_accumulate (peaq->ref_bandwidth_accum, c, bw_ref,
+                                !above_thres);
+      peaq_movaccum_accumulate (peaq->test_bandwidth_accum, c, bw_test,
+                                !above_thres);
+    }
 
     /* noise-to-mask ratio */
     calc_nmr (peaq, ref_ear_output.ear_model_output.excitation,
-              noise_in_bands, &nmr[c], &nmr_max[c]);
+              noise_in_bands, &nmr, &nmr_max);
+    peaq_movaccum_accumulate (peaq->nmr_accum, c, nmr, !above_thres);
+    peaq_movaccum_accumulate (peaq->dist_frame_accum, c,
+                              nmr_max > 1.41253754462275 ? 1. : 0.,
+                              !above_thres);
 
     /* probability of detection */
     detection_probability[c] = g_newa (gdouble, band_count);
@@ -846,7 +831,9 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
 
     /* error harmonic structure */
     calc_ehs (peaq, refdata_c, testdata_c, ref_ear_output.power_spectrum,
-              test_ear_output.power_spectrum, &ehs_valid[c], &ehs[c]);
+              test_ear_output.power_spectrum, &ehs_valid, &ehs[c]);
+    if (ehs_valid)
+      ehs_valid_any = TRUE;
 
     if (peaq->console_output) {
       g_printf ("  Ntot   : %f %f\n"
@@ -858,155 +845,49 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
                 "  EHS    : %f\n",
                 ref_ear_output.ear_model_output.overall_loudness,
                 test_ear_output.ear_model_output.overall_loudness,
-                mod_diff_1b[c], mod_diff_2b[c],
-                noise_loudness[c],
-                bw_ref[c], bw_test[c],
-                nmr[c], nmr_max[c],
+                mod_diff_1b, mod_diff_2b,
+                noise_loudness,
+                bw_ref, bw_test,
+                nmr, nmr_max,
                 //detection_probability, detection_steps,
-                ehs_valid[c] ? 1000 * ehs[c] : -1);
+                ehs_valid ? 1000 * ehs[c] : -1);
     }
   }
 
-  if (is_frame_above_threshold (refdata, FFT_FRAMESIZE, channels)) {
-    if (peaq->current_aggregated_data_fft_basic == NULL) {
-      peaq->current_aggregated_data_fft_basic
-        = g_new (GstPeaqAggregatedDataFFTBasic, 1);
-      peaq->current_aggregated_data_fft_basic->frame_count = 0;
-      peaq->current_aggregated_data_fft_basic->delayed_frame_count = 0;
-      peaq->current_aggregated_data_fft_basic->distorted_frame_count = 0;
-      peaq->current_aggregated_data_fft_basic->noise_loud_frame_count = 0;
-      peaq->current_aggregated_data_fft_basic->loudness_reached_frame = G_MAXUINT;
-      peaq->current_aggregated_data_fft_basic->ehs_frame_count = 0;
-      for (c = 0; c < channels; c++) {
-        peaq->current_aggregated_data_fft_basic->bandwidth_frame_count[c] = 0;
-        peaq->current_aggregated_data_fft_basic->disturbed_frame_count[c] = 0;
-        peaq->current_aggregated_data_fft_basic->ref_bandwidth_sum[c] = 0;
-        peaq->current_aggregated_data_fft_basic->test_bandwidth_sum[c] = 0;
-        peaq->current_aggregated_data_fft_basic->nmr_sum[c] = 0.;
-        peaq->current_aggregated_data_fft_basic->win_mod_diff1[c] = 0.;
-        peaq->current_aggregated_data_fft_basic->past_mod_diff1[c][0] = 0.;
-        peaq->current_aggregated_data_fft_basic->past_mod_diff1[c][1] = 0.;
-        peaq->current_aggregated_data_fft_basic->past_mod_diff1[c][2] = 0.;
-        peaq->current_aggregated_data_fft_basic->avg_mod_diff1[c] = 0.;
-        peaq->current_aggregated_data_fft_basic->avg_mod_diff2[c] = 0.;
-        peaq->current_aggregated_data_fft_basic->temp_weight[c] = 0.;
-        peaq->current_aggregated_data_fft_basic->noise_loudness[c] = 0.;
-        peaq->current_aggregated_data_fft_basic->ehs[c] = 0.;
-      }
-      peaq->current_aggregated_data_fft_basic->detection_steps = 0;
-      peaq->current_aggregated_data_fft_basic->filtered_detection_probability = 0;
-      peaq->current_aggregated_data_fft_basic->max_filtered_detection_probability = 0;
-      peaq->current_aggregated_data_fft_basic->total_signal_energy = 0;
-      peaq->current_aggregated_data_fft_basic->total_noise_energy = 0;
-    }
-    if (peaq->saved_aggregated_data_fft_basic != NULL) {
-      g_free (peaq->saved_aggregated_data_fft_basic);
-      peaq->saved_aggregated_data_fft_basic = NULL;
-    }
-  } else {
-    if (peaq->saved_aggregated_data_fft_basic == NULL) {
-      peaq->saved_aggregated_data_fft_basic =
-        g_memdup (peaq->current_aggregated_data_fft_basic,
-                  sizeof (GstPeaqAggregatedDataFFTBasic));
-    }
+  if (ehs_valid_any) {
+    for (c = 0; c < channels; c++)
+      peaq_movaccum_accumulate (peaq->ehs_accum, c, ehs[c], !above_thres);
   }
 
-  if (peaq->current_aggregated_data_fft_basic != NULL) {
-    peaq->current_aggregated_data_fft_basic->frame_count++;
-    for (c = 0; c < channels; c++) {
-      if (bw_ref[c] > 346) {
-        peaq->current_aggregated_data_fft_basic->ref_bandwidth_sum[c] +=
-          bw_ref[c];
-        peaq->current_aggregated_data_fft_basic->test_bandwidth_sum[c] +=
-          bw_test[c];
-        peaq->current_aggregated_data_fft_basic->bandwidth_frame_count[c]++;
-      }
-      peaq->current_aggregated_data_fft_basic->nmr_sum[c] += nmr[c];
+  gdouble binaural_detection_probability = 1.;
+  gdouble binaural_detection_steps = 0;
+  for (i = 0; i < band_count; i++) {
+    gdouble pbin = detection_probability[0][i];
+    gdouble qbin = detection_steps[0][i];
+    for (c = 1; c < channels; c++) {
+      if (detection_probability[c][i] > pbin)
+        pbin = detection_probability[c][i];
+      if (detection_steps[c][i] > qbin)
+        qbin = detection_steps[c][i];
     }
-    if (peaq->current_aggregated_data_fft_basic->loudness_reached_frame == G_MAXUINT &&
-        loudness_above_threshold) {
-      peaq->current_aggregated_data_fft_basic->loudness_reached_frame = peaq->frame_counter;
-    }
-    if (peaq->frame_counter >= 24) {
-      peaq->current_aggregated_data_fft_basic->delayed_frame_count++;
-      for (c = 0; c < channels; c++) {
-        gdouble winsum;
-        winsum = sqrt (mod_diff_1b[c]);
-        for (i = 0; i < 3; i++) {
-          winsum += sqrt (peaq->current_aggregated_data_fft_basic->past_mod_diff1[c][i]);
-        }
-        for (i = 0; i < 2; i++) {
-          peaq->current_aggregated_data_fft_basic->past_mod_diff1[c][i] =
-            peaq->current_aggregated_data_fft_basic->past_mod_diff1[c][i + 1];
-        }
-        peaq->current_aggregated_data_fft_basic->past_mod_diff1[c][2] =
-          mod_diff_1b[c];
-        if (peaq->current_aggregated_data_fft_basic->delayed_frame_count > 3)
-          peaq->current_aggregated_data_fft_basic->win_mod_diff1[c] +=
-            pow (winsum / 4, 4);
-        peaq->current_aggregated_data_fft_basic->avg_mod_diff1[c] +=
-          temp_wt[c] * mod_diff_1b[c];
-        peaq->current_aggregated_data_fft_basic->avg_mod_diff2[c] +=
-          temp_wt[c] * mod_diff_2b[c];
-        peaq->current_aggregated_data_fft_basic->temp_weight[c] += temp_wt[c];
-      }
-      if (peaq->frame_counter >= peaq->current_aggregated_data_fft_basic->loudness_reached_frame + 3) {
-          peaq->current_aggregated_data_fft_basic->noise_loud_frame_count++;
-          for (c = 0; c < channels; c++) {
-            peaq->current_aggregated_data_fft_basic->noise_loudness[c] +=
-              noise_loudness[c] * noise_loudness[c];
-          }
-      }
-    }
-    gdouble binaural_detection_probability = 1.;
-    gdouble binaural_detection_steps = 0;
-    for (i = 0; i < band_count; i++) {
-      gdouble pbin = detection_probability[0][i];
-      gdouble qbin = detection_steps[0][i];
-      for (c = 1; c < channels; c++) {
-        if (detection_probability[c][i] > pbin)
-          pbin = detection_probability[c][i];
-        if (detection_steps[c][i] > qbin)
-          qbin = detection_steps[c][i];
-      }
-      binaural_detection_probability *= 1. - pbin;
-      binaural_detection_steps += qbin;
-    }
-    binaural_detection_probability = 1. - binaural_detection_probability;
-    if (binaural_detection_probability > 0.5) {
-      peaq->current_aggregated_data_fft_basic->distorted_frame_count++;
-      peaq->current_aggregated_data_fft_basic->detection_steps += binaural_detection_steps;
-    }
-    gboolean ehs_valid_any = FALSE;
-    for (c = 0; c < channels; c++) {
-      if (ehs_valid[c])
-        ehs_valid_any = TRUE;
-    }
-    if (ehs_valid_any) {
-      peaq->current_aggregated_data_fft_basic->ehs_frame_count++;
-      for (c = 0; c < channels; c++) {
-        peaq->current_aggregated_data_fft_basic->ehs[c] += ehs[c];
-      }
-    }
-    peaq->current_aggregated_data_fft_basic->filtered_detection_probability =
-      0.9 * peaq->current_aggregated_data_fft_basic->filtered_detection_probability +
-      0.1 * binaural_detection_probability;
-    if (peaq->current_aggregated_data_fft_basic->filtered_detection_probability >
-	peaq->current_aggregated_data_fft_basic->max_filtered_detection_probability)
-      peaq->current_aggregated_data_fft_basic->max_filtered_detection_probability =
-	peaq->current_aggregated_data_fft_basic->filtered_detection_probability;
-    for (c = 0; c < channels; c++) {
-      if (nmr_max[c] > 1.41253754462275)
-        peaq->current_aggregated_data_fft_basic->disturbed_frame_count[c]++;
-    }
-
-    for (i = 0; i < FFT_FRAMESIZE / 2; i++) {
-      peaq->current_aggregated_data_fft_basic->total_signal_energy
-        += refdata[i] * refdata[i];
-      peaq->current_aggregated_data_fft_basic->total_noise_energy 
-	+= (refdata[i] - testdata[i]) * (refdata[i] - testdata[i]);
-    }
+    binaural_detection_probability *= 1. - pbin;
+    binaural_detection_steps += qbin;
   }
+  binaural_detection_probability = 1. - binaural_detection_probability;
+  if (binaural_detection_probability > 0.5) {
+    peaq_movaccum_accumulate (peaq->detect_steps_accum, 0,
+                              binaural_detection_steps, !above_thres);
+  }
+  peaq_movaccum_accumulate (peaq->prob_detect_accum, 0,
+                            binaural_detection_probability, !above_thres);
+
+  for (i = 0; i < channels * FFT_FRAMESIZE / 2; i++) {
+    peaq->total_signal_energy
+      += refdata[i] * refdata[i];
+    peaq->total_noise_energy 
+      += (refdata[i] - testdata[i]) * (refdata[i] - testdata[i]);
+  }
+
   peaq->frame_counter++;
 }
 
@@ -1015,12 +896,7 @@ gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
                                      gfloat *testdata, guint channels)
 {
   guint i, c;
-  FFTEarModelOutput ref_ear_output[2];
-  FFTEarModelOutput test_ear_output[2];
-  gdouble *noise_in_bands[2];
-  gdouble nmr[2];
-  gdouble nmr_max[2];
-  gboolean ehs_valid[2];
+  gboolean ehs_valid_any = FALSE;
   gdouble ehs[2] = {0., };
 
   PeaqEarModelParams *ear_params =
@@ -1029,15 +905,25 @@ gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
     peaq_fftearmodel_get_fftmodel_params(peaq->ref_ear[0]);
   guint band_count = peaq_earmodelparams_get_band_count (ear_params);
 
+  gboolean above_thres = is_frame_above_threshold (refdata, FFT_FRAMESIZE,
+                                                   channels);
+
   for (c = 0; c < channels; c++) {
-    noise_in_bands[c] = g_newa (gdouble, band_count);
-    ref_ear_output[c].ear_model_output.unsmeared_excitation =
+    FFTEarModelOutput ref_ear_output;
+    FFTEarModelOutput test_ear_output;
+    gdouble *noise_in_bands;
+    gdouble nmr;
+    gdouble nmr_max;
+    gboolean ehs_valid;
+
+    noise_in_bands = g_newa (gdouble, band_count);
+    ref_ear_output.ear_model_output.unsmeared_excitation =
       g_newa (gdouble, band_count);
-    ref_ear_output[c].ear_model_output.excitation =
+    ref_ear_output.ear_model_output.excitation =
       g_newa (gdouble, band_count);
-    test_ear_output[c].ear_model_output.unsmeared_excitation =
+    test_ear_output.ear_model_output.unsmeared_excitation =
       g_newa (gdouble, band_count);
-    test_ear_output[c].ear_model_output.excitation =
+    test_ear_output.ear_model_output.excitation =
       g_newa (gdouble, band_count);
 
     gfloat *refdata_c;
@@ -1053,81 +939,50 @@ gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
       refdata_c = refdata;
       testdata_c = testdata;
     }
-    peaq_fftearmodel_process (peaq->ref_ear[c], refdata_c, &ref_ear_output[c]);
-    peaq_fftearmodel_process (peaq->test_ear[c], testdata_c, &test_ear_output[c]);
+    peaq_fftearmodel_process (peaq->ref_ear[c], refdata_c, &ref_ear_output);
+    peaq_fftearmodel_process (peaq->test_ear[c], testdata_c, &test_ear_output);
 
     gdouble noise_spectrum[FFT_FRAMESIZE / 2 + 1];
     for (i = 0; i < FFT_FRAMESIZE / 2 + 1; i++)
       noise_spectrum[i] =
-        ref_ear_output[c].weighted_power_spectrum[i] -
-        2 * sqrt (ref_ear_output[c].weighted_power_spectrum[i] *
-                  test_ear_output[c].weighted_power_spectrum[i]) +
-        test_ear_output[c].weighted_power_spectrum[i];
+        ref_ear_output.weighted_power_spectrum[i] -
+        2 * sqrt (ref_ear_output.weighted_power_spectrum[i] *
+                  test_ear_output.weighted_power_spectrum[i]) +
+        test_ear_output.weighted_power_spectrum[i];
     peaq_fftearmodelparams_group_into_bands (fft_ear_params, noise_spectrum,
-                                             noise_in_bands[c]);
+                                             noise_in_bands);
 
     /* noise-to-mask ratio */
-    calc_nmr (peaq, ref_ear_output[c].ear_model_output.excitation,
-              noise_in_bands[c], &nmr[c], &nmr_max[c]);
+    calc_nmr (peaq, ref_ear_output.ear_model_output.excitation,
+              noise_in_bands, &nmr, &nmr_max);
+    peaq_movaccum_accumulate (peaq->nmr_accum, c, 10. * log10 (nmr),
+                              !above_thres);
 
     /* error harmonic structure */
-    calc_ehs (peaq, refdata_c, testdata_c, ref_ear_output[c].power_spectrum,
-              test_ear_output[c].power_spectrum, &ehs_valid[c], &ehs[c]);
+    calc_ehs (peaq, refdata_c, testdata_c, ref_ear_output.power_spectrum,
+              test_ear_output.power_spectrum, &ehs_valid, &ehs[c]);
+    if (ehs_valid)
+      ehs_valid_any = TRUE;
 
     if (peaq->console_output) {
       g_printf ("  NMR    : %f\n"
                 "  EHS    : %f\n",
-                nmr[c],
-                ehs_valid[c] ? 1000 * ehs[c] : -1);
+                nmr,
+                ehs_valid ? 1000 * ehs[c] : -1);
     }
   }
 
-  if (is_frame_above_threshold (refdata, FFT_FRAMESIZE, channels)) {
-    if (peaq->current_aggregated_data_fft_advanced == NULL) {
-      peaq->current_aggregated_data_fft_advanced = g_new (GstPeaqAggregatedDataFFTAdvanced, 1);
-      peaq->current_aggregated_data_fft_advanced->frame_count = 0;
-      peaq->current_aggregated_data_fft_advanced->ehs_frame_count = 0;
-      for (c = 0; c < channels; c++) {
-        peaq->current_aggregated_data_fft_advanced->ehs[c] = 0;
-        peaq->current_aggregated_data_fft_advanced->nmr_local[c] = 0.;
-      }
-      peaq->current_aggregated_data_fft_advanced->total_signal_energy = 0;
-      peaq->current_aggregated_data_fft_advanced->total_noise_energy = 0;
-    }
-    if (peaq->saved_aggregated_data_fft_advanced != NULL) {
-      g_free (peaq->saved_aggregated_data_fft_advanced);
-      peaq->saved_aggregated_data_fft_advanced = NULL;
-    }
-  } else {
-    if (peaq->saved_aggregated_data_fft_advanced == NULL) {
-      peaq->saved_aggregated_data_fft_advanced =
-        g_memdup (peaq->current_aggregated_data_fft_advanced,
-                  sizeof (GstPeaqAggregatedDataFFTAdvanced));
-    }
+  if (ehs_valid_any) {
+    for (c = 0; c < channels; c++)
+      peaq_movaccum_accumulate (peaq->ehs_accum, c, ehs[c], !above_thres);
   }
 
-  if (peaq->current_aggregated_data_fft_advanced != NULL) {
-    peaq->current_aggregated_data_fft_advanced->frame_count++;
-    gboolean ehs_valid_any = FALSE;
-    for (c = 0; c < channels; c++) {
-      peaq->current_aggregated_data_fft_advanced->nmr_local[c] += 10. * log10 (nmr[c]);
-      if (ehs_valid[c])
-        ehs_valid_any = TRUE;
-    }
-    if (ehs_valid_any) {
-      peaq->current_aggregated_data_fft_advanced->ehs_frame_count++;
-      for (c = 0; c < channels; c++) {
-        peaq->current_aggregated_data_fft_advanced->ehs[c] += ehs[c];
-      }
-    }
-
-    for (i = 0; i < FFT_FRAMESIZE / 2; i++) {
-      peaq->current_aggregated_data_fft_advanced->total_signal_energy
-        += refdata[i] * refdata[i];
-      peaq->current_aggregated_data_fft_advanced->total_noise_energy 
-	+= (refdata[i] - testdata[i]) * (refdata[i] - testdata[i]);
-    }
+  for (i = 0; i < channels * FFT_FRAMESIZE / 2; i++) {
+    peaq->total_signal_energy += refdata[i] * refdata[i];
+    peaq->total_noise_energy 
+      += (refdata[i] - testdata[i]) * (refdata[i] - testdata[i]);
   }
+
   peaq->frame_counter++;
 }
 
@@ -1135,27 +990,31 @@ static void
 gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata,
                            guint channels)
 {
-  guint i, c;
-  EarModelOutput ref_ear_output[2];
-  EarModelOutput test_ear_output[2];
-  LevelAdapterOutput level_output[2];
-  ModulationProcessorOutput ref_mod_output[2];
-  ModulationProcessorOutput test_mod_output[2];
-  gdouble mod_diff_a[2];
-  gdouble temp_wt[2];
-  gdouble noise_loudness[2];
-  gdouble missing_components[2];
-  gdouble lin_dist[2];
-
+  guint c;
   PeaqEarModelParams *ear_params =
     peaq_earmodel_get_model_params(PEAQ_EARMODEL(peaq->ref_ear_fb));
   guint band_count = peaq_earmodelparams_get_band_count (ear_params);
 
+  gboolean above_thres = is_frame_above_threshold (refdata, FB_FRAMESIZE,
+                                                   channels);
+
   for (c = 0; c < channels; c++) {
-    ref_ear_output[c].unsmeared_excitation = g_newa (gdouble, band_count);
-    ref_ear_output[c].excitation = g_newa (gdouble, band_count);
-    test_ear_output[c].unsmeared_excitation = g_newa (gdouble, band_count);
-    test_ear_output[c].excitation = g_newa (gdouble, band_count);
+    guint i;
+    EarModelOutput ref_ear_output;
+    EarModelOutput test_ear_output;
+    LevelAdapterOutput level_output;
+    ModulationProcessorOutput ref_mod_output;
+    ModulationProcessorOutput test_mod_output;
+    gdouble mod_diff_a;
+    gdouble temp_wt;
+    gdouble noise_loudness;
+    gdouble missing_components;
+    gdouble lin_dist;
+
+    ref_ear_output.unsmeared_excitation = g_newa (gdouble, band_count);
+    ref_ear_output.excitation = g_newa (gdouble, band_count);
+    test_ear_output.unsmeared_excitation = g_newa (gdouble, band_count);
+    test_ear_output.excitation = g_newa (gdouble, band_count);
     gfloat *refdata_c;
     gfloat *testdata_c;
     if (channels != 1) {
@@ -1170,49 +1029,70 @@ gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata,
       testdata_c = testdata;
     }
     peaq_filterbankearmodel_process (peaq->ref_ear_fb, refdata_c,
-                                     &ref_ear_output[c]);
+                                     &ref_ear_output);
     peaq_filterbankearmodel_process (peaq->test_ear_fb, testdata_c,
-                                     &test_ear_output[c]);
+                                     &test_ear_output);
 
-    level_output[c].spectrally_adapted_ref_patterns = g_newa (gdouble, band_count);
-    level_output[c].spectrally_adapted_test_patterns = g_newa (gdouble, band_count);
+    level_output.spectrally_adapted_ref_patterns =
+      g_newa (gdouble, band_count);
+    level_output.spectrally_adapted_test_patterns =
+      g_newa (gdouble, band_count);
     peaq_leveladapter_process (peaq->level_adapter[c],
-                               ref_ear_output[c].excitation,
-                               test_ear_output[c].excitation, &level_output[c]);
+                               ref_ear_output.excitation,
+                               test_ear_output.excitation, &level_output);
 
-    ref_mod_output[c].modulation = g_newa (gdouble, band_count);
+    ref_mod_output.modulation = g_newa (gdouble, band_count);
     peaq_modulationprocessor_process (peaq->ref_modulation_processor[c],
-                                      ref_ear_output[c].unsmeared_excitation,
-                                      &ref_mod_output[c]);
-    test_mod_output[c].modulation = g_newa (gdouble, band_count);
+                                      ref_ear_output.unsmeared_excitation,
+                                      &ref_mod_output);
+    test_mod_output.modulation = g_newa (gdouble, band_count);
     peaq_modulationprocessor_process (peaq->test_modulation_processor[c],
-                                      test_ear_output[c].unsmeared_excitation,
-                                      &test_mod_output[c]);
+                                      test_ear_output.unsmeared_excitation,
+                                      &test_mod_output);
 
     /* modulation difference */
-    calc_modulation_difference_A (ear_params, &ref_mod_output[c], &test_mod_output[c],
-                                  &mod_diff_a[c], &temp_wt[c]);
+    calc_modulation_difference_A (ear_params, &ref_mod_output,
+                                  &test_mod_output, &mod_diff_a, &temp_wt);
+    if (peaq->frame_counter_fb >= 125) {
+      peaq_movaccum_accumulate_weighted (peaq->mod_diff_1_accum, c, mod_diff_a,
+                                         temp_wt, !above_thres);
+    }
 
     /* noise loudness */
-    noise_loudness[c] =
+    if (peaq->loudness_reached_frame == G_MAXUINT) {
+      if (ref_ear_output.overall_loudness > 0.1 &&
+          test_ear_output.overall_loudness > 0.1)
+        peaq->loudness_reached_frame = peaq->frame_counter_fb;
+    }
+    noise_loudness =
       calc_noise_loudness (ear_params, 2.5, 0.3, 1, 0.1,
-                           ref_mod_output[c].modulation,
-                           test_mod_output[c].modulation,
-                           level_output[c].spectrally_adapted_ref_patterns,
-                           level_output[c].spectrally_adapted_test_patterns);
+                           ref_mod_output.modulation,
+                           test_mod_output.modulation,
+                           level_output.spectrally_adapted_ref_patterns,
+                           level_output.spectrally_adapted_test_patterns);
     /* TODO: should the modulation patterns really also be swapped? */
-    missing_components[c] =
+    missing_components =
       calc_noise_loudness (ear_params, 1.5, 0.15, 1, 0.,
-                           test_mod_output[c].modulation,
-                           ref_mod_output[c].modulation,
-                           level_output[c].spectrally_adapted_test_patterns,
-                           level_output[c].spectrally_adapted_ref_patterns);
-    lin_dist[c] = calc_noise_loudness (ear_params,
-                                       1.5, 0.15, 1, 0.,
-                                       ref_mod_output[c].modulation,
-                                       ref_mod_output[c].modulation,
-                                       level_output[c].spectrally_adapted_ref_patterns,
-                                       ref_ear_output[c].excitation);
+                           test_mod_output.modulation,
+                           ref_mod_output.modulation,
+                           level_output.spectrally_adapted_test_patterns,
+                           level_output.spectrally_adapted_ref_patterns);
+    lin_dist =
+      calc_noise_loudness (ear_params,
+                           1.5, 0.15, 1, 0.,
+                           ref_mod_output.modulation,
+                           ref_mod_output.modulation,
+                           level_output.spectrally_adapted_ref_patterns,
+                           ref_ear_output.excitation);
+    if (peaq->frame_counter_fb >= 125 &&
+        peaq->frame_counter_fb - 13 >= peaq->loudness_reached_frame) {
+      peaq_movaccum_accumulate (peaq->noise_loud_accum, c, noise_loudness,
+                                !above_thres);
+      peaq_movaccum_accumulate (peaq->missing_comp_accum, c, missing_components,
+                                !above_thres);
+      peaq_movaccum_accumulate (peaq->lin_dist_accum, c, lin_dist,
+                                !above_thres);
+    }
 
 #if 0
     if (peaq->console_output) {
@@ -1235,58 +1115,6 @@ gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata,
 #endif
   }
 
-  if (is_frame_above_threshold (refdata, FB_FRAMESIZE, channels)) {
-    if (peaq->current_aggregated_data_fb == NULL) {
-      peaq->current_aggregated_data_fb = g_new (GstPeaqAggregatedDataFB, 1);
-      peaq->current_aggregated_data_fb->loudness_reached_frame = G_MAXUINT;
-      for (c = 0; c < channels; c++) {
-        peaq->current_aggregated_data_fb->rms_mod_diff[c] = 0.;
-        peaq->current_aggregated_data_fb->temp_weight[c] = 0.;
-        peaq->current_aggregated_data_fb->noise_loudness[c] = 0.;
-        peaq->current_aggregated_data_fb->missing_components[c] = 0.;
-        peaq->current_aggregated_data_fb->lin_dist[c] = 0.;
-      }
-      peaq->current_aggregated_data_fb->noise_loud_frame_count = 0;
-    }
-    if (peaq->saved_aggregated_data_fb != NULL) {
-      g_free (peaq->saved_aggregated_data_fb);
-      peaq->saved_aggregated_data_fb = NULL;
-    }
-  } else {
-    if (peaq->saved_aggregated_data_fb == NULL) {
-      peaq->saved_aggregated_data_fb =
-        g_memdup (peaq->current_aggregated_data_fb,
-                  sizeof (GstPeaqAggregatedDataFB));
-    }
-  }
-
-  if (peaq->current_aggregated_data_fb != NULL) {
-    if (peaq->current_aggregated_data_fb->loudness_reached_frame == G_MAXUINT) {
-      for (c = 0; c < channels; c++)
-        if (ref_ear_output[c].overall_loudness > 0.1 &&
-            test_ear_output[c].overall_loudness > 0.1)
-          peaq->current_aggregated_data_fb->loudness_reached_frame =
-            peaq->frame_counter_fb;
-    }
-    if (peaq->frame_counter_fb >= 125) {
-      for (c = 0; c < channels; c++) {
-        peaq->current_aggregated_data_fb->rms_mod_diff[c] +=
-          temp_wt[c] * temp_wt[c] * mod_diff_a[c] * mod_diff_a[c];
-        peaq->current_aggregated_data_fb->temp_weight[c] +=
-          temp_wt[c] * temp_wt[c];
-        if (peaq->frame_counter_fb >=
-            peaq->current_aggregated_data_fb->loudness_reached_frame + 13) {
-          if (c == 0)
-            peaq->current_aggregated_data_fb->noise_loud_frame_count++;
-          peaq->current_aggregated_data_fb->noise_loudness[c] +=
-            noise_loudness[c] * noise_loudness[c];
-          peaq->current_aggregated_data_fb->missing_components[c] +=
-            missing_components[c] * missing_components[c];
-          peaq->current_aggregated_data_fb->lin_dist[c] += lin_dist[c];
-        }
-      }
-    }
-  }
   peaq->frame_counter_fb++;
 }
 
@@ -1537,235 +1365,134 @@ calc_ehs (GstPeaq const *peaq, gfloat const *refdata, gfloat const *testdata,
 static double
 gst_peaq_calculate_di (GstPeaq * peaq)
 {
-  GstPeaqAggregatedDataFFTBasic *agg_data;
-
-  if (peaq->saved_aggregated_data_fft_basic)
-    agg_data = peaq->saved_aggregated_data_fft_basic;
-  else
-    agg_data = peaq->current_aggregated_data_fft_basic;
-
-  if (agg_data) {
-    guint i, c;
-    gint channels = peaq->channels;
-    gdouble movs[11];
-    gdouble x[3];
-    gdouble distortion_index;
-    gdouble total_nmr_b = 0.;
-    gdouble bw_ref_b = 0.;
-    gdouble bw_test_b = 0.;
-    gdouble win_mod_diff1_b = 0.;
-    gdouble avg_mod_diff1_b = 0.;
-    gdouble avg_mod_diff2_b = 0.;
-    gdouble rms_noise_loud_b = 0.;
-    gdouble rel_dist_frames_b = 0.;
-    gdouble ehs_b = 0.;
-    for (c = 0; c < channels; c++) {
-      bw_ref_b +=
-        agg_data->bandwidth_frame_count[c] ?
-        agg_data->ref_bandwidth_sum[c] / agg_data->bandwidth_frame_count[c] : 0;
-      bw_test_b +=
-        agg_data->bandwidth_frame_count[c] ?
-        agg_data->test_bandwidth_sum[c] / agg_data->bandwidth_frame_count[c] : 0;
-      total_nmr_b +=
-        10 * log10 (agg_data->nmr_sum[c] / agg_data->frame_count);
-      win_mod_diff1_b += 
-        sqrt (agg_data->win_mod_diff1[c] / (agg_data->delayed_frame_count - 3));
-      avg_mod_diff1_b += agg_data->avg_mod_diff1[c] / agg_data->temp_weight[c];
-      avg_mod_diff2_b += agg_data->avg_mod_diff2[c] / agg_data->temp_weight[c];
-      rms_noise_loud_b +=
-        sqrt (agg_data->noise_loudness[c] / agg_data->noise_loud_frame_count);
-      rel_dist_frames_b +=
-        (gdouble) agg_data->disturbed_frame_count[c] / agg_data->frame_count;
-      ehs_b += 1000 * agg_data->ehs[c] / agg_data->ehs_frame_count;
-    }
-    bw_ref_b /= channels;
-    bw_test_b /= channels;
-    total_nmr_b /= channels;
-    win_mod_diff1_b /= channels;
-    avg_mod_diff1_b /= channels;
-    avg_mod_diff2_b /= channels;
-    rms_noise_loud_b /= channels;
-    rel_dist_frames_b /= channels;
-    ehs_b /= channels;
-    gdouble adb_b =
-      agg_data->distorted_frame_count > 0 ? (agg_data->detection_steps ==
-					     0 ? -0.5 : log10 (agg_data->
-							       detection_steps
-							       /
-							       agg_data->
-							       distorted_frame_count))
-      : 0;
-    gdouble mfpd_b = agg_data->max_filtered_detection_probability;
-    movs[0] = bw_ref_b;
-    movs[1] = bw_test_b;
-    movs[2] = total_nmr_b;
-    movs[3] = win_mod_diff1_b;
-    movs[4] = adb_b;
-    movs[5] = ehs_b;
-    movs[6] = avg_mod_diff1_b;
-    movs[7] = avg_mod_diff2_b;
-    movs[8] = rms_noise_loud_b;
-    movs[9] = mfpd_b;
-    movs[10] = rel_dist_frames_b;
-    for (i = 0; i < 3; i++)
-      x[i] = 0;
-    for (i = 0; i <= 10; i++) {
-      guint j;
-      gdouble m = (movs[i] - amin[i]) / (amax[i] - amin[i]);
-      /* according to [Kabal03], it is unclear whether the MOVs should be
-       * clipped to within [amin, amax], although [BS1387] does not mention
-       * clipping at all; doing so slightly improves the results of the
-       * conformance test */
+  guint i;
+  gint channels = peaq->channels;
+  gdouble movs[11];
+  gdouble x[3];
+  gdouble distortion_index;
+  movs[0] = peaq_movaccum_get_value (peaq->ref_bandwidth_accum, channels);
+  movs[1] = peaq_movaccum_get_value (peaq->test_bandwidth_accum, channels);
+  movs[2] = peaq_movaccum_get_value (peaq->nmr_accum, channels);
+  movs[3] = peaq_movaccum_get_value (peaq->win_mod_diff_accum, channels);
+  movs[4] = peaq_movaccum_get_value (peaq->detect_steps_accum, 1);
+  movs[5] = 1000. * peaq_movaccum_get_value (peaq->ehs_accum, channels);
+  movs[6] = peaq_movaccum_get_value (peaq->mod_diff_1_accum, channels);
+  movs[7] = peaq_movaccum_get_value (peaq->mod_diff_2_accum, channels);
+  movs[8] = peaq_movaccum_get_value (peaq->noise_loud_accum, channels);
+  movs[9] = peaq_movaccum_get_value (peaq->prob_detect_accum, 1);
+  movs[10] = peaq_movaccum_get_value (peaq->dist_frame_accum, channels);
+  for (i = 0; i < 3; i++)
+    x[i] = 0;
+  for (i = 0; i <= 10; i++) {
+    guint j;
+    gdouble m = (movs[i] - amin[i]) / (amax[i] - amin[i]);
+    /* according to [Kabal03], it is unclear whether the MOVs should be
+     * clipped to within [amin, amax], although [BS1387] does not mention
+     * clipping at all; doing so slightly improves the results of the
+     * conformance test */
 #if 1
-      if (m < 0.)
-        m = 0.;
-      if (m > 1.)
-        m = 1.;
+    if (m < 0.)
+      m = 0.;
+    if (m > 1.)
+      m = 1.;
 #endif
-      for (j = 0; j < 3; j++)
-	x[j] += wx[i][j] * m;
-    }
-    distortion_index = -0.307594;
-    for (i = 0; i < 3; i++)
-      distortion_index += wy[i] / (1 + exp (-(wxb[i] + x[i])));
-
-    if (peaq->console_output) {
-      g_printf ("   BandwidthRefB: %f\n"
-		"  BandwidthTestB: %f\n"
-		"      Total NMRB: %f\n"
-		"    WinModDiff1B: %f\n"
-		"            ADBB: %f\n"
-		"            EHSB: %f\n"
-		"    AvgModDiff1B: %f\n"
-		"    AvgModDiff2B: %f\n"
-		"   RmsNoiseLoudB: %f\n"
-		"           MFPDB: %f\n"
-		"  RelDistFramesB: %f\n",
-		bw_ref_b, bw_test_b, total_nmr_b, win_mod_diff1_b, adb_b,
-		ehs_b, avg_mod_diff1_b, avg_mod_diff2_b, rms_noise_loud_b,
-		mfpd_b, rel_dist_frames_b);
-    }
-    return distortion_index;
+    for (j = 0; j < 3; j++)
+      x[j] += wx[i][j] * m;
   }
-  return 0;
+  distortion_index = -0.307594;
+  for (i = 0; i < 3; i++)
+    distortion_index += wy[i] / (1 + exp (-(wxb[i] + x[i])));
+
+  if (peaq->console_output) {
+    g_printf ("   BandwidthRefB: %f\n"
+              "  BandwidthTestB: %f\n"
+              "      Total NMRB: %f\n"
+              "    WinModDiff1B: %f\n"
+              "            ADBB: %f\n"
+              "            EHSB: %f\n"
+              "    AvgModDiff1B: %f\n"
+              "    AvgModDiff2B: %f\n"
+              "   RmsNoiseLoudB: %f\n"
+              "           MFPDB: %f\n"
+              "  RelDistFramesB: %f\n",
+              movs[0], movs[1], movs[2], movs[3], movs[4], movs[5], movs[6],
+              movs[7], movs[8], movs[9], movs[10]);
+  }
+  return distortion_index;
 }
 
 static double
 gst_peaq_calculate_di_advanced (GstPeaq *peaq)
 {
-  GstPeaqAggregatedDataFFTAdvanced *agg_data;
-  GstPeaqAggregatedDataFB *agg_data_fb;
+  guint i;
+  gint channels = peaq->channels;
+  gdouble x[5];
+  gdouble movs[5];
 
-  if (peaq->saved_aggregated_data_fb)
-    agg_data_fb = peaq->saved_aggregated_data_fb;
-  else
-    agg_data_fb = peaq->current_aggregated_data_fb;
-
-  if (peaq->saved_aggregated_data_fft_advanced)
-    agg_data = peaq->saved_aggregated_data_fft_advanced;
-  else
-    agg_data = peaq->current_aggregated_data_fft_advanced;
-
-  if (agg_data && agg_data_fb) {
-    guint i, c;
-    gint channels = peaq->channels;
-    gdouble x[5];
-    gdouble movs[5];
-
-    guint band_count
-      = peaq_earmodelparams_get_band_count (peaq_earmodel_get_model_params
-                                            (PEAQ_EARMODEL(peaq->ref_ear_fb)));
-    gdouble distortion_index;
-    gdouble rms_mod_diff_a = 0.;
-    gdouble rms_noise_loud_a = 0.;
-    gdouble rms_missing_components_a = 0.;
-    gdouble avg_lin_dist_a = 0.;
-    gdouble segmental_nmr_b = 0.;
-    gdouble ehs_b = 0.;
-    for (c = 0; c < channels; c++) {
-      rms_mod_diff_a += sqrt(band_count * agg_data_fb->rms_mod_diff[c] /
-                             agg_data_fb->temp_weight[c]);
-      rms_noise_loud_a +=
-        sqrt (agg_data_fb->noise_loudness[c] /
-              agg_data_fb->noise_loud_frame_count);
-      rms_missing_components_a +=
-        sqrt (agg_data_fb->missing_components[c] /
-              agg_data_fb->noise_loud_frame_count);
-      avg_lin_dist_a +=
-        agg_data_fb->lin_dist[c] / agg_data_fb->noise_loud_frame_count;
-      segmental_nmr_b += agg_data->nmr_local[c] / agg_data->frame_count;
-      ehs_b += 1000 * agg_data->ehs[c] / agg_data->ehs_frame_count;
-    }
-    rms_mod_diff_a /= channels;
-    rms_noise_loud_a /= channels;
-    rms_missing_components_a /= channels;
-    gdouble rms_noise_loud_asym_a =
-      rms_noise_loud_a + 0.5 * rms_missing_components_a;
-    avg_lin_dist_a /= channels;
-    segmental_nmr_b /= channels;
-    ehs_b /= channels;
-    movs[0] = rms_mod_diff_a;
-    movs[1] = rms_noise_loud_asym_a;
-    movs[2] = segmental_nmr_b;
-    movs[3] = ehs_b;
-    movs[4] = avg_lin_dist_a;
-    for (i = 0; i < 5; i++)
-      x[i] = 0;
-    for (i = 0; i <= 4; i++) {
-      guint j;
-      gdouble m =
-        (movs[i] - amin_advanced[i]) / (amax_advanced[i] - amin_advanced[i]);
-      /* according to [Kabal03], it is unclear whether the MOVs should be
-       * clipped to within [amin, amax], although [BS1387] does not mention
-       * clipping at all; doing so slightly improves the results of the
-       * conformance test */
+  guint band_count
+    = peaq_earmodelparams_get_band_count (peaq_earmodel_get_model_params
+                                          (PEAQ_EARMODEL(peaq->ref_ear_fb)));
+  gdouble distortion_index;
+  movs[0] = sqrt (band_count) *
+    peaq_movaccum_get_value (peaq->mod_diff_1_accum, channels);
+  movs[1] =
+    peaq_movaccum_get_value (peaq->noise_loud_accum, channels) +
+    0.5 * peaq_movaccum_get_value (peaq->missing_comp_accum, channels);
+  movs[2] = peaq_movaccum_get_value (peaq->nmr_accum, channels);
+  movs[3] = 1000. * peaq_movaccum_get_value (peaq->ehs_accum, channels);
+  movs[4] = peaq_movaccum_get_value (peaq->lin_dist_accum, channels);
+  for (i = 0; i < 5; i++)
+    x[i] = 0;
+  for (i = 0; i <= 4; i++) {
+    guint j;
+    gdouble m =
+      (movs[i] - amin_advanced[i]) / (amax_advanced[i] - amin_advanced[i]);
+    /* according to [Kabal03], it is unclear whether the MOVs should be
+     * clipped to within [amin, amax], although [BS1387] does not mention
+     * clipping at all; doing so slightly improves the results of the
+     * conformance test */
 #if 1
-      if (m < 0.)
-        m = 0.;
-      if (m > 1.)
-        m = 1.;
+    if (m < 0.)
+      m = 0.;
+    if (m > 1.)
+      m = 1.;
 #endif
-      for (j = 0; j < 5; j++)
-	x[j] += wx_advanced[i][j] * m;
-    }
-    distortion_index = -1.360308;
-    for (i = 0; i < 5; i++)
-      distortion_index +=
-        wy_advanced[i] / (1 + exp (-(wxb_advanced[i] + x[i])));
-
-    if (peaq->console_output) {
-      g_printf("RmsNoiseLoudAsymA = %f\n"
-               "RmsModDiffA = %f\n"
-               "SegmentalNMRB = %f\n"
-               "EHSB = %f\n"
-               "AvgLinDistA = %f\n",
-               rms_noise_loud_asym_a,
-               rms_mod_diff_a,
-               segmental_nmr_b,
-               ehs_b,
-               avg_lin_dist_a);
-    }
-    return distortion_index;
+    for (j = 0; j < 5; j++)
+      x[j] += wx_advanced[i][j] * m;
   }
-  return 0;
+  distortion_index = -1.360308;
+  for (i = 0; i < 5; i++)
+    distortion_index +=
+      wy_advanced[i] / (1 + exp (-(wxb_advanced[i] + x[i])));
+
+  if (peaq->console_output) {
+    g_printf("RmsModDiffA = %f\n"
+             "RmsNoiseLoudAsymA = %f\n"
+             "SegmentalNMRB = %f\n"
+             "EHSB = %f\n"
+             "AvgLinDistA = %f\n",
+             movs[0],
+             movs[1],
+             movs[2],
+             movs[3],
+             movs[4]);
+  }
+  return distortion_index;
 }
 
 static double
 gst_peaq_calculate_odg (GstPeaq * peaq)
 {
-  //if (peaq->saved_aggregated_data || peaq->current_aggregated_data) {
-    gdouble distortion_index;
-    if (peaq->advanced)
-      distortion_index = gst_peaq_calculate_di_advanced (peaq);
-    else
-      distortion_index = gst_peaq_calculate_di (peaq);
-    gdouble odg = -3.98 + 4.2 / (1 + exp (-distortion_index));
-    if (peaq->console_output) {
-      g_printf ("Objective Difference Grade: %.3f\n", odg);
-    }
-    return odg;
-  //}
-  //return 0;
+  gdouble distortion_index;
+  if (peaq->advanced)
+    distortion_index = gst_peaq_calculate_di_advanced (peaq);
+  else
+    distortion_index = gst_peaq_calculate_di (peaq);
+  gdouble odg = -3.98 + 4.2 / (1 + exp (-distortion_index));
+  if (peaq->console_output) {
+    g_printf ("Objective Difference Grade: %.3f\n", odg);
+  }
+  return odg;
 }
 
 static gboolean
