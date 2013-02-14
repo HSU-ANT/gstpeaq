@@ -1276,7 +1276,8 @@ gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata,
           temp_wt[c] * temp_wt[c];
         if (peaq->frame_counter_fb >=
             peaq->current_aggregated_data_fb->loudness_reached_frame + 13) {
-          peaq->current_aggregated_data_fb->noise_loud_frame_count++;
+          if (c == 0)
+            peaq->current_aggregated_data_fb->noise_loud_frame_count++;
           peaq->current_aggregated_data_fb->noise_loudness[c] +=
             noise_loudness[c] * noise_loudness[c];
           peaq->current_aggregated_data_fb->missing_components[c] +=
