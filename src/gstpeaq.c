@@ -305,14 +305,14 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   peaq->refpad = gst_pad_new_from_template (template, "ref");
   gst_object_unref (template);
   gst_collect_pads_add_pad (peaq->collect, peaq->refpad,
-			    sizeof (GstCollectData));
+                            sizeof (GstCollectData));
   gst_element_add_pad (GST_ELEMENT (peaq), peaq->refpad);
 
   template = gst_static_pad_template_get (&gst_peaq_test_template);
   peaq->testpad = gst_pad_new_from_template (template, "test");
   gst_object_unref (template);
   gst_collect_pads_add_pad (peaq->collect, peaq->testpad,
-			    sizeof (GstCollectData));
+                            sizeof (GstCollectData));
   gst_element_add_pad (GST_ELEMENT (peaq), peaq->testpad);
 
   GST_OBJECT_FLAG_SET (peaq, GST_ELEMENT_IS_SINK);
@@ -697,6 +697,18 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
   gboolean above_thres = is_frame_above_threshold (refdata, FFT_FRAMESIZE,
                                                    channels);
 
+  peaq_movaccum_set_tentative (peaq->mod_diff_1_accum, !above_thres);
+  peaq_movaccum_set_tentative (peaq->mod_diff_2_accum, !above_thres);
+  peaq_movaccum_set_tentative (peaq->win_mod_diff_accum, !above_thres);
+  peaq_movaccum_set_tentative (peaq->noise_loud_accum, !above_thres);
+  peaq_movaccum_set_tentative (peaq->ref_bandwidth_accum, !above_thres);
+  peaq_movaccum_set_tentative (peaq->test_bandwidth_accum, !above_thres);
+  peaq_movaccum_set_tentative (peaq->nmr_accum, !above_thres);
+  peaq_movaccum_set_tentative (peaq->dist_frame_accum, !above_thres);
+  peaq_movaccum_set_tentative (peaq->ehs_accum, !above_thres);
+  peaq_movaccum_set_tentative (peaq->detect_steps_accum, !above_thres);
+  peaq_movaccum_set_tentative (peaq->prob_detect_accum, !above_thres);
+
   for (c = 0; c < channels; c++) {
     FFTEarModelOutput ref_ear_output;
     FFTEarModelOutput test_ear_output;
@@ -776,13 +788,10 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
                                   &test_mod_output, &mod_diff_1b,
                                   &mod_diff_2b, &temp_wt);
       peaq_movaccum_accumulate_weighted (peaq->mod_diff_1_accum, c,
-                                         mod_diff_1b, temp_wt,
-                                         !above_thres);
+                                         mod_diff_1b, temp_wt);
       peaq_movaccum_accumulate_weighted (peaq->mod_diff_2_accum, c,
-                                         mod_diff_2b, temp_wt,
-                                         !above_thres);
-      peaq_movaccum_accumulate (peaq->win_mod_diff_accum, c, mod_diff_1b,
-                                !above_thres);
+                                         mod_diff_2b, temp_wt);
+      peaq_movaccum_accumulate (peaq->win_mod_diff_accum, c, mod_diff_1b);
     }
 
     /* noise loudness */
@@ -799,8 +808,7 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
                              test_mod_output.modulation,
                              level_output.spectrally_adapted_ref_patterns,
                              level_output.spectrally_adapted_test_patterns);
-      peaq_movaccum_accumulate (peaq->noise_loud_accum, c, noise_loudness,
-                                !above_thres);
+      peaq_movaccum_accumulate (peaq->noise_loud_accum, c, noise_loudness);
     }
 
 
@@ -808,19 +816,16 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
     calc_bandwidth (ref_ear_output.power_spectrum,
                     test_ear_output.power_spectrum, &bw_test, &bw_ref);
     if (bw_ref > 346) {
-      peaq_movaccum_accumulate (peaq->ref_bandwidth_accum, c, bw_ref,
-                                !above_thres);
-      peaq_movaccum_accumulate (peaq->test_bandwidth_accum, c, bw_test,
-                                !above_thres);
+      peaq_movaccum_accumulate (peaq->ref_bandwidth_accum, c, bw_ref);
+      peaq_movaccum_accumulate (peaq->test_bandwidth_accum, c, bw_test);
     }
 
     /* noise-to-mask ratio */
     calc_nmr (peaq, ref_ear_output.ear_model_output.excitation,
               noise_in_bands, &nmr, &nmr_max);
-    peaq_movaccum_accumulate (peaq->nmr_accum, c, nmr, !above_thres);
+    peaq_movaccum_accumulate (peaq->nmr_accum, c, nmr);
     peaq_movaccum_accumulate (peaq->dist_frame_accum, c,
-                              nmr_max > 1.41253754462275 ? 1. : 0.,
-                              !above_thres);
+                              nmr_max > 1.41253754462275 ? 1. : 0.);
 
     /* probability of detection */
     detection_probability[c] = g_newa (gdouble, band_count);
@@ -856,7 +861,7 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
 
   if (ehs_valid_any) {
     for (c = 0; c < channels; c++)
-      peaq_movaccum_accumulate (peaq->ehs_accum, c, ehs[c], !above_thres);
+      peaq_movaccum_accumulate (peaq->ehs_accum, c, ehs[c]);
   }
 
   gdouble binaural_detection_probability = 1.;
@@ -876,10 +881,10 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
   binaural_detection_probability = 1. - binaural_detection_probability;
   if (binaural_detection_probability > 0.5) {
     peaq_movaccum_accumulate (peaq->detect_steps_accum, 0,
-                              binaural_detection_steps, !above_thres);
+                              binaural_detection_steps);
   }
   peaq_movaccum_accumulate (peaq->prob_detect_accum, 0,
-                            binaural_detection_probability, !above_thres);
+                            binaural_detection_probability);
 
   for (i = 0; i < channels * FFT_FRAMESIZE / 2; i++) {
     peaq->total_signal_energy
@@ -907,6 +912,9 @@ gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
 
   gboolean above_thres = is_frame_above_threshold (refdata, FFT_FRAMESIZE,
                                                    channels);
+
+  peaq_movaccum_set_tentative (peaq->nmr_accum, !above_thres);
+  peaq_movaccum_set_tentative (peaq->ehs_accum, !above_thres);
 
   for (c = 0; c < channels; c++) {
     FFTEarModelOutput ref_ear_output;
@@ -955,8 +963,7 @@ gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
     /* noise-to-mask ratio */
     calc_nmr (peaq, ref_ear_output.ear_model_output.excitation,
               noise_in_bands, &nmr, &nmr_max);
-    peaq_movaccum_accumulate (peaq->nmr_accum, c, 10. * log10 (nmr),
-                              !above_thres);
+    peaq_movaccum_accumulate (peaq->nmr_accum, c, 10. * log10 (nmr));
 
     /* error harmonic structure */
     calc_ehs (peaq, refdata_c, testdata_c, ref_ear_output.power_spectrum,
@@ -974,7 +981,7 @@ gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
 
   if (ehs_valid_any) {
     for (c = 0; c < channels; c++)
-      peaq_movaccum_accumulate (peaq->ehs_accum, c, ehs[c], !above_thres);
+      peaq_movaccum_accumulate (peaq->ehs_accum, c, ehs[c]);
   }
 
   for (i = 0; i < channels * FFT_FRAMESIZE / 2; i++) {
@@ -997,6 +1004,11 @@ gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata,
 
   gboolean above_thres = is_frame_above_threshold (refdata, FB_FRAMESIZE,
                                                    channels);
+
+  peaq_movaccum_set_tentative (peaq->mod_diff_1_accum, !above_thres);
+  peaq_movaccum_set_tentative (peaq->noise_loud_accum, !above_thres);
+  peaq_movaccum_set_tentative (peaq->missing_comp_accum, !above_thres);
+  peaq_movaccum_set_tentative (peaq->lin_dist_accum, !above_thres);
 
   for (c = 0; c < channels; c++) {
     guint i;
@@ -1055,7 +1067,7 @@ gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata,
                                   &test_mod_output, &mod_diff_a, &temp_wt);
     if (peaq->frame_counter_fb >= 125) {
       peaq_movaccum_accumulate_weighted (peaq->mod_diff_1_accum, c, mod_diff_a,
-                                         temp_wt, !above_thres);
+                                         temp_wt);
     }
 
     /* noise loudness */
@@ -1086,12 +1098,9 @@ gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata,
                            ref_ear_output.excitation);
     if (peaq->frame_counter_fb >= 125 &&
         peaq->frame_counter_fb - 13 >= peaq->loudness_reached_frame) {
-      peaq_movaccum_accumulate (peaq->noise_loud_accum, c, noise_loudness,
-                                !above_thres);
-      peaq_movaccum_accumulate (peaq->missing_comp_accum, c, missing_components,
-                                !above_thres);
-      peaq_movaccum_accumulate (peaq->lin_dist_accum, c, lin_dist,
-                                !above_thres);
+      peaq_movaccum_accumulate (peaq->noise_loud_accum, c, noise_loudness);
+      peaq_movaccum_accumulate (peaq->missing_comp_accum, c, missing_components);
+      peaq_movaccum_accumulate (peaq->lin_dist_accum, c, lin_dist);
     }
 
 #if 0

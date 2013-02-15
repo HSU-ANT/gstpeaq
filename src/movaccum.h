@@ -54,11 +54,10 @@ enum _PeaqMovAccumMode
 GType peaq_movaccum_get_type ();
 PeaqMovAccum *peaq_movaccum_new ();
 void peaq_movaccum_set_mode (PeaqMovAccum *acc, PeaqMovAccumMode mode);
-void peaq_movaccum_accumulate (PeaqMovAccum *acc, guint c, gdouble val,
-                               gboolean tentative);
+void peaq_movaccum_set_tentative (PeaqMovAccum *acc, gboolean tentative);
+void peaq_movaccum_accumulate (PeaqMovAccum *acc, guint c, gdouble val);
 void peaq_movaccum_accumulate_weighted (PeaqMovAccum *acc, guint c,
-                                        gdouble val, gdouble weight,
-                                        gboolean tentative);
-gdouble peaq_movaccum_get_value (PeaqMovAccum *acc, guint channels);
+                                        gdouble val, gdouble weight);
+gdouble peaq_movaccum_get_value (PeaqMovAccum const *acc, guint channels);
 
 #endif

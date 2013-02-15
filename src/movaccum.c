@@ -51,7 +51,6 @@ struct _PeaqMovAccum
 
 static void class_init (gpointer klass, gpointer class_data);
 static void init (GTypeInstance *obj, gpointer klass);
-static gboolean handle_state (PeaqMovAccum *acc, gboolean tentative);
 
 GType
 peaq_movaccum_get_type ()
@@ -113,10 +112,27 @@ peaq_movaccum_set_mode (PeaqMovAccum *acc, PeaqMovAccumMode mode)
 }
 
 void
-peaq_movaccum_accumulate (PeaqMovAccum *acc, guint c, gdouble val,
-                          gboolean tentative)
+peaq_movaccum_set_tentative (PeaqMovAccum *acc, gboolean tentative)
 {
-  if (!handle_state (acc, tentative))
+  if (tentative) {
+    if (acc->status == STATUS_NORMAL) {
+      /* transition to tentative status */
+      guint i;
+      for (i = 0; i < 2; i++) {
+        acc->num_saved[i] = acc->num[i];
+        acc->den_saved[i] = acc->den[i];
+      }
+      acc->status = STATUS_TENTATIVE;
+    }
+  } else {
+    acc->status = STATUS_NORMAL;
+  }
+}
+
+void
+peaq_movaccum_accumulate (PeaqMovAccum *acc, guint c, gdouble val)
+{
+  if (acc->status == STATUS_INIT)
     return;
   switch (acc->mode) {
     case MODE_RMS:
@@ -160,9 +176,9 @@ peaq_movaccum_accumulate (PeaqMovAccum *acc, guint c, gdouble val,
 
 void
 peaq_movaccum_accumulate_weighted (PeaqMovAccum *acc, guint c, gdouble val,
-                                   gdouble weight, gboolean tentative)
+                                   gdouble weight)
 {
-  if (!handle_state (acc, tentative))
+  if (acc->status == STATUS_INIT)
     return;
   switch (acc->mode) {
     case MODE_RMS:
@@ -183,39 +199,11 @@ peaq_movaccum_accumulate_weighted (PeaqMovAccum *acc, guint c, gdouble val,
   }
 }
 
-static gboolean
-handle_state (PeaqMovAccum *acc, gboolean tentative)
-{
-  if (tentative) {
-    switch (acc->status) {
-      case STATUS_INIT:
-        /* ignore initial tentative values */
-        return FALSE;
-      case STATUS_NORMAL:
-        /* transition to tentative status */
-        {
-          guint i;
-          for (i = 0; i < 2; i++) {
-            acc->num_saved[i] = acc->num[i];
-            acc->den_saved[i] = acc->den[i];
-          }
-          acc->status = STATUS_TENTATIVE;
-        }
-        break;
-      case STATUS_TENTATIVE:
-        break;
-    }
-  } else {
-    acc->status = STATUS_NORMAL;
-  }
-  return TRUE;
-}
-
 gdouble
-peaq_movaccum_get_value (PeaqMovAccum *acc, guint channels)
+peaq_movaccum_get_value (PeaqMovAccum const *acc, guint channels)
 {
-  gdouble *num;
-  gdouble *den;
+  gdouble const *num;
+  gdouble const *den;
   gdouble value = 0.;
   guint c;
   if (acc->status == STATUS_TENTATIVE) {
