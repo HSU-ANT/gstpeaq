@@ -22,4 +22,24 @@ echo $ODG
 if [ x$ODG != x-2.244 ]; then
 	exit 1
 fi
+ODG=`LANG=LC_ALL gst-launch-0.10 --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=.libs/libgstpeaq.so \
+	audiotestsrc name=src0 num-buffers=128 wave=saw freq=440 \
+	audiotestsrc name=src1 num-buffers=128 wave=triangle freq=440 \
+	peaq name=peaq \
+	src0.src\!'audio/x-raw-float,channels=2'\!peaq.ref src1.src\!peaq.test \
+| grep "Objective Difference Grade:" | cut -d " " -f4`
+echo $ODG
+if [ x$ODG != x-2.244 ]; then
+	exit 1
+fi
+ODG=`LANG=LC_ALL gst-launch-0.10 --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=.libs/libgstpeaq.so \
+	audiotestsrc name=src0 num-buffers=128 wave=saw freq=440 \
+	audiotestsrc name=src1 num-buffers=128 wave=triangle freq=440 \
+	peaq name=peaq \
+	src0.src\!peaq.ref src1.src\!'audio/x-raw-float,channels=2'\!peaq.test \
+| grep "Objective Difference Grade:" | cut -d " " -f4`
+echo $ODG
+if [ x$ODG != x-2.244 ]; then
+	exit 1
+fi
 exit 0

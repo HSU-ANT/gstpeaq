@@ -132,17 +132,18 @@ static void gst_peaq_get_property (GObject * obj, guint id, GValue * value,
 				   GParamSpec * pspec);
 static void gst_peaq_set_property (GObject * obj, guint id,
 				   const GValue * value, GParamSpec * pspec);
+static GstCaps *get_caps (GstPad *pad);
+static gboolean set_caps (GstPad *pad, GstCaps *caps);
 static GstFlowReturn gst_peaq_collected (GstCollectPads * pads,
 					 gpointer user_data);
 static GstStateChangeReturn gst_peaq_change_state (GstElement * element,
 						   GstStateChange transition);
 static void gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
-                                              gfloat *testdata, guint channels);
+                                              gfloat *testdata);
 static void gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
-                                                 gfloat *testdata,
-                                                 guint channels);
+                                                 gfloat *testdata);
 static void gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata,
-                                       gfloat *testdata, guint channels);
+                                       gfloat *testdata);
 static void calc_modulation_difference(PeaqEarModelParams const *params,
                                        ModulationProcessorOutput const *ref_mod_output,
                                        ModulationProcessorOutput const *test_mod_output,
@@ -306,6 +307,8 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   gst_object_unref (template);
   gst_collect_pads_add_pad (peaq->collect, peaq->refpad,
                             sizeof (GstCollectData));
+  gst_pad_set_setcaps_function (peaq->refpad, set_caps);
+  gst_pad_set_getcaps_function (peaq->refpad, get_caps);
   gst_element_add_pad (GST_ELEMENT (peaq), peaq->refpad);
 
   template = gst_static_pad_template_get (&gst_peaq_test_template);
@@ -313,6 +316,8 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   gst_object_unref (template);
   gst_collect_pads_add_pad (peaq->collect, peaq->testpad,
                             sizeof (GstCollectData));
+  gst_pad_set_setcaps_function (peaq->testpad, set_caps);
+  gst_pad_set_getcaps_function (peaq->testpad, get_caps);
   gst_element_add_pad (GST_ELEMENT (peaq), peaq->testpad);
 
   GST_OBJECT_FLAG_SET (peaq, GST_ELEMENT_IS_SINK);
@@ -519,6 +524,40 @@ gst_peaq_set_property (GObject * obj, guint id, const GValue * value,
   }
 }
 
+static GstCaps *
+get_caps (GstPad *pad)
+{
+  GstPeaq *peaq = GST_PEAQ (gst_pad_get_parent_element (pad));
+  GstCaps *caps;
+  GstCaps *mycaps;
+  GstCaps *peercaps;
+  if (pad == peaq->refpad) {
+    mycaps = gst_static_pad_template_get_caps (&gst_peaq_ref_template);
+    peercaps = gst_pad_peer_get_caps_reffed (peaq->testpad);
+  } else {
+    mycaps = gst_static_pad_template_get_caps (&gst_peaq_test_template);
+    peercaps = gst_pad_peer_get_caps_reffed (peaq->refpad);
+  }
+  if (peercaps) {
+    caps = gst_caps_intersect (mycaps, peercaps);
+    gst_caps_unref (peercaps);
+    gst_caps_unref (mycaps);
+  } else {
+    caps = mycaps;
+  }
+  return caps;
+}
+
+static gboolean
+set_caps (GstPad *pad, GstCaps *caps)
+{
+  GstPeaq *peaq = GST_PEAQ (gst_pad_get_parent_element (pad));
+  gst_structure_get_int (gst_caps_get_structure (caps, 0),
+                         "channels", &(peaq->channels));
+  return TRUE;
+}
+
+
 static GstFlowReturn
 gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
 {
@@ -537,6 +576,14 @@ gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
     data = (GstCollectData *) collected->data;
     buf = gst_collect_pads_pop (pads, data);
     while (buf != NULL) {
+      if (buf->caps != NULL) {
+        gint channels;
+        gst_structure_get_int (gst_caps_get_structure (buf->caps, 0),
+                               "channels", &channels);
+        if (channels != peaq->channels || peaq->channels == 0) {
+          return GST_FLOW_NOT_NEGOTIATED;
+        }
+      }
       data_received = TRUE;
       if (data->pad == peaq->refpad) {
         if (peaq->advanced)
@@ -551,50 +598,52 @@ gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
     }
   }
 
-  GstCaps *caps = gst_pad_get_negotiated_caps (peaq->refpad);
-  gint channels;
-  gst_structure_get_int (gst_caps_get_structure (caps, 0),
-                          "channels", &channels);
-  gst_caps_unref (caps);
-
   while (gst_adapter_available (peaq->ref_adapter_fft) >=
-         channels * FFT_BLOCKSIZE_BYTES &&
+         peaq->channels * FFT_BLOCKSIZE_BYTES &&
          gst_adapter_available (peaq->test_adapter_fft) >=
-         channels * FFT_BLOCKSIZE_BYTES)
+         peaq->channels * FFT_BLOCKSIZE_BYTES)
   {
-    gfloat *refframe = (gfloat *) gst_adapter_peek (peaq->ref_adapter_fft,
-                                                    channels * FFT_BLOCKSIZE_BYTES);
-    gfloat *testframe = (gfloat *) gst_adapter_peek (peaq->test_adapter_fft,
-						     channels * FFT_BLOCKSIZE_BYTES);
+    gfloat *refframe =
+      (gfloat *) gst_adapter_peek (peaq->ref_adapter_fft,
+                                   peaq->channels * FFT_BLOCKSIZE_BYTES);
+    gfloat *testframe =
+      (gfloat *) gst_adapter_peek (peaq->test_adapter_fft,
+                                   peaq->channels * FFT_BLOCKSIZE_BYTES);
     if (peaq->advanced)
-      gst_peaq_process_fft_block_advanced (peaq, refframe, testframe, channels);
+      gst_peaq_process_fft_block_advanced (peaq, refframe, testframe);
     else
-      gst_peaq_process_fft_block_basic (peaq, refframe, testframe, channels);
+      gst_peaq_process_fft_block_basic (peaq, refframe, testframe);
     g_assert (gst_adapter_available (peaq->ref_adapter_fft) >=
-              channels * FFT_BLOCKSIZE_BYTES);
-    gst_adapter_flush (peaq->ref_adapter_fft, channels * FFT_STEPSIZE_BYTES);
+              peaq->channels * FFT_BLOCKSIZE_BYTES);
+    gst_adapter_flush (peaq->ref_adapter_fft,
+                       peaq->channels * FFT_STEPSIZE_BYTES);
     g_assert (gst_adapter_available (peaq->test_adapter_fft) >=
-              channels * FFT_BLOCKSIZE_BYTES);
-    gst_adapter_flush (peaq->test_adapter_fft, channels * FFT_STEPSIZE_BYTES);
+              peaq->channels * FFT_BLOCKSIZE_BYTES);
+    gst_adapter_flush (peaq->test_adapter_fft,
+                       peaq->channels * FFT_STEPSIZE_BYTES);
   }
 
   if (peaq->advanced) {
-    while (gst_adapter_available (peaq->ref_adapter_fb) >= channels * FB_BLOCKSIZE_BYTES &&
-           gst_adapter_available (peaq->test_adapter_fb) >= channels * FB_BLOCKSIZE_BYTES)
+    while (gst_adapter_available (peaq->ref_adapter_fb) >=
+           peaq->channels * FB_BLOCKSIZE_BYTES &&
+           gst_adapter_available (peaq->test_adapter_fb) >=
+           peaq->channels * FB_BLOCKSIZE_BYTES)
     {
       gfloat *refframe =
         (gfloat *) gst_adapter_peek (peaq->ref_adapter_fb,
-                                     channels * FB_BLOCKSIZE_BYTES);
+                                     peaq->channels * FB_BLOCKSIZE_BYTES);
       gfloat *testframe = 
         (gfloat *) gst_adapter_peek (peaq->test_adapter_fb,
-                                     channels * FB_BLOCKSIZE_BYTES);
-      gst_peaq_process_fb_block (peaq, refframe, testframe, channels);
+                                     peaq->channels * FB_BLOCKSIZE_BYTES);
+      gst_peaq_process_fb_block (peaq, refframe, testframe);
       g_assert (gst_adapter_available (peaq->ref_adapter_fb) >=
-                channels * FB_BLOCKSIZE_BYTES);
-      gst_adapter_flush (peaq->ref_adapter_fb, channels * FB_BLOCKSIZE_BYTES);
+                peaq->channels * FB_BLOCKSIZE_BYTES);
+      gst_adapter_flush (peaq->ref_adapter_fb,
+                         peaq->channels * FB_BLOCKSIZE_BYTES);
       g_assert (gst_adapter_available (peaq->test_adapter_fb) >=
-                channels * FB_BLOCKSIZE_BYTES);
-      gst_adapter_flush (peaq->test_adapter_fb, channels * FB_BLOCKSIZE_BYTES);
+                peaq->channels * FB_BLOCKSIZE_BYTES);
+      gst_adapter_flush (peaq->test_adapter_fb,
+                         peaq->channels * FB_BLOCKSIZE_BYTES);
     }
   }
 
@@ -631,35 +680,30 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
       ref_data_left_count = gst_adapter_available (peaq->ref_adapter_fft);
       test_data_left_count = gst_adapter_available (peaq->test_adapter_fft);
       if (ref_data_left_count || test_data_left_count) {
-        GstCaps *caps = gst_pad_get_negotiated_caps (peaq->refpad);
-        gint channels;
-        gst_structure_get_int (gst_caps_get_structure (caps, 0),
-                               "channels", &channels);
-        gst_caps_unref (caps);
-        peaq->channels = channels;
-
-        gfloat *padded_ref_frame = g_newa (gfloat, channels * FFT_FRAMESIZE);
-        gfloat *padded_test_frame = g_newa (gfloat, channels * FFT_FRAMESIZE);
+        gfloat *padded_ref_frame =
+          g_newa (gfloat, peaq->channels * FFT_FRAMESIZE);
+        gfloat *padded_test_frame =
+          g_newa (gfloat, peaq->channels * FFT_FRAMESIZE);
         guint ref_data_count =
-          MIN (ref_data_left_count, channels * FFT_BLOCKSIZE_BYTES);
+          MIN (ref_data_left_count, peaq->channels * FFT_BLOCKSIZE_BYTES);
         guint test_data_count =
-          MIN (test_data_left_count, channels * FFT_BLOCKSIZE_BYTES);
+          MIN (test_data_left_count, peaq->channels * FFT_BLOCKSIZE_BYTES);
         gfloat *refframe = (gfloat *) gst_adapter_peek (peaq->ref_adapter_fft,
 							ref_data_count);
         gfloat *testframe = (gfloat *) gst_adapter_peek (peaq->test_adapter_fft,
 							 test_data_count);
 	g_memmove (padded_ref_frame, refframe, ref_data_count);
 	memset (((char *) padded_ref_frame) + ref_data_count, 0,
-                channels * FFT_BLOCKSIZE_BYTES - ref_data_count);
+                peaq->channels * FFT_BLOCKSIZE_BYTES - ref_data_count);
 	g_memmove (padded_test_frame, testframe, test_data_count);
 	memset (((char *) padded_test_frame) + test_data_count, 0,
-                channels * FFT_BLOCKSIZE_BYTES - test_data_count);
+                peaq->channels * FFT_BLOCKSIZE_BYTES - test_data_count);
         if (peaq->advanced)
           gst_peaq_process_fft_block_advanced (peaq, padded_ref_frame,
-                                               padded_test_frame, channels);
+                                               padded_test_frame);
         else
           gst_peaq_process_fft_block_basic (peaq, padded_ref_frame,
-                                            padded_test_frame, channels);
+                                            padded_test_frame);
 	g_assert (gst_adapter_available (peaq->ref_adapter_fft) >= 
 		  ref_data_count);
 	gst_adapter_flush (peaq->ref_adapter_fft, ref_data_count);
@@ -679,10 +723,11 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
 
 static void
 gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
-                                  gfloat *testdata, guint channels)
+                                  gfloat *testdata)
 {
   guint i;
   guint c;
+  gint channels = peaq->channels;
   gboolean ehs_valid_any = FALSE;
   gdouble *detection_probability[2];
   gdouble *detection_steps[2];
@@ -898,9 +943,10 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
 
 static void
 gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
-                                     gfloat *testdata, guint channels)
+                                     gfloat *testdata)
 {
   guint i, c;
+  gint channels = peaq->channels;
   gboolean ehs_valid_any = FALSE;
   gdouble ehs[2] = {0., };
 
@@ -994,10 +1040,10 @@ gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
 }
 
 static void
-gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata,
-                           guint channels)
+gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
 {
   guint c;
+  gint channels = peaq->channels;
   PeaqEarModelParams *ear_params =
     peaq_earmodel_get_model_params(PEAQ_EARMODEL(peaq->ref_ear_fb));
   guint band_count = peaq_earmodelparams_get_band_count (ear_params);

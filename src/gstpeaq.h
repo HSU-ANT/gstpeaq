@@ -75,7 +75,7 @@ struct _GstPeaq
   GstFFTF64 *correlator_inverse_fft;
   gboolean console_output;
   gboolean advanced;
-  guint channels;
+  gint channels;
   gdouble *masking_difference;
   guint frame_counter;
   guint frame_counter_fb;
