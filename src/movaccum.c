@@ -24,12 +24,30 @@
 #include <math.h>
 
 typedef enum _Status Status;
+typedef struct _Fraction Fraction;
+typedef struct _WinAvgData WinAvgData;
+typedef struct _FiltMaxData FiltMaxData;
 
 enum _Status
 {
   STATUS_INIT,
   STATUS_NORMAL,
   STATUS_TENTATIVE
+};
+
+struct _Fraction {
+  gdouble num;
+  gdouble den;
+};
+
+struct _WinAvgData {
+  Fraction frac;
+  gdouble past_sqrts[3];
+};
+
+struct _FiltMaxData {
+  gdouble max;
+  gdouble filt_state;
 };
 
 struct _PeaqMovAccumClass
@@ -42,15 +60,15 @@ struct _PeaqMovAccum
   GObjectClass parent;
   Status status;
   PeaqMovAccumMode mode;
-  gdouble num[2];
-  gdouble den[2];
-  gdouble num_saved[2];
-  gdouble den_saved[2];
-  gdouble past_sqrts[2][3];
+  guint channels;
+  gpointer *data;
+  gpointer *data_saved;
 };
 
 static void class_init (gpointer klass, gpointer class_data);
 static void init (GTypeInstance *obj, gpointer klass);
+static void finalize (GObject *obj);
+static void realloc_data (PeaqMovAccum *acc, guint old_channels);
 
 GType
 peaq_movaccum_get_type ()
@@ -84,32 +102,100 @@ peaq_movaccum_new ()
 static void
 class_init (gpointer klass, gpointer class_data)
 {
-  //GObjectClass *object_class = G_OBJECT_CLASS (klass);
+  GObjectClass *object_class = G_OBJECT_CLASS (klass);
 
-  //object_class->finalize = finalize;
+  object_class->finalize = finalize;
 }
 
 static void
 init (GTypeInstance *obj, gpointer klass)
 {
-  guint c;
   PeaqMovAccum *acc = PEAQ_MOVACCUM (obj);
+
+  acc->channels = 0;
+  acc->data = NULL;
+  acc->data_saved = NULL;
   acc->status = STATUS_INIT;
   acc->mode = MODE_AVG;
-  for (c = 0; c < 2; c++) {
-    guint i;
-    acc->num[c] = 0.;
-    acc->den[c] = 0.;
-    for (i = 0; i < 3; i++)
-      acc->past_sqrts[c][i] = NAN;
-  }
+  realloc_data (acc, 0);
 };
+
+static void
+finalize (GObject *obj)
+{
+  guint c;
+  PeaqMovAccum *acc = PEAQ_MOVACCUM (obj);
+
+  for (c = 0; c < acc->channels; c++) {
+    g_free (acc->data[c]);
+    g_free (acc->data_saved[c]);
+  }
+
+  g_free (acc->data);
+  g_free (acc->data_saved);
+}
+
+void
+peaq_movaccum_set_channels (PeaqMovAccum *acc, guint channels)
+{
+  if (acc->channels != channels) {
+    guint old_channels = acc->channels;
+    acc->channels = channels;
+    realloc_data (acc, old_channels);
+  }
+}
 
 void
 peaq_movaccum_set_mode (PeaqMovAccum *acc, PeaqMovAccumMode mode)
 {
-  acc->mode = mode;
+  if (acc->mode != mode) {
+    acc->mode = mode;
+    realloc_data (acc, acc->channels);
+  }
 }
+
+static void
+realloc_data (PeaqMovAccum *acc, guint old_channels)
+{
+  guint c;
+
+  for (c = 0; c < old_channels; c++) {
+    g_free (acc->data[c]);
+    g_free (acc->data_saved[c]);
+  }
+
+  if (acc->channels != old_channels) {
+    g_free (acc->data);
+    g_free (acc->data_saved);
+    acc->data = g_new0 (gpointer, acc->channels);
+    acc->data_saved = g_new0 (gpointer, acc->channels);
+  }
+
+  for (c = 0; c < acc->channels; c++)
+    switch (acc->mode) {
+      case MODE_AVG:
+      case MODE_AVG_LOG:
+      case MODE_RMS:
+      case MODE_ADB:
+        acc->data[c] = g_new0 (Fraction, acc->channels);
+        acc->data_saved[c] = g_new0 (Fraction, acc->channels);
+        break;
+      case MODE_AVG_WINDOW:
+        {
+          acc->data[c] = g_new0 (WinAvgData, acc->channels);
+          acc->data_saved[c] = g_new0 (Fraction, acc->channels);
+          guint i;
+          for (i = 0; i < 3; i++)
+            ((WinAvgData *) acc->data[c])->past_sqrts[i] = NAN;
+        }
+        break;
+      case MODE_FILTERED_MAX:
+        acc->data[c] = g_new0 (FiltMaxData, acc->channels);
+        acc->data_saved[c] = g_new0 (FiltMaxData, acc->channels);
+        break;
+    }
+}
+
 
 void
 peaq_movaccum_set_tentative (PeaqMovAccum *acc, gboolean tentative)
@@ -118,9 +204,23 @@ peaq_movaccum_set_tentative (PeaqMovAccum *acc, gboolean tentative)
     if (acc->status == STATUS_NORMAL) {
       /* transition to tentative status */
       guint i;
-      for (i = 0; i < 2; i++) {
-        acc->num_saved[i] = acc->num[i];
-        acc->den_saved[i] = acc->den[i];
+      for (i = 0; i < acc->channels; i++) {
+        switch (acc->mode) {
+          case MODE_AVG:
+          case MODE_AVG_LOG:
+          case MODE_RMS:
+          case MODE_ADB:
+          case MODE_AVG_WINDOW:
+            ((Fraction *) acc->data_saved[i])->num =
+              ((Fraction *) acc->data[i])->num;
+            ((Fraction *) acc->data_saved[i])->den =
+              ((Fraction *) acc->data[i])->den;
+            break;
+          case MODE_FILTERED_MAX:
+            ((FiltMaxData *) acc->data_saved[i])->max =
+              ((FiltMaxData *) acc->data[i])->max;
+            break;
+        }
       }
       acc->status = STATUS_TENTATIVE;
     }
@@ -136,40 +236,44 @@ peaq_movaccum_accumulate (PeaqMovAccum *acc, guint c, gdouble val)
     return;
   switch (acc->mode) {
     case MODE_RMS:
-      acc->num[c] += val * val;
-      acc->den[c] += 1.;
+      ((Fraction *)acc->data[c])->num += val * val;
+      ((Fraction *)acc->data[c])->den += 1.;
       break;
     case MODE_AVG:
     case MODE_AVG_LOG:
     case MODE_ADB:
-      acc->num[c] += val;
-      acc->den[c] += 1.;
+      ((Fraction *)acc->data[c])->num += val;
+      ((Fraction *)acc->data[c])->den += 1.;
       break;
     case MODE_AVG_WINDOW:
       {
         guint i;
         gdouble val_sqrt = sqrt (val);
-        if (!isnan (acc->past_sqrts[c][0])) {
+        if (!isnan (((WinAvgData *) acc->data[c])->past_sqrts[0])) {
           gdouble winsum = val_sqrt;
           for (i = 0; i < 3; i++) {
-            winsum += acc->past_sqrts[c][i];
+            winsum += ((WinAvgData *) acc->data[c])->past_sqrts[i];
           }
           winsum /= 4.;
           winsum *= winsum;
           winsum *= winsum;
-          acc->num[c] += winsum;
-          acc->den[c] += 1.;
+          ((Fraction *) acc->data[c])->num += winsum;
+          ((Fraction *) acc->data[c])->den += 1.;
         }
         for (i = 0; i < 2; i++) {
-          acc->past_sqrts[c][i] = acc->past_sqrts[c][i + 1];
+          ((WinAvgData *) acc->data[c])->past_sqrts[i] =
+            ((WinAvgData *) acc->data[c])->past_sqrts[i + 1];
         }
-        acc->past_sqrts[c][2] = val_sqrt;
+        ((WinAvgData *) acc->data[c])->past_sqrts[2] = val_sqrt;
       }
       break;
     case MODE_FILTERED_MAX:
-      acc->den[c] = 0.9 * acc->den[c] + 0.1 * val;
-      if (acc->den[c] > acc->num[c])
-        acc->num[c] = acc->den[c];
+      {
+        FiltMaxData *filt_data = (FiltMaxData *) acc->data[c];
+        filt_data->filt_state = 0.9 * filt_data->filt_state + 0.1 * val;
+        if (filt_data->filt_state > filt_data->max)
+          filt_data->max = filt_data->filt_state;
+      }
       break;
   }
 }
@@ -183,12 +287,12 @@ peaq_movaccum_accumulate_weighted (PeaqMovAccum *acc, guint c, gdouble val,
   switch (acc->mode) {
     case MODE_RMS:
       weight *= weight;
-      acc->num[c] += val * val * weight;
-      acc->den[c] += weight;
+      ((Fraction *)acc->data[c])->num += weight * val * val;
+      ((Fraction *)acc->data[c])->den += weight;
       break;
     case MODE_AVG:
-      acc->num[c] += weight * val;
-      acc->den[c] += weight;
+      ((Fraction *)acc->data[c])->num += weight * val;
+      ((Fraction *)acc->data[c])->den += weight;
       break;
     case MODE_AVG_LOG:
     case MODE_ADB:
@@ -200,40 +304,42 @@ peaq_movaccum_accumulate_weighted (PeaqMovAccum *acc, guint c, gdouble val,
 }
 
 gdouble
-peaq_movaccum_get_value (PeaqMovAccum const *acc, guint channels)
+peaq_movaccum_get_value (PeaqMovAccum const *acc)
 {
-  gdouble const *num;
-  gdouble const *den;
+  gpointer *data;
   gdouble value = 0.;
   guint c;
   if (acc->status == STATUS_TENTATIVE) {
-    num = acc->num_saved;
-    den = acc->den_saved;
+    data = acc->data_saved;
   } else {
-    num = acc->num;
-    den = acc->den;
+    data = acc->data;
   }
-  for (c = 0; c < channels; c++) {
+  for (c = 0; c < acc->channels; c++) {
     switch (acc->mode) {
       case MODE_AVG:
-        value += num[c] / den[c];
+        value += ((Fraction *) data[c])->num / ((Fraction *) data[c])->den;
         break;
       case MODE_AVG_LOG:
-        value += 10. * log10 (num[c] / den[c]);
+        value += 10. * log10 (((Fraction *) data[c])->num /
+                              ((Fraction *) data[c])->den);
         break;
       case MODE_AVG_WINDOW:
       case MODE_RMS:
-        value += sqrt (num[c] / den[c]);
+        value += sqrt (((Fraction *) data[c])->num /
+                       ((Fraction *) data[c])->den);
         break;
       case MODE_FILTERED_MAX:
-        value += num[c];
+        value += ((FiltMaxData *) data[c])->max;
         break;
       case MODE_ADB:
-        if (den[c] > 0)
-          value += num[c] == 0. ? -0.5 : log10 (num[c] / den[c]);
+        if (((Fraction *) data[c])->den > 0)
+          value += ((Fraction *) data[c])->num == 0. ?
+            -0.5 :
+            log10 (((Fraction *) data[c])->num / ((Fraction *) data[c])->den);
         break;
     }
   }
-  value /= channels;
+  if (acc->mode != MODE_FILTERED_MAX && acc->mode != MODE_ADB)
+    value /= acc->channels;
   return value;
 }

@@ -581,6 +581,26 @@ pads_buffer (GstCollectPads2 *pads, GstCollectData2 *data, GstBuffer *buffer,
   GstPeaq *peaq;
 
   peaq = GST_PEAQ (user_data);
+  GstElement *element = GST_ELEMENT (user_data);
+
+  if (element->pending_state != GST_STATE_VOID_PENDING) {
+    element->current_state = element->pending_state;
+    element->pending_state = GST_STATE_VOID_PENDING;
+
+    peaq_movaccum_set_channels (peaq->ref_bandwidth_accum, peaq->channels);
+    peaq_movaccum_set_channels (peaq->test_bandwidth_accum, peaq->channels);
+    peaq_movaccum_set_channels (peaq->nmr_accum, peaq->channels);
+    peaq_movaccum_set_channels (peaq->mod_diff_1_accum, peaq->channels);
+    peaq_movaccum_set_channels (peaq->mod_diff_2_accum, peaq->channels);
+    peaq_movaccum_set_channels (peaq->win_mod_diff_accum, peaq->channels);
+    peaq_movaccum_set_channels (peaq->noise_loud_accum, peaq->channels);
+    peaq_movaccum_set_channels (peaq->missing_comp_accum, peaq->channels);
+    peaq_movaccum_set_channels (peaq->lin_dist_accum, peaq->channels);
+    peaq_movaccum_set_channels (peaq->ehs_accum, peaq->channels);
+    peaq_movaccum_set_channels (peaq->dist_frame_accum, peaq->channels);
+    peaq_movaccum_set_channels (peaq->prob_detect_accum, peaq->channels);
+    peaq_movaccum_set_channels (peaq->detect_steps_accum, peaq->channels);
+  }
 
   if (buffer == NULL) {
     gst_element_post_message (GST_ELEMENT_CAST (peaq),
@@ -721,7 +741,22 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
       break;
   }
 
-  return GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
+  if (GST_ELEMENT_CLASS (parent_class)->change_state (element, transition) ==
+      GST_STATE_CHANGE_FAILURE) {
+    return GST_STATE_CHANGE_FAILURE;
+  }
+
+  switch (transition) {
+    case GST_STATE_CHANGE_READY_TO_PAUSED:
+      return GST_STATE_CHANGE_ASYNC;
+    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+      if (peaq->channels == 0)
+        return GST_STATE_CHANGE_ASYNC;
+    default:
+      break;
+  }
+
+  return GST_STATE_CHANGE_SUCCESS;
 }
 
 static void
@@ -1424,21 +1459,20 @@ static double
 gst_peaq_calculate_di (GstPeaq * peaq)
 {
   guint i;
-  gint channels = peaq->channels;
   gdouble movs[11];
   gdouble x[3];
   gdouble distortion_index;
-  movs[0] = peaq_movaccum_get_value (peaq->ref_bandwidth_accum, channels);
-  movs[1] = peaq_movaccum_get_value (peaq->test_bandwidth_accum, channels);
-  movs[2] = peaq_movaccum_get_value (peaq->nmr_accum, channels);
-  movs[3] = peaq_movaccum_get_value (peaq->win_mod_diff_accum, channels);
-  movs[4] = peaq_movaccum_get_value (peaq->detect_steps_accum, 1);
-  movs[5] = 1000. * peaq_movaccum_get_value (peaq->ehs_accum, channels);
-  movs[6] = peaq_movaccum_get_value (peaq->mod_diff_1_accum, channels);
-  movs[7] = peaq_movaccum_get_value (peaq->mod_diff_2_accum, channels);
-  movs[8] = peaq_movaccum_get_value (peaq->noise_loud_accum, channels);
-  movs[9] = peaq_movaccum_get_value (peaq->prob_detect_accum, 1);
-  movs[10] = peaq_movaccum_get_value (peaq->dist_frame_accum, channels);
+  movs[0] = peaq_movaccum_get_value (peaq->ref_bandwidth_accum);
+  movs[1] = peaq_movaccum_get_value (peaq->test_bandwidth_accum);
+  movs[2] = peaq_movaccum_get_value (peaq->nmr_accum);
+  movs[3] = peaq_movaccum_get_value (peaq->win_mod_diff_accum);
+  movs[4] = peaq_movaccum_get_value (peaq->detect_steps_accum);
+  movs[5] = 1000. * peaq_movaccum_get_value (peaq->ehs_accum);
+  movs[6] = peaq_movaccum_get_value (peaq->mod_diff_1_accum);
+  movs[7] = peaq_movaccum_get_value (peaq->mod_diff_2_accum);
+  movs[8] = peaq_movaccum_get_value (peaq->noise_loud_accum);
+  movs[9] = peaq_movaccum_get_value (peaq->prob_detect_accum);
+  movs[10] = peaq_movaccum_get_value (peaq->dist_frame_accum);
   for (i = 0; i < 3; i++)
     x[i] = 0;
   for (i = 0; i <= 10; i++) {
@@ -1483,7 +1517,6 @@ static double
 gst_peaq_calculate_di_advanced (GstPeaq *peaq)
 {
   guint i;
-  gint channels = peaq->channels;
   gdouble x[5];
   gdouble movs[5];
 
@@ -1492,13 +1525,13 @@ gst_peaq_calculate_di_advanced (GstPeaq *peaq)
                                           (PEAQ_EARMODEL(peaq->ref_ear_fb[0])));
   gdouble distortion_index;
   movs[0] = sqrt (band_count) *
-    peaq_movaccum_get_value (peaq->mod_diff_1_accum, channels);
+    peaq_movaccum_get_value (peaq->mod_diff_1_accum);
   movs[1] =
-    peaq_movaccum_get_value (peaq->noise_loud_accum, channels) +
-    0.5 * peaq_movaccum_get_value (peaq->missing_comp_accum, channels);
-  movs[2] = peaq_movaccum_get_value (peaq->nmr_accum, channels);
-  movs[3] = 1000. * peaq_movaccum_get_value (peaq->ehs_accum, channels);
-  movs[4] = peaq_movaccum_get_value (peaq->lin_dist_accum, channels);
+    peaq_movaccum_get_value (peaq->noise_loud_accum) +
+    0.5 * peaq_movaccum_get_value (peaq->missing_comp_accum);
+  movs[2] = peaq_movaccum_get_value (peaq->nmr_accum);
+  movs[3] = 1000. * peaq_movaccum_get_value (peaq->ehs_accum);
+  movs[4] = peaq_movaccum_get_value (peaq->lin_dist_accum);
   for (i = 0; i < 5; i++)
     x[i] = 0;
   for (i = 0; i <= 4; i++) {
