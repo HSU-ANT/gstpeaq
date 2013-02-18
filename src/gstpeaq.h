@@ -82,8 +82,8 @@ struct _GstPeaq
   guint loudness_reached_frame;
   PeaqFFTEarModel *ref_ear[2];
   PeaqFFTEarModel *test_ear[2];
-  PeaqFilterbankEarModel *ref_ear_fb;
-  PeaqFilterbankEarModel *test_ear_fb;
+  PeaqFilterbankEarModel *ref_ear_fb[2];
+  PeaqFilterbankEarModel *test_ear_fb[2];
   PeaqLevelAdapter *level_adapter[2];
   PeaqModulationProcessor *ref_modulation_processor[2];
   PeaqModulationProcessor *test_modulation_processor[2];

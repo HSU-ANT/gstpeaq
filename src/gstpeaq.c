@@ -335,8 +335,10 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   model_params =
     peaq_earmodel_get_model_params (PEAQ_EARMODEL (peaq->ref_ear[0]));
 
-  peaq->ref_ear_fb = NULL;
-  peaq->test_ear_fb = NULL;
+  peaq->ref_ear_fb[0] = NULL;
+  peaq->ref_ear_fb[1] = NULL;
+  peaq->test_ear_fb[0] = NULL;
+  peaq->test_ear_fb[1] = NULL;
   peaq->masking_difference = NULL;
   peaq->level_adapter[0] = peaq_leveladapter_new (model_params);
   peaq->level_adapter[1] = peaq_leveladapter_new (model_params);
@@ -474,24 +476,38 @@ gst_peaq_set_property (GObject * obj, guint id, const GValue * value,
         g_object_set (peaq->test_ear[0], "number-of-bands", band_count, NULL);
         g_object_set (peaq->test_ear[1], "number-of-bands", band_count, NULL);
         if (peaq->advanced) {
-          if (peaq->ref_ear_fb == NULL)
-            peaq->ref_ear_fb = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL,
-                                             NULL);
-          if (peaq->test_ear_fb == NULL)
-            peaq->test_ear_fb = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL,
-                                              NULL);
+          if (peaq->ref_ear_fb[0] == NULL)
+            peaq->ref_ear_fb[0] = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL,
+                                                NULL);
+          if (peaq->ref_ear_fb[1] == NULL)
+            peaq->ref_ear_fb[1] = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL,
+                                                NULL);
+          if (peaq->test_ear_fb[0] == NULL)
+            peaq->test_ear_fb[0] = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL,
+                                                 NULL);
+          if (peaq->test_ear_fb[1] == NULL)
+            peaq->test_ear_fb[1] = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL,
+                                                 NULL);
           peaq_movaccum_set_mode (peaq->nmr_accum, MODE_AVG);
           peaq_movaccum_set_mode (peaq->mod_diff_1_accum, MODE_RMS);
           model_params =
-            peaq_earmodel_get_model_params (PEAQ_EARMODEL(peaq->ref_ear_fb));
+            peaq_earmodel_get_model_params (PEAQ_EARMODEL(peaq->ref_ear_fb[0]));
         } else {
-          if (peaq->ref_ear_fb) {
-            g_object_unref (peaq->ref_ear_fb);
-            peaq->ref_ear_fb = NULL;
+          if (peaq->ref_ear_fb[0]) {
+            g_object_unref (peaq->ref_ear_fb[0]);
+            peaq->ref_ear_fb[0] = NULL;
           }
-          if (peaq->test_ear_fb) {
-            g_object_unref (peaq->test_ear_fb);
-            peaq->test_ear_fb = NULL;
+          if (peaq->ref_ear_fb[1]) {
+            g_object_unref (peaq->ref_ear_fb[1]);
+            peaq->ref_ear_fb[1] = NULL;
+          }
+          if (peaq->test_ear_fb[0]) {
+            g_object_unref (peaq->test_ear_fb[0]);
+            peaq->test_ear_fb[0] = NULL;
+          }
+          if (peaq->test_ear_fb[1]) {
+            g_object_unref (peaq->test_ear_fb[1]);
+            peaq->test_ear_fb[1] = NULL;
           }
           peaq_movaccum_set_mode (peaq->nmr_accum, MODE_AVG_LOG);
           peaq_movaccum_set_mode (peaq->mod_diff_1_accum, MODE_AVG);
@@ -1032,7 +1048,7 @@ gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
   guint c;
   gint channels = peaq->channels;
   PeaqEarModelParams *ear_params =
-    peaq_earmodel_get_model_params(PEAQ_EARMODEL(peaq->ref_ear_fb));
+    peaq_earmodel_get_model_params(PEAQ_EARMODEL(peaq->ref_ear_fb[0]));
   guint band_count = peaq_earmodelparams_get_band_count (ear_params);
 
   gboolean above_thres = is_frame_above_threshold (refdata, FB_FRAMESIZE,
@@ -1073,9 +1089,9 @@ gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
       refdata_c = refdata;
       testdata_c = testdata;
     }
-    peaq_filterbankearmodel_process (peaq->ref_ear_fb, refdata_c,
+    peaq_filterbankearmodel_process (peaq->ref_ear_fb[c], refdata_c,
                                      &ref_ear_output);
-    peaq_filterbankearmodel_process (peaq->test_ear_fb, testdata_c,
+    peaq_filterbankearmodel_process (peaq->test_ear_fb[c], testdata_c,
                                      &test_ear_output);
 
     level_output.spectrally_adapted_ref_patterns =
@@ -1473,7 +1489,7 @@ gst_peaq_calculate_di_advanced (GstPeaq *peaq)
 
   guint band_count
     = peaq_earmodelparams_get_band_count (peaq_earmodel_get_model_params
-                                          (PEAQ_EARMODEL(peaq->ref_ear_fb)));
+                                          (PEAQ_EARMODEL(peaq->ref_ear_fb[0])));
   gdouble distortion_index;
   movs[0] = sqrt (band_count) *
     peaq_movaccum_get_value (peaq->mod_diff_1_accum, channels);
