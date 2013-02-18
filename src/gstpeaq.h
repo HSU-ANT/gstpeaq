@@ -30,7 +30,7 @@
 #include "movaccum.h"
 
 #include <gst/gst.h>
-#include <gst/base/gstcollectpads.h>
+#include <gst/base/gstcollectpads2.h>
 #include <gst/base/gstadapter.h>
 #include <gst/fft/gstfftf64.h>
 
@@ -65,7 +65,7 @@ struct _GstPeaq
   GstElement element;
   GstPad *refpad;
   GstPad *testpad;
-  GstCollectPads *collect;
+  GstCollectPads2 *collect;
   GstAdapter *ref_adapter_fft;
   GstAdapter *test_adapter_fft;
   GstAdapter *ref_adapter_fb;

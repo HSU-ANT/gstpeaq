@@ -134,8 +134,8 @@ static void gst_peaq_set_property (GObject * obj, guint id,
 				   const GValue * value, GParamSpec * pspec);
 static GstCaps *get_caps (GstPad *pad);
 static gboolean set_caps (GstPad *pad, GstCaps *caps);
-static GstFlowReturn gst_peaq_collected (GstCollectPads * pads,
-					 gpointer user_data);
+static GstFlowReturn pads_buffer (GstCollectPads2 *pads, GstCollectData2 *data,
+                                  GstBuffer *buffer, gpointer user_data);
 static GstStateChangeReturn gst_peaq_change_state (GstElement * element,
 						   GstStateChange transition);
 static void gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
@@ -290,8 +290,8 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   GstPadTemplate *template;
   PeaqEarModelParams *model_params;
 
-  peaq->collect = gst_collect_pads_new ();
-  gst_collect_pads_set_function (peaq->collect, gst_peaq_collected, peaq);
+  peaq->collect = gst_collect_pads2_new ();
+  gst_collect_pads2_set_buffer_function (peaq->collect, pads_buffer, peaq);
 
   peaq->ref_adapter_fft = gst_adapter_new ();
   peaq->test_adapter_fft = gst_adapter_new ();
@@ -305,8 +305,8 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   template = gst_static_pad_template_get (&gst_peaq_ref_template);
   peaq->refpad = gst_pad_new_from_template (template, "ref");
   gst_object_unref (template);
-  gst_collect_pads_add_pad (peaq->collect, peaq->refpad,
-                            sizeof (GstCollectData));
+  gst_collect_pads2_add_pad (peaq->collect, peaq->refpad,
+                             sizeof (GstCollectData2));
   gst_pad_set_setcaps_function (peaq->refpad, set_caps);
   gst_pad_set_getcaps_function (peaq->refpad, get_caps);
   gst_element_add_pad (GST_ELEMENT (peaq), peaq->refpad);
@@ -314,8 +314,8 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   template = gst_static_pad_template_get (&gst_peaq_test_template);
   peaq->testpad = gst_pad_new_from_template (template, "test");
   gst_object_unref (template);
-  gst_collect_pads_add_pad (peaq->collect, peaq->testpad,
-                            sizeof (GstCollectData));
+  gst_collect_pads2_add_pad (peaq->collect, peaq->testpad,
+                             sizeof (GstCollectData2));
   gst_pad_set_setcaps_function (peaq->testpad, set_caps);
   gst_pad_set_getcaps_function (peaq->testpad, get_caps);
   gst_element_add_pad (GST_ELEMENT (peaq), peaq->testpad);
@@ -559,43 +559,35 @@ set_caps (GstPad *pad, GstCaps *caps)
 
 
 static GstFlowReturn
-gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
+pads_buffer (GstCollectPads2 *pads, GstCollectData2 *data, GstBuffer *buffer,
+             gpointer user_data)
 {
   GstPeaq *peaq;
-  GSList *collected;
-  gboolean data_received;
 
   peaq = GST_PEAQ (user_data);
 
-  data_received = FALSE;
-  for (collected = pads->data; collected;
-       collected = g_slist_next (collected)) {
-    GstBuffer *buf;
-    GstCollectData *data;
+  if (buffer == NULL) {
+    gst_element_post_message (GST_ELEMENT_CAST (peaq),
+                              gst_message_new_eos (GST_OBJECT_CAST (peaq)));
+    return GST_FLOW_OK;
+  }
 
-    data = (GstCollectData *) collected->data;
-    buf = gst_collect_pads_pop (pads, data);
-    while (buf != NULL) {
-      if (buf->caps != NULL) {
-        gint channels;
-        gst_structure_get_int (gst_caps_get_structure (buf->caps, 0),
-                               "channels", &channels);
-        if (channels != peaq->channels || peaq->channels == 0) {
-          return GST_FLOW_NOT_NEGOTIATED;
-        }
-      }
-      data_received = TRUE;
-      if (data->pad == peaq->refpad) {
-        if (peaq->advanced)
-          gst_adapter_push (peaq->ref_adapter_fb, gst_buffer_copy (buf));
-	gst_adapter_push (peaq->ref_adapter_fft, buf);
-      } else if (data->pad == peaq->testpad) {
-        if (peaq->advanced)
-          gst_adapter_push (peaq->test_adapter_fb, gst_buffer_copy (buf));
-	gst_adapter_push (peaq->test_adapter_fft, buf);
-      }
-      buf = gst_collect_pads_pop (pads, data);
+  if (buffer->caps != NULL) {
+    gint channels;
+    gst_structure_get_int (gst_caps_get_structure (buffer->caps, 0),
+                           "channels", &channels);
+    if (channels != peaq->channels || peaq->channels == 0) {
+      return GST_FLOW_NOT_NEGOTIATED;
     }
+  }
+  if (data->pad == peaq->refpad) {
+    if (peaq->advanced)
+      gst_adapter_push (peaq->ref_adapter_fb, gst_buffer_copy (buffer));
+    gst_adapter_push (peaq->ref_adapter_fft, buffer);
+  } else if (data->pad == peaq->testpad) {
+    if (peaq->advanced)
+      gst_adapter_push (peaq->test_adapter_fb, gst_buffer_copy (buffer));
+    gst_adapter_push (peaq->test_adapter_fft, buffer);
   }
 
   while (gst_adapter_available (peaq->ref_adapter_fft) >=
@@ -647,11 +639,6 @@ gst_peaq_collected (GstCollectPads * pads, gpointer user_data)
     }
   }
 
-  if (!data_received) {
-    gst_element_post_message (GST_ELEMENT_CAST (peaq),
-			      gst_message_new_eos (GST_OBJECT_CAST (peaq)));
-  }
-
   return GST_FLOW_OK;
 }
 
@@ -667,14 +654,14 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
     case GST_STATE_CHANGE_NULL_TO_READY:
       break;
     case GST_STATE_CHANGE_READY_TO_PAUSED:
-      gst_collect_pads_start (peaq->collect);
+      gst_collect_pads2_start (peaq->collect);
       break;
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
       /* need to unblock the collectpads before calling the
        * parent change_state so that streaming can finish */
-      gst_collect_pads_stop (peaq->collect);
+      gst_collect_pads2_stop (peaq->collect);
 
       // TODO: do something similar for the filter bank adapters
       ref_data_left_count = gst_adapter_available (peaq->ref_adapter_fft);
