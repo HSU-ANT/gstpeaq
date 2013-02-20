@@ -727,6 +727,38 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
 	gst_adapter_flush (peaq->test_adapter_fft, test_data_count);
       }
 
+      if (peaq->advanced) {
+        ref_data_left_count = gst_adapter_available (peaq->ref_adapter_fb);
+        test_data_left_count = gst_adapter_available (peaq->test_adapter_fb);
+        if (ref_data_left_count || test_data_left_count) {
+          gfloat *padded_ref_frame =
+            g_newa (gfloat, peaq->channels * FB_FRAMESIZE);
+          gfloat *padded_test_frame =
+            g_newa (gfloat, peaq->channels * FB_FRAMESIZE);
+          guint ref_data_count =
+            MIN (ref_data_left_count, peaq->channels * FB_BLOCKSIZE_BYTES);
+          guint test_data_count =
+            MIN (test_data_left_count, peaq->channels * FB_BLOCKSIZE_BYTES);
+          gfloat *refframe = (gfloat *) gst_adapter_peek (peaq->ref_adapter_fb,
+                                                          ref_data_count);
+          gfloat *testframe = (gfloat *) gst_adapter_peek (peaq->test_adapter_fb,
+                                                           test_data_count);
+          g_memmove (padded_ref_frame, refframe, ref_data_count);
+          memset (((char *) padded_ref_frame) + ref_data_count, 0,
+                  peaq->channels * FB_BLOCKSIZE_BYTES - ref_data_count);
+          g_memmove (padded_test_frame, testframe, test_data_count);
+          memset (((char *) padded_test_frame) + test_data_count, 0,
+                  peaq->channels * FB_BLOCKSIZE_BYTES - test_data_count);
+          gst_peaq_process_fb_block (peaq, padded_ref_frame, padded_test_frame);
+          g_assert (gst_adapter_available (peaq->ref_adapter_fb) >= 
+                    ref_data_count);
+          gst_adapter_flush (peaq->ref_adapter_fb, ref_data_count);
+          g_assert (gst_adapter_available (peaq->test_adapter_fb) >= 
+                    test_data_count);
+          gst_adapter_flush (peaq->test_adapter_fb, test_data_count);
+        }
+      }
+
       gst_peaq_calculate_odg (peaq);
       break;
     default:
