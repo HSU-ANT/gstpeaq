@@ -60,6 +60,31 @@ typedef struct _GstPeaqAggregatedDataFFTBasic GstPeaqAggregatedDataFFTBasic;
 typedef struct _GstPeaqAggregatedDataFFTAdvanced GstPeaqAggregatedDataFFTAdvanced;
 typedef struct _GstPeaqAggregatedDataFB GstPeaqAggregatedDataFB;
 
+enum _MovBasic {
+  MOVBASIC_BANDWIDTH_REF,
+  MOVBASIC_BANDWIDTH_TEST,
+  MOVBASIC_TOTAL_NMR,
+  MOVBASIC_WIN_MOD_DIFF,
+  MOVBASIC_ADB,
+  MOVBASIC_EHS,
+  MOVBASIC_AVG_MOD_DIFF_1,
+  MOVBASIC_AVG_MOD_DIFF_2,
+  MOVBASIC_RMS_NOISE_LOUD,
+  MOVBASIC_MFPD,
+  MOVBASIC_REL_DIST_FRAMES,
+  COUNT_MOV_BASIC
+};
+
+enum _MovAdvanced {
+  MOVADV_RMS_MOD_DIFF,
+  MOVADV_RMS_NOISE_LOUD_ASYM,
+  MOVADV_SEGMENTAL_NMR,
+  MOVADV_EHS,
+  MOVADV_AVG_LIN_DIST,
+  MOVADVEXTRA_NOISE_LOUD,
+  MOVADVEXTRA_MISSING_COMPONENTS
+};
+
 struct _GstPeaq
 {
   GstElement element;
@@ -87,19 +112,7 @@ struct _GstPeaq
   PeaqLevelAdapter *level_adapter[2];
   PeaqModulationProcessor *ref_modulation_processor[2];
   PeaqModulationProcessor *test_modulation_processor[2];
-  PeaqMovAccum *ref_bandwidth_accum;
-  PeaqMovAccum *test_bandwidth_accum;
-  PeaqMovAccum *nmr_accum;
-  PeaqMovAccum *mod_diff_1_accum;
-  PeaqMovAccum *mod_diff_2_accum;
-  PeaqMovAccum *win_mod_diff_accum;
-  PeaqMovAccum *noise_loud_accum;
-  PeaqMovAccum *missing_comp_accum;
-  PeaqMovAccum *lin_dist_accum;
-  PeaqMovAccum *ehs_accum;
-  PeaqMovAccum *dist_frame_accum;
-  PeaqMovAccum *prob_detect_accum;
-  PeaqMovAccum *detect_steps_accum;
+  PeaqMovAccum *mov_accum[COUNT_MOV_BASIC];
   gdouble total_signal_energy;
   gdouble total_noise_energy;
 };
