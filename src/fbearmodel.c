@@ -156,7 +156,7 @@ init (GTypeInstance *obj, gpointer klass)
     /* include outer and middle ear filtering in filter bank coefficients */
     gdouble W =
       -0.6 * 3.64 * pow (fc / 1000., -0.8) +
-      6.5 * exp (-6.5 * pow (fc / 1000.0 - 3.3, 2)) -
+      6.5 * exp (-0.6 * pow (fc / 1000.0 - 3.3, 2)) -
       1e-3 * pow (fc / 1000., 3.6);
     gdouble Wt = pow (10., W / 20.);
     model->fbh_re[band] = g_new (gdouble, N);
