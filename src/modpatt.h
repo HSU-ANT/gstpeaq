@@ -51,10 +51,10 @@ typedef struct _PeaqModulationProcessorClass PeaqModulationProcessorClass;
 typedef struct _PeaqModulationProcessor PeaqModulationProcessor;
 
 GType peaq_modulationprocessor_get_type ();
-PeaqModulationProcessor *peaq_modulationprocessor_new (PeaqEarModelParams *ear_params);
+PeaqModulationProcessor *peaq_modulationprocessor_new (PeaqEarModel *ear_params);
 void peaq_modulationprocessor_set_ear_model_params (PeaqModulationProcessor *modproc,
-                                                    PeaqEarModelParams *ear_params);
+                                                    PeaqEarModel *ear_params);
 void peaq_modulationprocessor_process (PeaqModulationProcessor * level,
-				       gdouble * unsmeared_exciation,
+				       gdouble const* unsmeared_exciation,
 				       ModulationProcessorOutput * output);
 #endif

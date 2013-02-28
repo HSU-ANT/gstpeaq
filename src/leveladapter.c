@@ -36,7 +36,7 @@ struct _PeaqLevelAdapterClass
 struct _PeaqLevelAdapter
 {
   GObjectClass parent;
-  PeaqEarModelParams *ear_params;
+  PeaqEarModel *ear_params;
   gdouble *ear_time_constants;
   gdouble *ref_filtered_excitation;
   gdouble *test_filtered_excitation;
@@ -68,13 +68,13 @@ peaq_leveladapter_get_type ()
       peaq_leveladapter_init	/* instance_init */
     };
     type = g_type_register_static (G_TYPE_OBJECT,
-				   "GstPeaqLevelAdapter", &info, 0);
+				   "PeaqLevelAdapter", &info, 0);
   }
   return type;
 }
 
 PeaqLevelAdapter *
-peaq_leveladapter_new (PeaqEarModelParams *ear_params)
+peaq_leveladapter_new (PeaqEarModel *ear_params)
 {
   PeaqLevelAdapter *level = g_object_new (PEAQ_TYPE_LEVELADAPTER, NULL);
   peaq_leveladapter_set_ear_model_params (level, ear_params);
@@ -124,7 +124,7 @@ peaq_leveladapter_finalize (GObject * obj)
 
 void
 peaq_leveladapter_set_ear_model_params (PeaqLevelAdapter *level,
-                                        PeaqEarModelParams *ear_params)
+                                        PeaqEarModel *ear_params)
 {
   guint band_count, k;
 
@@ -141,7 +141,7 @@ peaq_leveladapter_set_ear_model_params (PeaqLevelAdapter *level,
   g_object_ref (ear_params);
   level->ear_params = ear_params;
 
-  band_count = peaq_earmodelparams_get_band_count (ear_params);
+  band_count = peaq_earmodel_get_band_count (ear_params);
 
   level->ref_filtered_excitation = g_new0 (gdouble, band_count);
   level->test_filtered_excitation = g_new0 (gdouble, band_count);
@@ -155,10 +155,10 @@ peaq_leveladapter_set_ear_model_params (PeaqLevelAdapter *level,
   for (k = 0; k < band_count; k++) {
     gdouble tau;
     gdouble curr_fc;
-    curr_fc = peaq_earmodelparams_get_band_center_frequency (ear_params, k);
+    curr_fc = peaq_earmodel_get_band_center_frequency (ear_params, k);
     tau = 0.008 + 100 / curr_fc * (0.05 - 0.008);
     level->ear_time_constants[k] =
-      exp (-(gdouble) peaq_earmodelparams_get_step_size (ear_params)
+      exp (-(gdouble) peaq_earmodel_get_step_size (ear_params)
            / (SAMPLINGRATE * tau));
   }
 #if 0
@@ -184,7 +184,7 @@ peaq_leveladapter_process (PeaqLevelAdapter * level, gdouble * ref_exciation,
   gdouble *levcorr_test_excitation;
   gdouble *pattadapt_ref;
   gdouble *pattadapt_test;
-  band_count = peaq_earmodelparams_get_band_count (level->ear_params);
+  band_count = peaq_earmodel_get_band_count (level->ear_params);
   pattadapt_ref = g_newa (gdouble, band_count);
   pattadapt_test = g_newa (gdouble, band_count);
   levcorr_ref_excitation = g_newa (gdouble, band_count);

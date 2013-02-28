@@ -105,10 +105,12 @@ struct _GstPeaq
   guint frame_counter;
   guint frame_counter_fb;
   guint loudness_reached_frame;
-  PeaqFFTEarModel *ref_ear[2];
-  PeaqFFTEarModel *test_ear[2];
-  PeaqFilterbankEarModel *ref_ear_fb[2];
-  PeaqFilterbankEarModel *test_ear_fb[2];
+  PeaqEarModel *fft_ear_model;
+  gpointer ref_fft_ear_state[2];
+  gpointer test_fft_ear_state[2];
+  PeaqEarModel *fb_ear_model;
+  gpointer ref_fb_ear_state[2];
+  gpointer test_fb_ear_state[2];
   PeaqLevelAdapter *level_adapter[2];
   PeaqModulationProcessor *ref_modulation_processor[2];
   PeaqModulationProcessor *test_modulation_processor[2];

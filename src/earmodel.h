@@ -25,67 +25,23 @@
 
 #include <glib-object.h>
 
-#define PEAQ_TYPE_EARMODELPARAMS (peaq_earmodelparams_get_type ())
-#define PEAQ_EARMODELPARAMS(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST (obj, PEAQ_TYPE_EARMODELPARAMS, \
-                               PeaqEarModelParams))
-#define PEAQ_EARMODELPARAMS_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST (klass, PEAQ_TYPE_EARMODELPARAMS, \
-                            PeaqEarModelParamsClass))
-#define PEAQ_EARMODELPARAMS_GET_CLASS(obj) \
-  (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_EARMODELPARAMS, \
-                              PeaqEarModelParamsClass))
-
 #define PEAQ_TYPE_EARMODEL (peaq_earmodel_get_type ())
 #define PEAQ_EARMODEL(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST (obj, PEAQ_TYPE_EARMODEL, PeaqEarModel))
-
-/**
- * FRAMESIZE:
- *
- * The length (in samples) of a frame to be processed by 
- * peaq_earmodel_process().
- */
+  (G_TYPE_CHECK_INSTANCE_CAST (obj, PEAQ_TYPE_EARMODEL, \
+                               PeaqEarModel))
+#define PEAQ_EARMODEL_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST (klass, PEAQ_TYPE_EARMODEL, \
+                            PeaqEarModelClass))
+#define PEAQ_EARMODEL_GET_CLASS(obj) \
+  (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_EARMODEL, \
+                              PeaqEarModelClass))
 
 typedef struct _PeaqEarModelClass PeaqEarModelClass;
 typedef struct _PeaqEarModel PeaqEarModel;
-
-typedef struct _PeaqEarModelParamsClass PeaqEarModelParamsClass;
-typedef struct _PeaqEarModelParams PeaqEarModelParams;
 typedef struct _EarModelOutput EarModelOutput;
 
 /**
  * EarModelOutput:
- * @power_spectrum: The power spectrum of the frame, up to half the sampling 
- * rate (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- * <msubsup><mi>G</mi><mi>L</mi><mn>2</mn></msubsup>
- * <mo>&InvisibleTimes;</mo>
- * <msup>
- *   <mfenced open="|" close="|"><mrow>
- *     <mi>X</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
- *   </mrow></mfenced>
- *   <mn>2</mn>
- * </msup>
- * </math></inlineequation>
- * in <xref linkend="Kabal03" />).
- * @weighted_power_spectrum: The power spectrum weighted with the outer ear
- * weighting function 
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- * <msup>
- *   <mfenced open="|" close="|"><mrow>
- *     <msub><mi>X</mi><mi>w</mi></msub>
- *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *   </mrow></mfenced>
- *   <mn>2</mn>
- * </msup>
- * </math></inlineequation>
- * in <xref linkend="Kabal03" />).
- * @band_power: The total power in each auditory sub-band 
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>E</mi><mi>b</mi></msub>
- *   <mfenced open="[" close="]"><mi>i</mi></mfenced>
- * </math></inlineequation>
- * in <xref linkend="Kabal03" />).
  * @unsmeared_excitation: The excitation patterns after frequency spreading, 
  * but before time-domain spreading
  * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
@@ -100,13 +56,6 @@ typedef struct _EarModelOutput EarModelOutput;
  *   <mfenced open="[" close="]"><mi>i</mi></mfenced>
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
- * @overall_loudness: The overall loundness in the frame 
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>N</mi><mi>tot</mi></msub>
- * </math></inlineequation>
- * in <xref linkend="Kabal03" />). Note that the loudness computation is
- * usually not considered part of the ear model, but the code fits in nicely
- * here.
  *
  * Holds the data calculated by the ear model for one frame of audio data.
  */
@@ -114,11 +63,146 @@ struct _EarModelOutput
 {
   gdouble *unsmeared_excitation;
   gdouble *excitation;
-  gdouble overall_loudness;
 };
 
-struct _PeaqEarModelParams
+/**
+ * PeaqEarModel:
+ * @parent: The parent #GObject.
+ * @band_count: Number of frequency bands.
+ * @fc: Center frequencies of the frequency bands
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mrow>
+ *     <msub>
+ *       <mi>f</mi>
+ *       <mi>c</mi>
+ *     </msub>
+ *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   </mrow>
+ * </math></inlineequation>
+ * in <xref linkend="BS1387" /> and <xref linkend="Kabal03" />).
+ * @internal_noise: The ear internal noise per band
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mrow>
+ *     <msub>
+ *       <mi>P</mi>
+ *       <mi>Thres</mi>
+ *     </msub>
+ *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   </mrow>
+ * </math></inlineequation>
+ * in <xref linkend="BS1387" />,
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mrow>
+ *     <msub>
+ *       <mi>E</mi>
+ *       <mtext>IN</mtext>
+ *     </msub>
+ *     <mfenced open="[" close="]"><mi>i</mi></mfenced>
+ *   </mrow>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />).
+ * @ear_time_constants: The time constants for time domain spreading / forward
+ * masking
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>a</mi>
+ * </math></inlineequation>
+ * in <xref linkend="BS1387" />,
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mrow>
+ *     <mi>&alpha;</mi>
+ *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   </mrow>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />).
+ * @excitation_threshold: The excitation threshold per band
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mrow>
+ *     <msub>
+ *       <mi>E</mi>
+ *       <mi>Thres</mi>
+ *     </msub>
+ *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   </mrow>
+ * </math></inlineequation>
+ * in <xref linkend="BS1387" />,
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mrow>
+ *     <msub>
+ *       <mi>E</mi>
+ *       <mi>t</mi>
+ *     </msub>
+ *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   </mrow>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />).
+ * @threshold: The threshold index per band
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mrow>
+ *     <mi>s</mi>
+ *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   </mrow>
+ * </math></inlineequation>
+ * in <xref linkend="BS1387" /> and <xref linkend="Kabal03" />).
+ * @loudness_factor: The loudness scaling factor per band
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mrow>
+ *     <mi>const</mi>
+ *     <mo>&sdot;</mo>
+ *     <msup>
+ *       <mfenced><mrow>
+ *         <mfrac>
+ *           <mn>1</mn>
+ *           <mrow>
+ *             <mi>s</mi>
+ *             <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *           </mrow>
+ *         </mfrac>
+ *         <mo>&sdot;</mo>
+ *         <mfrac>
+ *           <mrow>
+ *             <msub><mi>E</mi><mi>Thres</mi></msub>
+ *             <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *           </mrow>
+ *           <msup><mn>10</mn><mn>4</mn></msup>
+ *         </mfrac>
+ *       </mrow></mfenced>
+ *       <mn>0.23</mn>
+ *     </msup>
+ *   </mrow>
+ * </math></inlineequation>
+ * in <xref linkend="BS1387" />,
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mrow>
+ *     <mi>c</mi>
+ *     <mo>&sdot;</mo>
+ *     <msup>
+ *       <mfenced>
+ *         <mfrac>
+ *           <mrow>
+ *             <msub><mi>E</mi><mi>t</mi></msub>
+ *             <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *           </mrow>
+ *           <mrow>
+ *             <mi>s</mi>
+ *             <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *             <msub><mi>E</mi><mn>0</mn></msub>
+ *           </mrow>
+ *         </mfrac>
+ *       </mfenced>
+ *       <mn>0.23</mn>
+ *     </msup>
+ *   </mrow>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />).
+ *
+ * The fields in #PeaqEarModel get updated when the #PeaqEarModel:band-centers
+ * property is set. Read access to them is usually safe as long as the number
+ * of bands is not changed after one of the pointers has been obtained. The
+ * data should not be written to directly, though.
+ */
+struct _PeaqEarModel
 {
+  /*< public >*/
   GObject parent;
   guint band_count;
   gdouble *fc;
@@ -129,42 +213,82 @@ struct _PeaqEarModelParams
   gdouble *loudness_factor;
 };
 
-struct _PeaqEarModelParamsClass
-{
-  GObjectClass parent;
-  gdouble loudness_scale;
-  guint step_size;
-  gdouble tau_min;
-  gdouble tau_100;
-  gdouble (*get_playback_level) (PeaqEarModelParams const *params);
-  void (*set_playback_level) (PeaqEarModelParams *params, gdouble level);
-};
-
-struct _PeaqEarModel
-{
-  GObject parent;
-  PeaqEarModelParams *params;
-};
-
+/**
+ * PeaqEarModelClass:
+ * @parent: The parent #GObjectClass.
+ * @step_size: The step size in samples to progress between successive
+ * invocations of peaq_earmodel_process_block()/@process_block.
+ * @loudness_scale: The frequency independent loudness scaling
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>const</mi>
+ * </math></inlineequation>
+ * in <xref linkend="BS1387" />,
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>c</mi>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />).
+ * @tau_min: Parameter
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub>
+ *     <mi>&tau;</mi>
+ *     <mi>min</mi>
+ *   </msub>
+ * </math></inlineequation>
+ * of the time domain spreading filter.
+ * @tau_100: Parameter
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub>
+ *     <mi>&tau;</mi>
+ *     <mn>100</mn>
+ *   </msub>
+ * </math></inlineequation>
+ * of the time domain spreading filter.
+ * @get_playback_level: Function to call when the
+ * #PeaqEarModel:playback-level property is read, has to return the current
+ * playback level in dB.
+ * @set_playback_level: Function to call when the
+ * #PeaqEarModel:playback-level property is set to do any necessary parameter
+ * adjustments.
+ * @state_alloc: Function to allocate instance state data, called by
+ * peaq_earmodel_state_alloc().
+ * @state_free: Function to deallocate instance state data, called by
+ * peaq_earmodel_state_free().
+ * @process_block: Function to process one block of data, called by
+ * peaq_earmodel_process_block().
+ *
+ * Derived classes must provide values for all fields of #PeaqEarModelClass
+ * (except for <structfield>parent</structfield>).
+ */
 struct _PeaqEarModelClass
 {
   GObjectClass parent;
+  guint step_size;
+  gdouble loudness_scale;
+  gdouble tau_min;
+  gdouble tau_100;
+  gdouble (*get_playback_level) (PeaqEarModel const *model);
+  void (*set_playback_level) (PeaqEarModel *model, gdouble level);
+  gpointer (*state_alloc) (PeaqEarModel const *model);
+  void (*state_free) (PeaqEarModel const *model, gpointer state);
+  void (*process_block) (PeaqEarModel const *model, gpointer state,
+                         gfloat const *samples, EarModelOutput *output);
 };
 
-GType peaq_earmodelparams_get_type ();
-guint peaq_earmodelparams_get_band_count (PeaqEarModelParams const *params);
-guint peaq_earmodelparams_get_step_size (PeaqEarModelParams const *params);
-gdouble peaq_earmodelparams_get_band_center_frequency (PeaqEarModelParams
-                                                       const *params,
-                                                       guint band);
-gdouble peaq_earmodelparams_get_internal_noise (PeaqEarModelParams const
-                                                *params, guint band);
-gdouble peaq_earmodelparams_get_ear_time_constant (PeaqEarModelParams const
-                                                   *params, guint band);
-
 GType peaq_earmodel_get_type ();
-PeaqEarModelParams *peaq_earmodel_get_model_params (PeaqEarModel const *ear);
+gpointer peaq_earmodel_state_alloc (PeaqEarModel const *model);
+void peaq_earmodel_state_free (PeaqEarModel const *model, gpointer state);
+void peaq_earmodel_process_block (PeaqEarModel const *model, gpointer state,
+                                  gfloat const *samples,
+                                  EarModelOutput *output);
+guint peaq_earmodel_get_band_count (PeaqEarModel const *model);
+guint peaq_earmodel_get_step_size (PeaqEarModel const *model);
+gdouble peaq_earmodel_get_band_center_frequency (PeaqEarModel const *model,
+                                                 guint band);
+gdouble peaq_earmodel_get_internal_noise (PeaqEarModel const *model,
+                                          guint band);
+gdouble peaq_earmodel_get_ear_time_constant (PeaqEarModel const *model,
+                                             guint band);
 gdouble peaq_earmodel_calc_loudness (PeaqEarModel const *model,
-                                     gdouble *excitation);
+                                     gdouble const *excitation);
 
 #endif

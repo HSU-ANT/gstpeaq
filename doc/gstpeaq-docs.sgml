@@ -9,10 +9,11 @@
   <chapter>
     <title>GstPeaq</title>
     <xi:include href="xml/earmodel.xml"/>
+    <xi:include href="xml/fftearmodel.xml"/>
+    <xi:include href="xml/fbearmodel.xml"/>
     <xi:include href="xml/gstpeaq.xml"/>
     <xi:include href="xml/leveladapter.xml"/>
     <xi:include href="xml/modpatt.xml"/>
-    <xi:include href="xml/fft.xml"/>
   </chapter>
   <chapter>
     <title>References</title>

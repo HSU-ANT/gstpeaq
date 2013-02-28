@@ -49,9 +49,9 @@ typedef struct _PeaqLevelAdapterClass PeaqLevelAdapterClass;
 typedef struct _PeaqLevelAdapter PeaqLevelAdapter;
 
 GType peaq_leveladapter_get_type ();
-PeaqLevelAdapter *peaq_leveladapter_new (PeaqEarModelParams *ear_params);
+PeaqLevelAdapter *peaq_leveladapter_new (PeaqEarModel *ear_params);
 void peaq_leveladapter_set_ear_model_params (PeaqLevelAdapter *level,
-                                             PeaqEarModelParams *ear_params);
+                                             PeaqEarModel *ear_params);
 void peaq_leveladapter_process (PeaqLevelAdapter * level,
 				gdouble * ref_exciation,
 				gdouble * test_exciation,

@@ -27,36 +27,79 @@
 #define PEAQ_TYPE_FFTEARMODEL (peaq_fftearmodel_get_type ())
 #define PEAQ_FFTEARMODEL(obj) \
   (G_TYPE_CHECK_INSTANCE_CAST (obj, PEAQ_TYPE_FFTEARMODEL, PeaqFFTEarModel))
-
-#define PEAQ_TYPE_FFTEARMODELPARAMS (peaq_fftearmodelparams_get_type ())
-#define PEAQ_FFTEARMODELPARAMS(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST (obj, PEAQ_TYPE_FFTEARMODELPARAMS, \
-                               PeaqFFTEarModelParams))
-#define PEAQ_FFTEARMODELPARAMS_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST (klass, PEAQ_TYPE_FFTEARMODELPARAMS, \
-                            PeaqFFTEarModelParamsClass))
-#define PEAQ_IS_FFTEARMODELPARAMS(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE (obj, PEAQ_TYPE_FFTEARMODELPARAMS))
-#define PEAQ_IS_FFTEARMODELPARAMS_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE (klass, PEAQ_TYPE_FFTEARMODELPARAMS))
-#define PEAQ_FFTEARMODELPARAMS_GET_CLASS(obj) \
-  (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_FFTEARMODELPARAMS, \
-                              PeaqFFTEarModelParamsClass))
+#define PEAQ_FFTEARMODEL_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST (klass, PEAQ_TYPE_FFTEARMODEL, PeaqFFTEarModelClass))
+#define PEAQ_IS_FFTEARMODEL(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE (obj, PEAQ_TYPE_FFTEARMODEL))
+#define PEAQ_IS_FFTEARMODEL_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE (klass, PEAQ_TYPE_FFTEARMODEL))
+#define PEAQ_FFTEARMODEL_GET_CLASS(obj) \
+  (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_FFTEARMODEL, PeaqFFTEarModelClass))
 
 /**
  * FFT_FRAMESIZE:
  *
  * The length (in samples) of a frame to be processed by 
- * peaq_earmodel_process().
+ * peaq_earmodel_process_block() for #PeaqFFTEarModel instances.
  */
 #define FFT_FRAMESIZE 2048
 
 typedef struct _PeaqFFTEarModelClass PeaqFFTEarModelClass;
 typedef struct _PeaqFFTEarModel PeaqFFTEarModel;
-typedef struct _PeaqFFTEarModelParamsClass PeaqFFTEarModelParamsClass;
-typedef struct _PeaqFFTEarModelParams PeaqFFTEarModelParams;
+typedef struct _PeaqFFTEarModelState PeaqFFTEarModelState;
 typedef struct _FFTEarModelOutput FFTEarModelOutput;
 
+/**
+ * FFTEarModelOutput:
+ * @ear_model_output: The basic #EarModelOutput structure.
+ * @power_spectrum: The power spectrum of the frame, up to half the sampling 
+ * rate (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msup>
+ *     <mfenced open="|" close="|"><mrow>
+ *       <mi>F</mi>
+ *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *     </mrow></mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ * </math></inlineequation>
+ * in <xref linkend="BS1387" />,<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ * <msubsup><mi>G</mi><mi>L</mi><mn>2</mn></msubsup>
+ * <mo>&InvisibleTimes;</mo>
+ * <msup>
+ *   <mfenced open="|" close="|"><mrow>
+ *     <mi>X</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   </mrow></mfenced>
+ *   <mn>2</mn>
+ * </msup>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />).
+ * @weighted_power_spectrum: The power spectrum weighted with the outer ear
+ * weighting function 
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msup>
+ *     <mfenced open="(" close=")">
+ *       <mrow>
+ *         <msub> <mi>F</mi> <mi>e</mi> </msub>
+ *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       </mrow>
+ *     </mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ * </math></inlineequation>
+ * in <xref linkend="BS1387" />,<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ * <msup>
+ *   <mfenced open="|" close="|"><mrow>
+ *     <msub><mi>X</mi><mi>w</mi></msub>
+ *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   </mrow></mfenced>
+ *   <mn>2</mn>
+ * </msup>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />).
+ *
+ * Extends the #EarModelOutput structure with additional fields only computed
+ * by the #PeaqFFTEarModel.
+ */
 struct _FFTEarModelOutput
 {
   EarModelOutput ear_model_output;
@@ -64,15 +107,8 @@ struct _FFTEarModelOutput
   gdouble weighted_power_spectrum[FFT_FRAMESIZE / 2 + 1];
 };
 
-
+void peaq_fftearmodel_group_into_bands (PeaqFFTEarModel const *model,
+                                        gdouble const *spectrum,
+                                        gdouble *band_power);
 GType peaq_fftearmodel_get_type ();
-PeaqFFTEarModelParams *peaq_fftearmodel_get_fftmodel_params (PeaqFFTEarModel
-                                                             const *ear);
-void peaq_fftearmodel_process (PeaqFFTEarModel *ear, gfloat *sample_data,
-                               FFTEarModelOutput *output);
-
-GType peaq_fftearmodelparams_get_type ();
-void peaq_fftearmodelparams_group_into_bands (PeaqFFTEarModelParams const
-                                              *params, gdouble *spectrum,
-                                              gdouble *band_power);
 #endif

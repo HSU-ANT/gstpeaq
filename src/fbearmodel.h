@@ -26,16 +26,16 @@
 #include <glib-object.h>
 #include <earmodel.h>
 
-#define PEAQ_TYPE_FILTERBANKEARMODELPARAMS \
-  (peaq_filterbankearmodelparams_get_type ())
-#define PEAQ_FILTERBANKEARMODELPARAMS(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST (obj, PEAQ_TYPE_FILTERBANKEARMODELPARAMS, \
-                               PeaqFilterbankEarModelParams))
-
-#define PEAQ_TYPE_FILTERBANKEARMODEL (peaq_filterbankearmodel_get_type ())
+#define PEAQ_TYPE_FILTERBANKEARMODEL \
+  (peaq_filterbankearmodel_get_type ())
 #define PEAQ_FILTERBANKEARMODEL(obj) \
   (G_TYPE_CHECK_INSTANCE_CAST (obj, PEAQ_TYPE_FILTERBANKEARMODEL, \
                                PeaqFilterbankEarModel))
+#define PEAQ_FILTERBANKEARMODEL_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST (klass, PEAQ_TYPE_FILTERBANKEARMODEL, PeaqFilterbankEarModelClass))
+#define PEAQ_FILTERBANKEARMODEL_GET_CLASS(obj) \
+  (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_FILTERBANKEARMODEL, PeaqFilterbankEarModelClass))
+
 
 /**
  * FB_FRAMESIZE:
@@ -45,32 +45,10 @@
  */
 #define FB_FRAMESIZE 192
 
-#if 0
-struct _EarModelOutput
-{
-  gdouble power_spectrum[FRAMESIZE / 2 + 1];
-  gdouble weighted_power_spectrum[FRAMESIZE / 2 + 1];
-  gdouble *band_power;
-  gdouble *unsmeared_excitation;
-  gdouble *excitation;
-  gdouble overall_loudness;
-};
-#endif
-
-typedef struct _PeaqFilterbankEarModelParamsClass
-  PeaqFilterbankEarModelParamsClass;
-typedef struct _PeaqFilterbankEarModelParams PeaqFilterbankEarModelParams;
-
 typedef struct _PeaqFilterbankEarModelClass PeaqFilterbankEarModelClass;
 typedef struct _PeaqFilterbankEarModel PeaqFilterbankEarModel;
-#if 0
-typedef struct _EarModelOutput EarModelOutput;
-#endif
 
-GType peaq_filterbankearmodelparams_get_type ();
+typedef struct _PeaqFilterbankEarModelState PeaqFilterbankEarModelState;
 
 GType peaq_filterbankearmodel_get_type ();
-void peaq_filterbankearmodel_process (PeaqFilterbankEarModel *ear,
-                                      gfloat *sample_data,
-                                      EarModelOutput *output);
 #endif

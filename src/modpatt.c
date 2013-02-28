@@ -36,7 +36,7 @@ struct _PeaqModulationProcessorClass
 struct _PeaqModulationProcessor
 {
   GObjectClass parent;
-  PeaqEarModelParams *ear_params;
+  PeaqEarModel *ear_params;
   gdouble *ear_time_constants;
   gdouble *previous_loudness;
   gdouble *filtered_loudness;
@@ -72,7 +72,7 @@ peaq_modulationprocessor_get_type ()
 }
 
 PeaqModulationProcessor *
-peaq_modulationprocessor_new (PeaqEarModelParams *ear_params)
+peaq_modulationprocessor_new (PeaqEarModel *ear_params)
 {
   PeaqModulationProcessor *modproc
     = g_object_new (PEAQ_TYPE_MODULATIONPROCESSOR, NULL);
@@ -117,7 +117,7 @@ peaq_modulationprocessor_finalize (GObject * obj)
 
 void
 peaq_modulationprocessor_set_ear_model_params (PeaqModulationProcessor *modproc,
-                                               PeaqEarModelParams *ear_params)
+                                               PeaqEarModel *ear_params)
 {
   guint band_count, k;
   if (modproc->ear_params) {
@@ -130,7 +130,7 @@ peaq_modulationprocessor_set_ear_model_params (PeaqModulationProcessor *modproc,
   g_object_ref (ear_params);
   modproc->ear_params = ear_params;
 
-  band_count = peaq_earmodelparams_get_band_count (ear_params);
+  band_count = peaq_earmodel_get_band_count (ear_params);
 
   modproc->previous_loudness = g_new0 (gdouble, band_count);
   modproc->filtered_loudness = g_new0 (gdouble, band_count);
@@ -140,27 +140,26 @@ peaq_modulationprocessor_set_ear_model_params (PeaqModulationProcessor *modproc,
   for (k = 0; k < band_count; k++) {
     gdouble tau;
     gdouble curr_fc;
-    curr_fc = peaq_earmodelparams_get_band_center_frequency (ear_params, k);
+    curr_fc = peaq_earmodel_get_band_center_frequency (ear_params, k);
     tau = 0.008 + 100 / curr_fc * (0.05 - 0.008);
     modproc->ear_time_constants[k] =
-      exp (-(gdouble) peaq_earmodelparams_get_step_size (ear_params)
+      exp (-(gdouble) peaq_earmodel_get_step_size (ear_params)
            / (SAMPLINGRATE * tau));
   }
 }
 
 void
 peaq_modulationprocessor_process (PeaqModulationProcessor * modproc,
-				  gdouble * unsmeared_exciation,
+				  gdouble const* unsmeared_exciation,
 				  ModulationProcessorOutput * output)
 {
   guint band_count, step_size, k;
 
-  band_count = peaq_earmodelparams_get_band_count (modproc->ear_params);
-  step_size = peaq_earmodelparams_get_step_size (modproc->ear_params);
+  band_count = peaq_earmodel_get_band_count (modproc->ear_params);
+  step_size = peaq_earmodel_get_step_size (modproc->ear_params);
 
   for (k = 0; k < band_count; k++) {
     gdouble loudness = pow (unsmeared_exciation[k], 0.3);
-    /* TODO: use configurable step-size */
     gdouble loudness_derivative = (gdouble) SAMPLINGRATE / step_size *
       ABS (loudness - modproc->previous_loudness[k]);
     modproc->filtered_loudness_derivative[k] =
