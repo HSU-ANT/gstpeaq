@@ -720,7 +720,7 @@ test_ear ()
    * Sone, [Kabal03] already mentions that the algorithm in fact yields 0.584
    * for the basic version; the advanced also seems to be a bit off */
 #if 1
-  if (loudness > 1.05 || loudness < 1.04) {
+  if (loudness > 1.04 || loudness < 1.03) {
 #else
   if (loudness > 0.59 || loudness < 0.58) {
 #endif
