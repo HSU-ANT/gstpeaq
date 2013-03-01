@@ -197,11 +197,8 @@ class_init (gpointer klass, gpointer class_data)
    * for applying in the power domain */
   fft_model_class->outer_middle_ear_weight = g_new (gdouble, N / 2 + 1);
   for (k = 0; k <= N / 2; k++) {
-    gdouble f_kHz = (gdouble) k * SAMPLINGRATE / N / 1000;
-    gdouble W_dB =
-      (-0.6 * 3.64 * pow (f_kHz, -0.8)) +
-      (6.5 * exp (-0.6 * pow (f_kHz - 3.3, 2))) - (1e-3 * pow (f_kHz, 3.6));
-    fft_model_class->outer_middle_ear_weight[k] = pow (10, W_dB / 10);
+    fft_model_class->outer_middle_ear_weight[k] = 
+      pow (peaq_earmodel_calc_ear_weight ((gdouble) k * SAMPLINGRATE / N), 2);
   }
 }
 

@@ -500,6 +500,79 @@ set_property (GObject *obj, guint id,
 }
 
 /**
+ * peaq_earmodel_calc_ear_weight:
+ * @frequency: The frequency
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>f</mi>
+ * </math></inlineequation>
+ * to calculate the outer and middle ear weight for.
+ *
+ * Calculates the outer and middle ear filter weight
+ * <informalequation><math display="block" xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>W</mi>
+ *   <mo>=</mo>
+ *   <msup>
+ *     <mn>10</mn>
+ *     <mrow>
+ *       <mn>-0.6</mn>
+ *       <mo>&sdot;</mo>
+ *       <mn>3.64</mn>
+ *       <mo>&sdot;</mo>
+ *       <msup>
+ *         <mfenced><mfrac>
+ *           <mi>f</mi><mrow><mn>1</mn><mtext>kHz</mtext></mrow>
+ *         </mfrac></mfenced>
+ *         <mn>-0.8</mn>
+ *       </msup>
+ *       <mo>+</mo>
+ *       <mn>6.5</mn>
+ *       <mo>&sdot;</mo>
+ *       <msup>
+ *         <mi>e</mi>
+ *         <mrow>
+ *           <mn>-0.6</mn>
+ *           <mo>&sdot;</mo>
+ *           <msup>
+ *             <mfenced><mrow>
+ *               <mfrac>
+ *                 <mi>f</mi><mrow><mn>1</mn><mtext>kHz</mtext></mrow>
+ *               </mfrac>
+ *               <mo>-</mo>
+ *               <mn>3.3</mn>
+ *             </mrow></mfenced>
+ *             <mn>2</mn>
+ *           </msup>
+ *         </mrow>
+ *       </msup>
+ *       <mo>-</mo>
+ *       <mn>0.001</mn>
+ *       <mo>&sdot;</mo>
+ *       <msup>
+ *         <mfenced><mfrac>
+ *           <mi>f</mi><mrow><mn>1</mn><mtext>kHz</mtext></mrow>
+ *         </mfrac></mfenced>
+ *         <mn>3.6</mn>
+ *       </msup>
+ *     </mrow>
+ *   </msup>
+ * </math></informalequation>
+ * for the given frequency (see sections 2.1.4 and 2.2.6 in
+ * <xref linkend="BS1387" /> and section 2.5 in <xref linkend="Kabal03" />).
+ *
+ * Returns: The middle and outer ear weight at the given frequency.
+ */
+gdouble
+peaq_earmodel_calc_ear_weight (gdouble frequency)
+{
+  gdouble f_kHz = frequency / 1000.;
+  gdouble W_dB =
+    -0.6 * 3.64 * pow (f_kHz, -0.8) + 6.5 * exp (-0.6 * pow (f_kHz - 3.3, 2)) -
+    1e-3 * pow (f_kHz, 3.6);
+  return pow (10, W_dB / 20);
+}
+
+
+/**
  * peaq_earmodel_calc_loudness:
  * @model: The #PeaqEarModel to use for loudness calculation.
  * @excitation: The excitation patterns of the frame to calculate the loudness
