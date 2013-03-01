@@ -219,7 +219,7 @@ process_block (PeaqEarModel const *model, gpointer state,
                gfloat const *sample_data, EarModelOutput *output)
 {
   guint k;
-  guint band;
+  gint band;
   gdouble level_factor =
     PEAQ_FILTERBANKEARMODEL (model)->level_factor;
   PeaqFilterbankEarModelClass *fb_ear_model_class =
@@ -317,7 +317,7 @@ process_block (PeaqEarModel const *model, gpointer state,
 
       gdouble d1 = 0.;
       gdouble d2 = 0.;
-      for (band = 0; band < 40; band++) {
+      for (band = 39; band >= 0; band--) {
         d1 = d1 * cl + A_re[band];
         d2 = d2 * cl + A_im[band];
         A_re[band] = d1;
