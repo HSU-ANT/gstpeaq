@@ -24,18 +24,20 @@
  * SECTION:fftearmodel
  * @short_description: Transforms a time domain signal into pitch domain 
  * excitation patterns.
+ * @title: PeaqFFTEarModel
  *
- * The main processing is performed in peaq_fftearmodel_process(), where frames of
- * length %FFT_FRAMESIZE samples are processed, which should be overlapped by 50% 
- * from one invocation to the next. The first step is to apply a Hann window 
- * and transform the frame to the frequency domain. Then, a filter modelling
- * the effects of the outer and middle ear is applied by weighting the 
- * spectral coefficients. These are grouped into frequency bands of one fourth 
- * the width of the critical bands of auditoriy perception to reach the pitch 
- * domain. To model the internal noise of the ear, a pitch-dependent term is
- * added to the power in each band. Finally, spreading in the pitch domain and 
- * smearing in the time-domain are performed. The necessary state information 
- * for the time smearing is stored in the #PeaqFFTEarModel.
+ * The main processing is performed by calling peaq_earmodel_process_block(),
+ * where frames of length %FFT_FRAMESIZE samples are processed, which should be
+ * overlapped by 50% from one invocation to the next. The first step is to
+ * apply a Hann window and transform the frame to the frequency domain. Then, a
+ * filter modelling the effects of the outer and middle ear is applied by
+ * weighting the spectral coefficients. These are grouped into frequency bands
+ * of one fourth or half the width of the critical bands of auditoriy
+ * perception to reach the pitch domain. To model the internal noise of the
+ * ear, a pitch-dependent term is added to the power in each band. Finally,
+ * spreading in the pitch domain and smearing in the time-domain are performed.
+ * The necessary state information for the time smearing is stored in the state
+ * data passed between successive calls to peaq_earmodel_process_block().
  *
  * The computation is thoroughly described in section 2 of 
  * <xref linkend="Kabal03" />.
@@ -49,6 +51,8 @@
 
 #define GAMMA 0.84971762641205
 #define LOUDNESS_SCALE 1.07664
+
+typedef struct _PeaqFFTEarModelState PeaqFFTEarModelState;
 
 enum
 {
@@ -165,6 +169,12 @@ class_init (gpointer klass, gpointer class_data)
   object_class->finalize = finalize;
   object_class->set_property = set_property;
   object_class->get_property = get_property;
+  /**
+   * PeaqFFTEarModel:number-of-bands:
+   *
+   * The number of frequency bands to use. Should be 109 for the basic PEAQ
+   * version and 55 for the advanced PEAQ version.
+   */
   g_object_class_install_property (object_class,
                                    PROP_BAND_COUNT,
                                    g_param_spec_uint ("number-of-bands",
@@ -288,8 +298,8 @@ void state_free (PeaqEarModel const *model, gpointer state)
   g_free (state);
 }
 
-/**
- * peaq_fftearmodel_process:
+/*
+ * process_block:
  * @model: the #PeaqFFTEarModel instance structure.
  * @sample_data: pointer to a frame of #FFT_FRAMESIZE samples to be processed.
  * @output: pointer to a #FFTEarModelOutput structure which is filled with the

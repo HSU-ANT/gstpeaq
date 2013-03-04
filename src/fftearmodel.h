@@ -46,7 +46,6 @@
 
 typedef struct _PeaqFFTEarModelClass PeaqFFTEarModelClass;
 typedef struct _PeaqFFTEarModel PeaqFFTEarModel;
-typedef struct _PeaqFFTEarModelState PeaqFFTEarModelState;
 typedef struct _FFTEarModelOutput FFTEarModelOutput;
 
 /**

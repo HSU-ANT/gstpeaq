@@ -514,45 +514,49 @@ set_property (GObject *obj, guint id,
  *   <msup>
  *     <mn>10</mn>
  *     <mrow>
- *       <mn>-0.6</mn>
+ *       <mfrac><mn>1</mn><mn>20</mn></mfrac>
  *       <mo>&sdot;</mo>
- *       <mn>3.64</mn>
- *       <mo>&sdot;</mo>
- *       <msup>
- *         <mfenced><mfrac>
- *           <mi>f</mi><mrow><mn>1</mn><mtext>kHz</mtext></mrow>
- *         </mfrac></mfenced>
- *         <mn>-0.8</mn>
- *       </msup>
- *       <mo>+</mo>
- *       <mn>6.5</mn>
- *       <mo>&sdot;</mo>
- *       <msup>
- *         <mi>e</mi>
- *         <mrow>
- *           <mn>-0.6</mn>
- *           <mo>&sdot;</mo>
- *           <msup>
- *             <mfenced><mrow>
- *               <mfrac>
- *                 <mi>f</mi><mrow><mn>1</mn><mtext>kHz</mtext></mrow>
- *               </mfrac>
- *               <mo>-</mo>
- *               <mn>3.3</mn>
- *             </mrow></mfenced>
- *             <mn>2</mn>
- *           </msup>
- *         </mrow>
- *       </msup>
- *       <mo>-</mo>
- *       <mn>0.001</mn>
- *       <mo>&sdot;</mo>
- *       <msup>
- *         <mfenced><mfrac>
- *           <mi>f</mi><mrow><mn>1</mn><mtext>kHz</mtext></mrow>
- *         </mfrac></mfenced>
- *         <mn>3.6</mn>
- *       </msup>
+ *       <mfenced><mrow>
+ *         <mn>-0.6</mn>
+ *         <mo>&sdot;</mo>
+ *         <mn>3.64</mn>
+ *         <mo>&sdot;</mo>
+ *         <msup>
+ *           <mfenced><mfrac>
+ *             <mi>f</mi><mrow><mn>1</mn><mtext>kHz</mtext></mrow>
+ *           </mfrac></mfenced>
+ *           <mn>-0.8</mn>
+ *         </msup>
+ *         <mo>+</mo>
+ *         <mn>6.5</mn>
+ *         <mo>&sdot;</mo>
+ *         <msup>
+ *           <mi>e</mi>
+ *           <mrow>
+ *             <mn>-0.6</mn>
+ *             <mo>&sdot;</mo>
+ *             <msup>
+ *               <mfenced><mrow>
+ *                 <mfrac>
+ *                   <mi>f</mi><mrow><mn>1</mn><mtext>kHz</mtext></mrow>
+ *                 </mfrac>
+ *                 <mo>-</mo>
+ *                 <mn>3.3</mn>
+ *               </mrow></mfenced>
+ *               <mn>2</mn>
+ *             </msup>
+ *           </mrow>
+ *         </msup>
+ *         <mo>-</mo>
+ *         <mn>0.001</mn>
+ *         <mo>&sdot;</mo>
+ *         <msup>
+ *           <mfenced><mfrac>
+ *             <mi>f</mi><mrow><mn>1</mn><mtext>kHz</mtext></mrow>
+ *           </mfrac></mfenced>
+ *           <mn>3.6</mn>
+ *         </msup>
+ *       </mrow></mfenced>
  *     </mrow>
  *   </msup>
  * </math></informalequation>

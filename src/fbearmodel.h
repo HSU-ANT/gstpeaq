@@ -41,14 +41,12 @@
  * FB_FRAMESIZE:
  *
  * The length (in samples) of a frame to be processed by 
- * peaq_filterbankearmodel_process().
+ * peaq_earmodel_process_block() for #PeaqFilterbankEarModel instances.
  */
 #define FB_FRAMESIZE 192
 
 typedef struct _PeaqFilterbankEarModelClass PeaqFilterbankEarModelClass;
 typedef struct _PeaqFilterbankEarModel PeaqFilterbankEarModel;
-
-typedef struct _PeaqFilterbankEarModelState PeaqFilterbankEarModelState;
 
 GType peaq_filterbankearmodel_get_type ();
 #endif
