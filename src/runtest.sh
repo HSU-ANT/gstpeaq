@@ -19,7 +19,7 @@ ODG=`LANG=LC_ALL gst-launch-0.10 --gst-disable-segtrap --gst-debug-level=2 --gst
 	src0.src\!peaq.ref src1.src\!peaq.test \
 | grep "Objective Difference Grade:" | cut -d " " -f4`
 echo $ODG
-if [ x$ODG != x-2.244 ]; then
+if [ x$ODG != x-2.109 ]; then
 	exit 1
 fi
 ODG=`LANG=LC_ALL gst-launch-0.10 --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=.libs/libgstpeaq.so \
@@ -29,7 +29,7 @@ ODG=`LANG=LC_ALL gst-launch-0.10 --gst-disable-segtrap --gst-debug-level=2 --gst
 	src0.src\!'audio/x-raw-float,channels=2'\!peaq.ref src1.src\!peaq.test \
 | grep "Objective Difference Grade:" | cut -d " " -f4`
 echo $ODG
-if [ x$ODG != x-2.244 ]; then
+if [ x$ODG != x-2.109 ]; then
 	exit 1
 fi
 ODG=`LANG=LC_ALL gst-launch-0.10 --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=.libs/libgstpeaq.so \
@@ -39,7 +39,7 @@ ODG=`LANG=LC_ALL gst-launch-0.10 --gst-disable-segtrap --gst-debug-level=2 --gst
 	src0.src\!peaq.ref src1.src\!'audio/x-raw-float,channels=2'\!peaq.test \
 | grep "Objective Difference Grade:" | cut -d " " -f4`
 echo $ODG
-if [ x$ODG != x-2.244 ]; then
+if [ x$ODG != x-2.109 ]; then
 	exit 1
 fi
 exit 0

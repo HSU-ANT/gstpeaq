@@ -224,10 +224,10 @@ gst_peaq_class_init (GstPeaqClass * peaq_class)
   GObjectClass *object_class = G_OBJECT_CLASS (peaq_class);
 
   /* centering the window of the correlation in the EHS computation at lag zero
-   * (as considered in [Kabal03] to be more reasonable) improves conformance */
+   * (as considered in [Kabal03] to be more reasonable) degrades conformance */
   peaq_class->correlation_window = g_new (gdouble, MAXLAG);
   for (i = 0; i < MAXLAG; i++)
-#if 1
+#if 0
     peaq_class->correlation_window[i] = 0.81649658092773 *
       (1 + cos (2 * M_PI * i / (2 * MAXLAG - 1))) / MAXLAG;
 #else
@@ -918,8 +918,10 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
                      detection_probability[c], detection_steps[c]);
 
     /* error harmonic structure */
-    calc_ehs (peaq, refdata_c, testdata_c, ref_ear_output.power_spectrum,
-              test_ear_output.power_spectrum, &ehs_valid, &ehs[c]);
+    calc_ehs (peaq, refdata_c, testdata_c,
+              ref_ear_output.weighted_power_spectrum,
+              test_ear_output.weighted_power_spectrum,
+              &ehs_valid, &ehs[c]);
     if (ehs_valid)
       ehs_valid_any = TRUE;
 
@@ -1048,8 +1050,10 @@ gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
                               10. * log10 (nmr));
 
     /* error harmonic structure */
-    calc_ehs (peaq, refdata_c, testdata_c, ref_ear_output.power_spectrum,
-              test_ear_output.power_spectrum, &ehs_valid, &ehs[c]);
+    calc_ehs (peaq, refdata_c, testdata_c,
+              ref_ear_output.weighted_power_spectrum,
+              test_ear_output.weighted_power_spectrum,
+              &ehs_valid, &ehs[c]);
     if (ehs_valid)
       ehs_valid_any = TRUE;
 
