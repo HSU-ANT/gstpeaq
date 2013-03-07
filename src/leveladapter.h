@@ -30,7 +30,8 @@
 #define PEAQ_LEVELADAPTER(obj) \
   (G_TYPE_CHECK_INSTANCE_CAST (obj, PEAQ_TYPE_LEVELADAPTER, PeaqLevelAdapter))
 #define PEAQ_LEVELADAPTER_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST (klass, PEAQ_TYPE_LEVELADAPTER, PeaqLevelAdapterClass))
+  (G_TYPE_CHECK_CLASS_CAST (klass, PEAQ_TYPE_LEVELADAPTER, \
+                            PeaqLevelAdapterClass))
 #define PEAQ_IS_LEVELADAPTER(obj) \
   (G_TYPE_CHECK_INSTANCE_TYPE (obj, PEAQ_TYPE_LEVELADAPTER))
 #define PEAQ_IS_LEVELADAPTER_CLASS(klass) \
@@ -39,21 +40,16 @@
   (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_LEVELADAPTER, \
 			      PeaqLevelAdapterClass))
 
-typedef struct _LevelAdapterOutput
-{
-  gdouble *spectrally_adapted_ref_patterns;
-  gdouble *spectrally_adapted_test_patterns;
-} LevelAdapterOutput;
-
 typedef struct _PeaqLevelAdapterClass PeaqLevelAdapterClass;
 typedef struct _PeaqLevelAdapter PeaqLevelAdapter;
 
 GType peaq_leveladapter_get_type ();
-PeaqLevelAdapter *peaq_leveladapter_new (PeaqEarModel *ear_params);
-void peaq_leveladapter_set_ear_model_params (PeaqLevelAdapter *level,
-                                             PeaqEarModel *ear_params);
-void peaq_leveladapter_process (PeaqLevelAdapter * level,
-				gdouble * ref_exciation,
-				gdouble * test_exciation,
-				LevelAdapterOutput * output);
+PeaqLevelAdapter *peaq_leveladapter_new (PeaqEarModel *ear_model);
+void peaq_leveladapter_set_ear_model (PeaqLevelAdapter *level,
+                                      PeaqEarModel *ear_model);
+void peaq_leveladapter_process (PeaqLevelAdapter *level,
+				gdouble const *ref_exciation,
+				gdouble const *test_exciation,
+                                gdouble *spectrally_adapted_ref_patterns,
+                                gdouble *spectrally_adapted_test_patterns);
 #endif

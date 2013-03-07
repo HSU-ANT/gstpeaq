@@ -128,7 +128,6 @@ main(int argc, char *argv[])
 
   peaq = gst_element_factory_make ("peaq", "peaq");
   g_object_set (G_OBJECT (peaq), "advanced", advanced,
-                //"console_output", TRUE, NULL);
                 "console_output", FALSE, NULL);
   ref_source = gst_element_factory_make ("filesrc", "ref_file-source");
   ref_parser = gst_element_factory_make ("wavparse", "ref_wav-parser");

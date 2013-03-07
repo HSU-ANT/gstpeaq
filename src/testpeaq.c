@@ -737,30 +737,35 @@ test_leveladapt ()
   gdouble input_data_test[109];
   PeaqEarModel *ear;
   PeaqLevelAdapter *level;
-  LevelAdapterOutput output;
+  gdouble *spectrally_adapted_ref_patterns;
+  gdouble *spectrally_adapted_test_patterns;
 
   ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
 
   band_count = peaq_earmodel_get_band_count (ear);
-  output.spectrally_adapted_ref_patterns = g_newa (gdouble, band_count);
-  output.spectrally_adapted_test_patterns = g_newa (gdouble, band_count);
+  spectrally_adapted_ref_patterns = g_newa (gdouble, band_count);
+  spectrally_adapted_test_patterns = g_newa (gdouble, band_count);
   level = peaq_leveladapter_new (ear);
   for (i = 0; i < 109; i++) {
     input_data_ref[i] = i + 1;
     input_data_test[i] = 109 - i;
   }
-  peaq_leveladapter_process (level, input_data_ref, input_data_test, &output);
-  assertArrayEquals (output.spectrally_adapted_ref_patterns,
+  peaq_leveladapter_process (level, input_data_ref, input_data_test,
+                             spectrally_adapted_ref_patterns,
+                             spectrally_adapted_test_patterns);
+  assertArrayEquals (spectrally_adapted_ref_patterns,
 		     spectrally_adapted_ref_patterns1_ref, 109,
 		     "spectrally_adapted_ref_patterns1");
-  assertArrayEquals (output.spectrally_adapted_test_patterns,
+  assertArrayEquals (spectrally_adapted_test_patterns,
 		     spectrally_adapted_test_patterns1_ref, 109,
 		     "spectrally_adapted_test_patterns1");
-  peaq_leveladapter_process (level, input_data_ref, input_data_test, &output);
-  assertArrayEquals (output.spectrally_adapted_ref_patterns,
+  peaq_leveladapter_process (level, input_data_ref, input_data_test,
+                             spectrally_adapted_ref_patterns,
+                             spectrally_adapted_test_patterns);
+  assertArrayEquals (spectrally_adapted_ref_patterns,
 		     spectrally_adapted_ref_patterns2_ref, 109,
 		     "spectrally_adapted_ref_patterns2");
-  assertArrayEquals (output.spectrally_adapted_test_patterns,
+  assertArrayEquals (spectrally_adapted_test_patterns,
 		     spectrally_adapted_test_patterns2_ref, 109,
 		     "spectrally_adapted_test_patterns2");
 }
