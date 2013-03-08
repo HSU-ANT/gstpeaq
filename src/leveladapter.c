@@ -191,15 +191,8 @@ peaq_leveladapter_set_ear_model (PeaqLevelAdapter *level,
 
   /* see section 3.1 in [BS1387], section 4.1 in [Kabal03] */
   for (k = 0; k < band_count; k++) {
-    gdouble tau;
-    gdouble curr_fc;
-    curr_fc = peaq_earmodel_get_band_center_frequency (ear_model, k);
-    /* (41) in [BS1387], (55) in [Kabal03] */
-    tau = 0.008 + 100 / curr_fc * (0.05 - 0.008);
-    /* (44) in [BS1387], (55) in [Kabal03] */
     level->ear_time_constants[k] =
-      exp (-(gdouble) peaq_earmodel_get_step_size (ear_model)
-           / (SAMPLINGRATE * tau));
+      peaq_earmodel_calc_time_constant (ear_model, k, 0.008, 0.05);
   }
 #if 0
   /* [Kabal03] suggests initialization to 1, although the standard does not

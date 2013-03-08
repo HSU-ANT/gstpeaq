@@ -434,15 +434,12 @@ update_ear_time_constants(PeaqEarModel *model)
   guint band;
   PeaqEarModelClass *model_class =
     PEAQ_EARMODEL_GET_CLASS (model);
-  guint step_size = model_class->step_size;
   gdouble tau_min = model_class->tau_min;
   gdouble tau_100 = model_class->tau_100;
 
   for (band = 0; band < model->band_count; band++) {
-    /* (21) and (38) in [BS1387], (32) in [Kabal03] */
-    gdouble tau = tau_min + 100. / model->fc[band] * (tau_100 - tau_min);
-    /* (24) and (40) in [BS1387], (33) in [Kabal03] */
-    model->ear_time_constants[band] = exp (step_size / (-48000. * tau));
+    model->ear_time_constants[band] = 
+      peaq_earmodel_calc_time_constant (model, band, tau_min, tau_100);
   }
 }
 
@@ -497,6 +494,92 @@ set_property (GObject *obj, guint id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (obj, id, pspec);
       break;
   }
+}
+
+/**
+ * peaq_earmodel_calc_time_constant:
+ * @model: The #PeaqEarModel to use.
+ * @band: The frequency band 
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>k</mi>
+ * </math></inlineequation>
+ * for which to calculate the time constant.
+ * @tau_min: The value of
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mi>&tau;</mi><mi>min</mi></msub>
+ * </math></inlineequation>.
+ * @tau_100: The value of
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mi>&tau;</mi><mn>100</mn></msub>
+ * </math></inlineequation>.
+ *
+ * Calculates the time constant
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>a</mi><mo>=</mo>
+ *   <msup>
+ *     <mi>e</mi>
+ *     <mrow>
+ *       <mo>-</mo>
+ *       <mfrac>
+ *         <mi>StepSize</mi>
+ *         <mrow> <mn>48000</mn><mo>&sdot;</mo><mi>&tau;</mi> </mrow>
+ *       </mfrac>
+ *     </mrow>
+ *   </msup>
+ * </math></inlineequation>
+ * with
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>&tau;</mi>
+ *   <mo>=</mo>
+ *   <msub><mi>&tau;</mi><mi>min</mi></msub>
+ *   <mo>+</mo>
+ *   <mfrac>
+ *     <mrow><mn>100</mn><mi>Hz</mi></mrow>
+ *     <mrow>
+ *       <msub><mi>f</mi><mi>c</mi></msub>
+ *       <mfenced open="[" close="]">
+ *         <mi>k</mi>
+ *       </mfenced>
+ *     </mrow>
+ *   </mfrac>
+ *   <mo>&sdot;</mo>
+ *   <mfenced><mrow>
+ *     <msub><mi>&tau;</mi><mn>100</mn></msub>
+ *     <mo>-</mo>
+ *     <msub><mi>&tau;</mi><mi>min</mi></msub>
+ *   </mrow></mfenced>
+ * </math></inlineequation>
+ * where 
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>StepSize</mi>
+ * </math></inlineequation>
+ * and the center frequency
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mi>f</mi><mi>c</mi></msub>
+ *   <mfenced open="[" close="]">
+ *     <mi>k</mi>
+ *   </mfenced>
+ * </math></inlineequation>
+ * of the
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>k</mi>
+ * </math></inlineequation>-th band are taken from the given #PeaqEarModel
+ * @model.
+ *
+ * Returns: The time constant
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>a</mi>
+ * </math></inlineequation>.
+ */
+gdouble
+peaq_earmodel_calc_time_constant (PeaqEarModel const *model, guint band,
+                                  gdouble tau_min, gdouble tau_100)
+{
+  guint step_size = peaq_earmodel_get_step_size (model);
+  /* (21), (38), (41), and (56) in [BS1387], (32) in [Kabal03] */
+  gdouble tau = tau_min + 100. / model->fc[band] * (tau_100 - tau_min);
+  /* (24), (40), and (44) in [BS1387], (33) in [Kabal03] */
+  return exp (step_size / (-48000. * tau));
 }
 
 /**

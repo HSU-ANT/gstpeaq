@@ -288,6 +288,9 @@ gdouble peaq_earmodel_get_internal_noise (PeaqEarModel const *model,
                                           guint band);
 gdouble peaq_earmodel_get_ear_time_constant (PeaqEarModel const *model,
                                              guint band);
+gdouble peaq_earmodel_calc_time_constant (PeaqEarModel const *model,
+                                          guint band,
+                                          gdouble tau_min, gdouble tau_100);
 gdouble peaq_earmodel_calc_ear_weight (gdouble frequency);
 gdouble peaq_earmodel_calc_loudness (PeaqEarModel const *model,
                                      gdouble const *excitation);
