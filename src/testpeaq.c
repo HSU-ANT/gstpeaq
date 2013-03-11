@@ -659,10 +659,12 @@ test_ear ()
   peaq_earmodel_process_block (ear, state, input_data,
                                (EarModelOutput *) &output);
 
-  assertArrayEqualsSq (output.power_spectrum, fft_ref_data, 1025,
+  assertArrayEqualsSq (peaq_fftearmodel_get_power_spectrum (state),
+                       fft_ref_data, 1025,
 		       "absolute_spectrum");
 
-  assertArrayEqualsSq (output.weighted_power_spectrum, weighted_fft_ref_data,
+  assertArrayEqualsSq (peaq_fftearmodel_get_weighted_power_spectrum (state),
+                       weighted_fft_ref_data,
 		       1025, "weighted_fft");
 
   assertArrayEquals (output.ear_model_output.unsmeared_excitation,
@@ -678,7 +680,7 @@ test_ear ()
       input_data[i] = sin (2 * M_PI * 1019.5 / 48000. * (i + frame * 1024));
     peaq_earmodel_process_block (ear, state, input_data,
                                  (EarModelOutput *) &output);
-    SPL = 10*log10(output.power_spectrum[43]);
+    SPL = 10*log10 (peaq_fftearmodel_get_power_spectrum (state)[43]);
     if (SPL > 92.0001 || SPL < 91.9999) {
       g_printf ("SPL == %f != 92\n", SPL);
       exit(1);

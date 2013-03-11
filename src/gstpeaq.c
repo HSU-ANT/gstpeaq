@@ -782,8 +782,8 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
     peaq_movaccum_set_tentative (peaq->mov_accum[i], !above_thres);
 
   for (c = 0; c < channels; c++) {
-    FFTEarModelOutput ref_ear_output;
-    FFTEarModelOutput test_ear_output;
+    EarModelOutput ref_ear_output;
+    EarModelOutput test_ear_output;
     gdouble *noise_in_bands;
 
     gdouble mod_diff_1b;
@@ -797,14 +797,10 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
     gboolean ehs_valid;
 
     noise_in_bands = g_newa (gdouble, band_count);
-    ref_ear_output.ear_model_output.unsmeared_excitation =
-      g_newa (gdouble, band_count);
-    ref_ear_output.ear_model_output.excitation =
-      g_newa (gdouble, band_count);
-    test_ear_output.ear_model_output.unsmeared_excitation =
-      g_newa (gdouble, band_count);
-    test_ear_output.ear_model_output.excitation =
-      g_newa (gdouble, band_count);
+    ref_ear_output.unsmeared_excitation = g_newa (gdouble, band_count);
+    ref_ear_output.excitation = g_newa (gdouble, band_count);
+    test_ear_output.unsmeared_excitation = g_newa (gdouble, band_count);
+    test_ear_output.excitation = g_newa (gdouble, band_count);
 
     gfloat *refdata_c;
     gfloat *testdata_c;
@@ -826,25 +822,29 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
                                  peaq->test_fft_ear_state[c], testdata_c,
                                  (EarModelOutput *) &test_ear_output);
 
+    gdouble const *ref_weighted_power_spectrum =
+      peaq_fftearmodel_get_weighted_power_spectrum (peaq->ref_fft_ear_state[c]);
+    gdouble const *test_weighted_power_spectrum =
+      peaq_fftearmodel_get_weighted_power_spectrum (peaq->test_fft_ear_state[c]);
     gdouble noise_spectrum[FFT_FRAMESIZE / 2 + 1];
     for (i = 0; i < FFT_FRAMESIZE / 2 + 1; i++)
       noise_spectrum[i] =
-        ref_ear_output.weighted_power_spectrum[i] -
-        2 * sqrt (ref_ear_output.weighted_power_spectrum[i] *
-                  test_ear_output.weighted_power_spectrum[i]) +
-        test_ear_output.weighted_power_spectrum[i];
+        ref_weighted_power_spectrum[i] -
+        2 * sqrt (ref_weighted_power_spectrum[i] *
+                  test_weighted_power_spectrum[i]) +
+        test_weighted_power_spectrum[i];
 
     peaq_fftearmodel_group_into_bands (PEAQ_FFTEARMODEL (peaq->fft_ear_model), noise_spectrum,
                                        noise_in_bands);
 
     peaq_leveladapter_process (peaq->level_adapter[c],
-                               ref_ear_output.ear_model_output.excitation,
-                               test_ear_output.ear_model_output.excitation);
+                               ref_ear_output.excitation,
+                               test_ear_output.excitation);
 
     peaq_modulationprocessor_process (peaq->ref_modulation_processor[c],
-                                      ref_ear_output.ear_model_output.unsmeared_excitation);
+                                      ref_ear_output.unsmeared_excitation);
     peaq_modulationprocessor_process (peaq->test_modulation_processor[c],
-                                      test_ear_output.ear_model_output.unsmeared_excitation);
+                                      test_ear_output.unsmeared_excitation);
 
     /* modulation difference */
     if (peaq->frame_counter >= 24) {
@@ -863,9 +863,9 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
     /* noise loudness */
     if (peaq->loudness_reached_frame == G_MAXUINT) {
       if (peaq_earmodel_calc_loudness (peaq->fft_ear_model,
-                                       ref_ear_output.ear_model_output.excitation) > 0.1 &&
+                                       ref_ear_output.excitation) > 0.1 &&
           peaq_earmodel_calc_loudness (peaq->fft_ear_model,
-                                       test_ear_output.ear_model_output.excitation) > 0.1)
+                                       test_ear_output.excitation) > 0.1)
         peaq->loudness_reached_frame = peaq->frame_counter;
     }
     if (peaq->frame_counter >= 24 &&
@@ -883,8 +883,9 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
 
 
     /* bandwidth */
-    calc_bandwidth (ref_ear_output.power_spectrum,
-                    test_ear_output.power_spectrum, &bw_test, &bw_ref);
+    calc_bandwidth (peaq_fftearmodel_get_power_spectrum (peaq->ref_fft_ear_state[c]),
+                    peaq_fftearmodel_get_power_spectrum (peaq->test_fft_ear_state[c]),
+                    &bw_test, &bw_ref);
     if (bw_ref > 346) {
       peaq_movaccum_accumulate (peaq->mov_accum[MOVBASIC_BANDWIDTH_REF], c,
                                 bw_ref);
@@ -893,8 +894,7 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
     }
 
     /* noise-to-mask ratio */
-    calc_nmr (peaq, ref_ear_output.ear_model_output.excitation,
-              noise_in_bands, &nmr, &nmr_max);
+    calc_nmr (peaq, ref_ear_output.excitation, noise_in_bands, &nmr, &nmr_max);
     peaq_movaccum_accumulate (peaq->mov_accum[MOVBASIC_TOTAL_NMR], c, nmr);
     peaq_movaccum_accumulate (peaq->mov_accum[MOVBASIC_REL_DIST_FRAMES], c,
                               nmr_max > 1.41253754462275 ? 1. : 0.);
@@ -902,14 +902,14 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
     /* probability of detection */
     detection_probability[c] = g_newa (gdouble, band_count);
     detection_steps[c] = g_newa (gdouble, band_count);
-    calc_prob_detect(band_count, ref_ear_output.ear_model_output.excitation,
-                     test_ear_output.ear_model_output.excitation,
+    calc_prob_detect(band_count, ref_ear_output.excitation,
+                     test_ear_output.excitation,
                      detection_probability[c], detection_steps[c]);
 
     /* error harmonic structure */
     calc_ehs (peaq, refdata_c, testdata_c,
-              ref_ear_output.weighted_power_spectrum,
-              test_ear_output.weighted_power_spectrum,
+              ref_weighted_power_spectrum,
+              test_weighted_power_spectrum,
               &ehs_valid, &ehs[c]);
     if (ehs_valid)
       ehs_valid_any = TRUE;
@@ -990,22 +990,18 @@ gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
   peaq_movaccum_set_tentative (peaq->mov_accum[MOVADV_EHS], !above_thres);
 
   for (c = 0; c < channels; c++) {
-    FFTEarModelOutput ref_ear_output;
-    FFTEarModelOutput test_ear_output;
+    EarModelOutput ref_ear_output;
+    EarModelOutput test_ear_output;
     gdouble *noise_in_bands;
     gdouble nmr;
     gdouble nmr_max;
     gboolean ehs_valid;
 
     noise_in_bands = g_newa (gdouble, band_count);
-    ref_ear_output.ear_model_output.unsmeared_excitation =
-      g_newa (gdouble, band_count);
-    ref_ear_output.ear_model_output.excitation =
-      g_newa (gdouble, band_count);
-    test_ear_output.ear_model_output.unsmeared_excitation =
-      g_newa (gdouble, band_count);
-    test_ear_output.ear_model_output.excitation =
-      g_newa (gdouble, band_count);
+    ref_ear_output.unsmeared_excitation = g_newa (gdouble, band_count);
+    ref_ear_output.excitation = g_newa (gdouble, band_count);
+    test_ear_output.unsmeared_excitation = g_newa (gdouble, band_count);
+    test_ear_output.excitation = g_newa (gdouble, band_count);
 
     gfloat *refdata_c;
     gfloat *testdata_c;
@@ -1027,26 +1023,29 @@ gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
                                  peaq->test_fft_ear_state[c], testdata_c,
                                  (EarModelOutput *) &test_ear_output);
 
+    gdouble const *ref_weighted_power_spectrum =
+      peaq_fftearmodel_get_weighted_power_spectrum (peaq->ref_fft_ear_state[c]);
+    gdouble const *test_weighted_power_spectrum =
+      peaq_fftearmodel_get_weighted_power_spectrum (peaq->test_fft_ear_state[c]);
     gdouble noise_spectrum[FFT_FRAMESIZE / 2 + 1];
     for (i = 0; i < FFT_FRAMESIZE / 2 + 1; i++)
       noise_spectrum[i] =
-        ref_ear_output.weighted_power_spectrum[i] -
-        2 * sqrt (ref_ear_output.weighted_power_spectrum[i] *
-                  test_ear_output.weighted_power_spectrum[i]) +
-        test_ear_output.weighted_power_spectrum[i];
+        ref_weighted_power_spectrum[i] -
+        2 * sqrt (ref_weighted_power_spectrum[i] *
+                  test_weighted_power_spectrum[i]) +
+        test_weighted_power_spectrum[i];
     peaq_fftearmodel_group_into_bands (PEAQ_FFTEARMODEL (peaq->fft_ear_model), noise_spectrum,
                                        noise_in_bands);
 
     /* noise-to-mask ratio */
-    calc_nmr (peaq, ref_ear_output.ear_model_output.excitation,
-              noise_in_bands, &nmr, &nmr_max);
+    calc_nmr (peaq, ref_ear_output.excitation, noise_in_bands, &nmr, &nmr_max);
     peaq_movaccum_accumulate (peaq->mov_accum[MOVADV_SEGMENTAL_NMR], c,
                               10. * log10 (nmr));
 
     /* error harmonic structure */
     calc_ehs (peaq, refdata_c, testdata_c,
-              ref_ear_output.weighted_power_spectrum,
-              test_ear_output.weighted_power_spectrum,
+              ref_weighted_power_spectrum,
+              test_weighted_power_spectrum,
               &ehs_valid, &ehs[c]);
     if (ehs_valid)
       ehs_valid_any = TRUE;

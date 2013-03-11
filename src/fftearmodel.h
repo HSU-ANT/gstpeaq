@@ -48,67 +48,11 @@ typedef struct _PeaqFFTEarModelClass PeaqFFTEarModelClass;
 typedef struct _PeaqFFTEarModel PeaqFFTEarModel;
 typedef struct _FFTEarModelOutput FFTEarModelOutput;
 
-/**
- * FFTEarModelOutput:
- * @ear_model_output: The basic #EarModelOutput structure.
- * @power_spectrum: The power spectrum of the frame, up to half the sampling 
- * rate (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msup>
- *     <mfenced open="|" close="|"><mrow>
- *       <mi>F</mi>
- *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *     </mrow></mfenced>
- *     <mn>2</mn>
- *   </msup>
- * </math></inlineequation>
- * in <xref linkend="BS1387" />,<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- * <msubsup><mi>G</mi><mi>L</mi><mn>2</mn></msubsup>
- * <mo>&InvisibleTimes;</mo>
- * <msup>
- *   <mfenced open="|" close="|"><mrow>
- *     <mi>X</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
- *   </mrow></mfenced>
- *   <mn>2</mn>
- * </msup>
- * </math></inlineequation>
- * in <xref linkend="Kabal03" />).
- * @weighted_power_spectrum: The power spectrum weighted with the outer ear
- * weighting function 
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msup>
- *     <mfenced open="(" close=")">
- *       <mrow>
- *         <msub> <mi>F</mi> <mi>e</mi> </msub>
- *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *       </mrow>
- *     </mfenced>
- *     <mn>2</mn>
- *   </msup>
- * </math></inlineequation>
- * in <xref linkend="BS1387" />,<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- * <msup>
- *   <mfenced open="|" close="|"><mrow>
- *     <msub><mi>X</mi><mi>w</mi></msub>
- *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *   </mrow></mfenced>
- *   <mn>2</mn>
- * </msup>
- * </math></inlineequation>
- * in <xref linkend="Kabal03" />).
- *
- * Extends the #EarModelOutput structure with additional fields only computed
- * by the #PeaqFFTEarModel.
- */
-struct _FFTEarModelOutput
-{
-  EarModelOutput ear_model_output;
-  gdouble power_spectrum[FFT_FRAMESIZE / 2 + 1];
-  gdouble weighted_power_spectrum[FFT_FRAMESIZE / 2 + 1];
-};
-
 void peaq_fftearmodel_group_into_bands (PeaqFFTEarModel const *model,
                                         gdouble const *spectrum,
                                         gdouble *band_power);
 gdouble const *peaq_fftearmodel_get_masking_difference (PeaqFFTEarModel const *model);
+gdouble const *peaq_fftearmodel_get_power_spectrum (gpointer state);
+gdouble const *peaq_fftearmodel_get_weighted_power_spectrum (gpointer state);
 GType peaq_fftearmodel_get_type ();
 #endif

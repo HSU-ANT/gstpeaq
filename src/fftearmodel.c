@@ -97,6 +97,8 @@ struct _PeaqFFTEarModelClass
 
 struct _PeaqFFTEarModelState {
   gdouble *filtered_excitation;
+  gdouble power_spectrum[FFT_FRAMESIZE / 2 + 1];
+  gdouble weighted_power_spectrum[FFT_FRAMESIZE / 2 + 1];
 };
 
 static void class_init (gpointer klass, gpointer class_data);
@@ -433,21 +435,21 @@ process_block (PeaqEarModel const *model, gpointer state,
      * [BS1387], the scaling is applied on the magnitudes, so the factor is
      * squared when comparing to [BS1387] (and also includes the squared
      * division by FFT_FRAMESIZE) */
-    ((FFTEarModelOutput *) output)->power_spectrum[k] =
+    fft_state->power_spectrum[k] =
       (fftoutput[k].r * fftoutput[k].r + fftoutput[k].i * fftoutput[k].i) *
       fft_model->level_factor;
 
     /* apply outer and middle ear weighting; (9) in [BS1387] (but in the power
      * domain), (8) in [Kabal03] */
-    ((FFTEarModelOutput *) output)->weighted_power_spectrum[k] =
-      ((FFTEarModelOutput *) output)->power_spectrum[k] *
+    fft_state->weighted_power_spectrum[k] =
+      fft_state->power_spectrum[k] *
       fft_model_class->outer_middle_ear_weight[k];
   }
 
   /* group the outer ear weighted FFT outputs into critical bands according to
    * section 2.1.5 of [BS1387] / section 2.6 of [Kabal03] */
   peaq_fftearmodel_group_into_bands (fft_model,
-                                     ((FFTEarModelOutput *) output)->weighted_power_spectrum,
+                                     fft_state->weighted_power_spectrum,
                                      band_power);
 
   /* add the internal noise to obtain the pitch patters; (14) in [BS1387], (17)
@@ -473,6 +475,80 @@ process_block (PeaqEarModel const *model, gpointer state,
       fft_state->filtered_excitation[i] > unsmeared_excitation[i] ?
       fft_state->filtered_excitation[i] : unsmeared_excitation[i];
   }
+}
+
+/**
+ * peaq_fftearmodel_get_power_spectrum:
+ * @state: The #PeaqFFTEarModel's state from which to obtain the current power
+ * spectrum.
+ *
+ * Returns the power spectrum as computed during the last call to
+ * peaq_earmodel_process_block() with the given @state.
+ *
+ * Returns: The power spectrum, up to half the sampling rate
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msup>
+ *     <mfenced open="|" close="|"><mrow>
+ *       <mi>F</mi>
+ *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *     </mrow></mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ * </math></inlineequation>
+ * in <xref linkend="BS1387" />,<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ * <msubsup><mi>G</mi><mi>L</mi><mn>2</mn></msubsup>
+ * <mo>&InvisibleTimes;</mo>
+ * <msup>
+ *   <mfenced open="|" close="|"><mrow>
+ *     <mi>X</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   </mrow></mfenced>
+ *   <mn>2</mn>
+ * </msup>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />).
+ */
+gdouble const *
+peaq_fftearmodel_get_power_spectrum (gpointer state)
+{
+  return ((PeaqFFTEarModelState *) state)->power_spectrum;
+}
+
+/**
+ * peaq_fftearmodel_get_weighted_power_spectrum:
+ * @state: The #PeaqFFTEarModel's state from which to obtain the current
+ * weighted power spectrum.
+ *
+ * Returns the power spectrum weighted with the outer ear weighting function as
+ * computed during the last call to peaq_earmodel_process_block() with the
+ * given @state.
+ *
+ * Returns: The weighted power spectrum, up to half the sampling rate
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msup>
+ *     <mfenced open="(" close=")">
+ *       <mrow>
+ *         <msub> <mi>F</mi> <mi>e</mi> </msub>
+ *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       </mrow>
+ *     </mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ * </math></inlineequation>
+ * in <xref linkend="BS1387" />,<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ * <msup>
+ *   <mfenced open="|" close="|"><mrow>
+ *     <msub><mi>X</mi><mi>w</mi></msub>
+ *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   </mrow></mfenced>
+ *   <mn>2</mn>
+ * </msup>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />).
+ */
+gdouble const *
+peaq_fftearmodel_get_weighted_power_spectrum (gpointer state)
+{
+  return ((PeaqFFTEarModelState *) state)->weighted_power_spectrum;
 }
 
 /**
