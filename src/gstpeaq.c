@@ -478,7 +478,7 @@ gst_peaq_set_property (GObject * obj, guint id, const GValue * value,
         peaq->masking_difference = g_new (gdouble, band_count);
         for (i = 0; i < band_count; i++)
           peaq->masking_difference[i] =
-            pow (10, (i * deltaZ <= 12 ? 3 : deltaZ * i * deltaZ) / 10);
+            pow (10, (i * deltaZ <= 12 ? 3 : 0.25 * i * deltaZ) / 10);
         peaq_leveladapter_set_ear_model (peaq->level_adapter[0], model);
         peaq_leveladapter_set_ear_model (peaq->level_adapter[1], model);
         peaq_modulationprocessor_set_ear_model (peaq->ref_modulation_processor[0],
