@@ -773,26 +773,25 @@ test_leveladapt ()
 static void
 test_modulationproc ()
 {
-  guint i, band_count;
+  guint i;
   gdouble input_data[109];
   PeaqEarModel *ear;
   PeaqModulationProcessor *modproc;
-  ModulationProcessorOutput output;
 
   ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
 
-  band_count = peaq_earmodel_get_band_count (ear);
-  output.modulation = g_newa (gdouble, band_count);
   modproc = peaq_modulationprocessor_new (ear);
   for (i = 0; i < 109; i++) {
     input_data[i] = i + 1;
   }
-  peaq_modulationprocessor_process (modproc, input_data, &output);
-  assertArrayEquals (output.modulation, modulation1_ref, 109, "modulation1");
-  assertArrayEquals (output.average_loudness,
+  peaq_modulationprocessor_process (modproc, input_data);
+  assertArrayEquals (peaq_modulationprocessor_get_modulation (modproc),
+                     modulation1_ref, 109, "modulation1");
+  assertArrayEquals (peaq_modulationprocessor_get_average_loudness (modproc),
 		     loudness1_ref, 109, "average_loudness1");
-  peaq_modulationprocessor_process (modproc, input_data, &output);
-  assertArrayEquals (output.modulation, modulation2_ref, 109, "modulation2");
-  assertArrayEquals (output.average_loudness,
+  peaq_modulationprocessor_process (modproc, input_data);
+  assertArrayEquals (peaq_modulationprocessor_get_modulation (modproc),
+                     modulation2_ref, 109, "modulation2");
+  assertArrayEquals (peaq_modulationprocessor_get_average_loudness (modproc),
 		     loudness2_ref, 109, "average_loudness2");
 }

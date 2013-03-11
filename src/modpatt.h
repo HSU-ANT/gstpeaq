@@ -41,20 +41,15 @@
   (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_MODULATIONPROCESSOR, \
 			      PeaqModulationProcessorClass))
 
-typedef struct _ModulationProcessorOutput
-{
-  gdouble *modulation;
-  const gdouble *average_loudness;
-} ModulationProcessorOutput;
-
 typedef struct _PeaqModulationProcessorClass PeaqModulationProcessorClass;
 typedef struct _PeaqModulationProcessor PeaqModulationProcessor;
 
 GType peaq_modulationprocessor_get_type ();
-PeaqModulationProcessor *peaq_modulationprocessor_new (PeaqEarModel *ear_params);
-void peaq_modulationprocessor_set_ear_model_params (PeaqModulationProcessor *modproc,
-                                                    PeaqEarModel *ear_params);
-void peaq_modulationprocessor_process (PeaqModulationProcessor * level,
-				       gdouble const* unsmeared_exciation,
-				       ModulationProcessorOutput * output);
+PeaqModulationProcessor *peaq_modulationprocessor_new (PeaqEarModel *ear_model);
+void peaq_modulationprocessor_set_ear_model (PeaqModulationProcessor *modproc,
+                                             PeaqEarModel *ear_model);
+void peaq_modulationprocessor_process (PeaqModulationProcessor *modproc,
+				       gdouble const* unsmeared_excitation);
+gdouble const *peaq_modulationprocessor_get_average_loudness (PeaqModulationProcessor const *modproc);
+gdouble const *peaq_modulationprocessor_get_modulation (PeaqModulationProcessor const *modproc);
 #endif
