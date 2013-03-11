@@ -185,6 +185,19 @@ peaq_modulationprocessor_set_ear_model (PeaqModulationProcessor *modproc,
 }
 
 /**
+ * peaq_modulationprocessor_get_ear_model:
+ * @modproc: The #PeaqModulationProcessor to get the #PeaqEarModel of.
+ *
+ * Returns: The #PeaqEarModel as set with
+ * peaq_modulationprocessor_set_ear_model().
+ */
+PeaqEarModel *
+peaq_modulationprocessor_get_ear_model (PeaqModulationProcessor const *modproc)
+{
+  return modproc->ear_model;
+}
+
+/**
  * peaq_modulationprocessor_process:
  * @modproc: The #PeaqModulationProcessor.
  * @unsmeared_excitation: The unsmeared excitation patterns

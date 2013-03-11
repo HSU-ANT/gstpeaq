@@ -48,6 +48,7 @@ GType peaq_modulationprocessor_get_type ();
 PeaqModulationProcessor *peaq_modulationprocessor_new (PeaqEarModel *ear_model);
 void peaq_modulationprocessor_set_ear_model (PeaqModulationProcessor *modproc,
                                              PeaqEarModel *ear_model);
+PeaqEarModel *peaq_modulationprocessor_get_ear_model (PeaqModulationProcessor const *modproc);
 void peaq_modulationprocessor_process (PeaqModulationProcessor *modproc,
 				       gdouble const* unsmeared_excitation);
 gdouble const *peaq_modulationprocessor_get_average_loudness (PeaqModulationProcessor const *modproc);
