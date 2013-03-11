@@ -784,8 +784,6 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
   for (c = 0; c < channels; c++) {
     FFTEarModelOutput ref_ear_output;
     FFTEarModelOutput test_ear_output;
-    gdouble *spectrally_adapted_ref_patterns;
-    gdouble *spectrally_adapted_test_patterns;
     gdouble *noise_in_bands;
 
     gdouble mod_diff_1b;
@@ -839,13 +837,9 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
     peaq_fftearmodel_group_into_bands (PEAQ_FFTEARMODEL (peaq->fft_ear_model), noise_spectrum,
                                        noise_in_bands);
 
-    spectrally_adapted_ref_patterns = g_newa (gdouble, band_count);
-    spectrally_adapted_test_patterns = g_newa (gdouble, band_count);
     peaq_leveladapter_process (peaq->level_adapter[c],
                                ref_ear_output.ear_model_output.excitation,
-                               test_ear_output.ear_model_output.excitation,
-                               spectrally_adapted_ref_patterns,
-                               spectrally_adapted_test_patterns);
+                               test_ear_output.ear_model_output.excitation);
 
     peaq_modulationprocessor_process (peaq->ref_modulation_processor[c],
                                       ref_ear_output.ear_model_output.unsmeared_excitation);
@@ -881,8 +875,8 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
                              1.5, 0.15, 0.5, 0.,
                              peaq_modulationprocessor_get_modulation (peaq->ref_modulation_processor[c]),
                              peaq_modulationprocessor_get_modulation (peaq->test_modulation_processor[c]),
-                             spectrally_adapted_ref_patterns,
-                             spectrally_adapted_test_patterns);
+                             peaq_leveladapter_get_adapted_ref (peaq->level_adapter[c]),
+                             peaq_leveladapter_get_adapted_test (peaq->level_adapter[c]));
       peaq_movaccum_accumulate (peaq->mov_accum[MOVBASIC_RMS_NOISE_LOUD], c,
                                 noise_loudness);
     }
@@ -1103,8 +1097,6 @@ gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
     guint i;
     EarModelOutput ref_ear_output;
     EarModelOutput test_ear_output;
-    gdouble *spectrally_adapted_ref_patterns;
-    gdouble *spectrally_adapted_test_patterns;
     gdouble mod_diff_a;
     gdouble temp_wt;
     gdouble noise_loudness;
@@ -1133,13 +1125,9 @@ gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
     peaq_earmodel_process_block (peaq->fb_ear_model, peaq->test_fb_ear_state[c],
                                  testdata_c, &test_ear_output);
 
-    spectrally_adapted_ref_patterns = g_newa (gdouble, band_count);
-    spectrally_adapted_test_patterns = g_newa (gdouble, band_count);
     peaq_leveladapter_process (peaq->level_adapter[c],
                                ref_ear_output.excitation,
-                               test_ear_output.excitation,
-                               spectrally_adapted_ref_patterns,
-                               spectrally_adapted_test_patterns);
+                               test_ear_output.excitation);
 
     peaq_modulationprocessor_process (peaq->ref_modulation_processor[c],
                                       ref_ear_output.unsmeared_excitation);
@@ -1168,21 +1156,21 @@ gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
       calc_noise_loudness (ear_params, 2.5, 0.3, 1, 0.1,
                            peaq_modulationprocessor_get_modulation (peaq->ref_modulation_processor[c]),
                            peaq_modulationprocessor_get_modulation (peaq->test_modulation_processor[c]),
-                           spectrally_adapted_ref_patterns,
-                           spectrally_adapted_test_patterns);
+                           peaq_leveladapter_get_adapted_ref (peaq->level_adapter[c]),
+                           peaq_leveladapter_get_adapted_test (peaq->level_adapter[c]));
     /* TODO: should the modulation patterns really also be swapped? */
     missing_components =
       calc_noise_loudness (ear_params, 1.5, 0.15, 1, 0.,
                            peaq_modulationprocessor_get_modulation (peaq->test_modulation_processor[c]),
                            peaq_modulationprocessor_get_modulation (peaq->ref_modulation_processor[c]),
-                           spectrally_adapted_test_patterns,
-                           spectrally_adapted_ref_patterns);
+                           peaq_leveladapter_get_adapted_test (peaq->level_adapter[c]),
+                           peaq_leveladapter_get_adapted_ref (peaq->level_adapter[c]));
     lin_dist =
       calc_noise_loudness (ear_params,
                            1.5, 0.15, 1, 0.,
                            peaq_modulationprocessor_get_modulation (peaq->ref_modulation_processor[c]),
                            peaq_modulationprocessor_get_modulation (peaq->ref_modulation_processor[c]),
-                           spectrally_adapted_ref_patterns,
+                           peaq_leveladapter_get_adapted_ref (peaq->level_adapter[c]),
                            ref_ear_output.excitation);
     if (peaq->frame_counter_fb >= 125 &&
         peaq->frame_counter_fb - 13 >= peaq->loudness_reached_frame) {

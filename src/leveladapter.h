@@ -49,7 +49,7 @@ void peaq_leveladapter_set_ear_model (PeaqLevelAdapter *level,
                                       PeaqEarModel *ear_model);
 void peaq_leveladapter_process (PeaqLevelAdapter *level,
 				gdouble const *ref_exciation,
-				gdouble const *test_exciation,
-                                gdouble *spectrally_adapted_ref_patterns,
-                                gdouble *spectrally_adapted_test_patterns);
+				gdouble const *test_exciation);
+gdouble const* peaq_leveladapter_get_adapted_ref (PeaqLevelAdapter const* level);
+gdouble const* peaq_leveladapter_get_adapted_test (PeaqLevelAdapter const* level);
 #endif

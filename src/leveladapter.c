@@ -65,6 +65,8 @@ struct _PeaqLevelAdapter
   gdouble *filtered_den;
   gdouble *pattcorr_ref;
   gdouble *pattcorr_test;
+  gdouble *spectrally_adapted_ref_patterns;
+  gdouble *spectrally_adapted_test_patterns;
 };
 
 static void class_init (gpointer klass, gpointer class_data);
@@ -129,6 +131,8 @@ init (GTypeInstance * obj, gpointer klass)
   level->filtered_den = NULL;
   level->pattcorr_ref = NULL;
   level->pattcorr_test = NULL;
+  level->spectrally_adapted_ref_patterns = NULL;
+  level->spectrally_adapted_test_patterns = NULL;
 }
 
 static void 
@@ -146,6 +150,8 @@ finalize (GObject * obj)
     g_free (level->filtered_den);
     g_free (level->pattcorr_ref);
     g_free (level->pattcorr_test);
+    g_free (level->spectrally_adapted_ref_patterns);
+    g_free (level->spectrally_adapted_test_patterns);
     g_free (level->ear_time_constants);
   }
   parent_class->finalize(obj);
@@ -173,6 +179,8 @@ peaq_leveladapter_set_ear_model (PeaqLevelAdapter *level,
     g_free (level->filtered_den);
     g_free (level->pattcorr_ref);
     g_free (level->pattcorr_test);
+    g_free (level->spectrally_adapted_ref_patterns);
+    g_free (level->spectrally_adapted_test_patterns);
     g_free (level->ear_time_constants);
   }
   g_object_ref (ear_model);
@@ -186,6 +194,8 @@ peaq_leveladapter_set_ear_model (PeaqLevelAdapter *level,
   level->filtered_den = g_new0 (gdouble, band_count);
   level->pattcorr_ref = g_new0 (gdouble, band_count);
   level->pattcorr_test = g_new0 (gdouble, band_count);
+  level->spectrally_adapted_ref_patterns = g_new0 (gdouble, band_count);
+  level->spectrally_adapted_test_patterns = g_new0 (gdouble, band_count);
 
   level->ear_time_constants = g_new (gdouble, band_count);
 
@@ -230,30 +240,6 @@ peaq_leveladapter_set_ear_model (PeaqLevelAdapter *level,
  *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
- * @spectrally_adapted_ref_patterns: Space for the spectrally adapted patterns
- * of the reference signal
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
- * </math></inlineequation>
- * in <xref linkend="BS1387" />,
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mover accent="true"><mi>E</mi><mo>~</mo></mover><mi>PR</mi></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
- * </math></inlineequation>
- * in <xref linkend="Kabal03" />).
- * @spectrally_adapted_test_patterns: Space for the spectrally adapted patterns
- * of the test signal
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Test</mi></mrow></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
- * </math></inlineequation>
- * in <xref linkend="BS1387" />,
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mover accent="true"><mi>E</mi><mo>~</mo></mover><mi>PT</mi></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
- * </math></inlineequation>
- * in <xref linkend="Kabal03" />).
  *
  * Performs the actual level and pattern adaptation as described in 
  * section 3.1 of <xref linkend="BS1387" /> and section 4.1 of <xref
@@ -267,9 +253,7 @@ peaq_leveladapter_set_ear_model (PeaqLevelAdapter *level,
 void
 peaq_leveladapter_process (PeaqLevelAdapter *level,
                            gdouble const *ref_exciation,
-			   gdouble const *test_exciation,
-                           gdouble *spectrally_adapted_ref_patterns,
-                           gdouble *spectrally_adapted_test_patterns)
+			   gdouble const *test_exciation)
 {
   guint band_count, k;
   gdouble num, den;
@@ -358,10 +342,66 @@ peaq_leveladapter_process (PeaqLevelAdapter *level,
       level->ear_time_constants[k] * level->pattcorr_test[k] +
       (1 - level->ear_time_constants[k]) * ra_test;
     /* (52) in [BS1387], (64) in [Kabal03] */
-    spectrally_adapted_ref_patterns[k] =
+    level->spectrally_adapted_ref_patterns[k] =
       levcorr_ref_excitation[k] * level->pattcorr_ref[k];
     /* (53) in [BS1387], (64) in [Kabal03] */
-    spectrally_adapted_test_patterns[k] =
+    level->spectrally_adapted_test_patterns[k] =
       levcorr_test_excitation[k] * level->pattcorr_test[k];
   }
+}
+
+/**
+ * peaq_leveladapter_get_adapted_ref:
+ * @level: The #PeaqLevelAdapter to get the current spectrally adapted patterns
+ * from.
+ *
+ * Returns the spectrally adapted patterns of the reference signal as computed
+ * during the last call to peaq_leveladapter_process().
+ *
+ * Returns: The spectrally adapted patterns of the reference signal
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub>
+ *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>
+ * in <xref linkend="BS1387" />,
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mover accent="true"><mi>E</mi><mo>~</mo></mover><mi>PR</mi></msub>
+ *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />).
+ * The pointer points to internal data of the #PeaqLevelAdapter and must not be
+ * freed.
+ */
+gdouble const*
+peaq_leveladapter_get_adapted_ref (PeaqLevelAdapter const* level)
+{
+  return level->spectrally_adapted_ref_patterns;
+}
+
+/**
+ * peaq_leveladapter_get_adapted_test:
+ * @level: The #PeaqLevelAdapter to get the current spectrally adapted patterns
+ * from.
+ *
+ * Returns the spectrally adapted patterns of the test signal as computed
+ * during the last call to peaq_leveladapter_process().
+ *
+ * Returns: The spectrally adapted patterns of the test signal
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Test</mi></mrow></msub>
+ *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>
+ * in <xref linkend="BS1387" />,
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mover accent="true"><mi>E</mi><mo>~</mo></mover><mi>PT</mi></msub>
+ *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />).
+ * The pointer points to internal data of the #PeaqLevelAdapter and must not be
+ * freed.
+ */
+gdouble const*
+peaq_leveladapter_get_adapted_test (PeaqLevelAdapter const* level)
+{
+  return level->spectrally_adapted_test_patterns;
 }
