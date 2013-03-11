@@ -109,5 +109,6 @@ struct _FFTEarModelOutput
 void peaq_fftearmodel_group_into_bands (PeaqFFTEarModel const *model,
                                         gdouble const *spectrum,
                                         gdouble *band_power);
+gdouble const *peaq_fftearmodel_get_masking_difference (PeaqFFTEarModel const *model);
 GType peaq_fftearmodel_get_type ();
 #endif

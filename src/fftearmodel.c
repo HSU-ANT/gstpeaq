@@ -80,6 +80,7 @@ struct _PeaqFFTEarModel
   gdouble *spreading_normalization;
   gdouble *aUC;
   gdouble *gIL;
+  gdouble *masking_difference;
 };
 
 /**
@@ -249,6 +250,7 @@ finalize (GObject *obj)
   g_free (model->spreading_normalization);
   g_free (model->aUC);
   g_free (model->gIL);
+  g_free (model->masking_difference);
 
   parent_class->finalize (obj);
 }
@@ -601,6 +603,8 @@ set_property (GObject *obj, guint id, const GValue *value, GParamSpec *pspec)
           g_renew (gdouble, model->spreading_normalization, band_count);
         model->aUC = g_renew (gdouble, model->aUC, band_count);
         model->gIL = g_renew (gdouble, model->gIL, band_count);
+        model->masking_difference =
+          g_renew (gdouble, model->masking_difference, band_count);
 
         model->lower_spreading = pow (10., -2.7 * model->deltaZ); /* 1 / a_L */
         model->lower_spreading_exponantiated =
@@ -644,6 +648,11 @@ set_property (GObject *obj, guint id, const GValue *value, GParamSpec *pspec)
           model->aUC[band] = pow (10., (-2.4 - 23. / curr_fc) * model->deltaZ);
           model->gIL[band] = (1. - pow (aL, band + 1)) / (1. - aL);
           model->spreading_normalization[band] = 1.;
+
+          /* masking weighting function; (25) in [BS1387], (112) in [Kabal03] */
+          model->masking_difference[band] =
+            pow (10., (band * model->deltaZ <= 12. ?
+                      3. : 0.25 * band * model->deltaZ) / 10.);
         }
 
         g_object_set (obj, "band-centers", fc_array, NULL);
@@ -659,4 +668,74 @@ set_property (GObject *obj, guint id, const GValue *value, GParamSpec *pspec)
       G_OBJECT_WARN_INVALID_PROPERTY_ID (obj, id, pspec);
       break;
   }
+}
+
+/**
+ * peaq_fftearmodel_get_masking_difference:
+ * @model: The #PeaqFFTEarModel instance structure.
+ *
+ * Returns the masking weighting function
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msup>
+ *     <mn>10</mn>
+ *     <mfrac>
+ *       <mrow>
+ *         <mi>m</mi>
+ *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       </mrow>
+ *       <mn>10</mn>
+ *     </mfrac>
+ *   </msup>
+ * </math></inlineequation>
+ * with
+ * <informalequation><math display="block" xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>m</mi>
+ *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   <mo>=</mo>
+ *   <mfenced open="{" close="">
+ *     <mtable>
+ *       <mtr>
+ *         <mtd> <mn>3.0</mn> </mtd>
+ *         <mtd>
+ *           <mtext>for </mtext><mspace width="1ex" />
+ *           <mi>k</mi> <mo>&sdot;</mo> <mi>res</mi> <mo>&le;</mo> <mn>12</mn>
+ *         </mtd>
+ *       </mtr>
+ *       <mtr>
+ *         <mtd>
+ *           <mn>0.25</mn><mo>&sdot;</mo><mi>k</mi><mo>&sdot;</mo><mi>res</mi>
+ *         </mtd>
+ *         <mtd>
+ *           <mtext>for </mtext><mspace width="1ex" />
+ *           <mi>k</mi> <mo>&sdot;</mo> <mi>res</mi> <mo>&gt;</mo> <mn>12</mn>
+ *         </mtd>
+ *       </mtr>
+ *     </mtable>
+ *   </mfenced>
+ * </math></informalequation>
+ * for all bands
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>k</mi>
+ * </math></inlineequation>.
+ *
+ * Returns: The masking weighting function
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msup>
+ *     <mn>10</mn>
+ *     <mfrac>
+ *       <mrow>
+ *         <mi>m</mi>
+ *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       </mrow>
+ *       <mn>10</mn>
+ *     </mfrac>
+ *   </msup>
+ * </math></inlineequation>.
+ * The pointer points to internal data of the PeaqFFTEarModel and must not be
+ * freed.
+ */
+gdouble const *
+peaq_fftearmodel_get_masking_difference (PeaqFFTEarModel const *model)
+{
+  return model->masking_difference;
 }
