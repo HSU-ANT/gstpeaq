@@ -25,6 +25,7 @@
 
 typedef enum _Status Status;
 typedef struct _Fraction Fraction;
+typedef struct _TwinFraction TwinFraction;
 typedef struct _WinAvgData WinAvgData;
 typedef struct _FiltMaxData FiltMaxData;
 
@@ -37,6 +38,12 @@ enum _Status
 
 struct _Fraction {
   gdouble num;
+  gdouble den;
+};
+
+struct _TwinFraction {
+  gdouble num1;
+  gdouble num2;
   gdouble den;
 };
 
@@ -145,6 +152,12 @@ peaq_movaccum_set_channels (PeaqMovAccum *acc, guint channels)
   }
 }
 
+guint
+peaq_movaccum_get_channels (PeaqMovAccum const *acc)
+{
+  return acc->channels;
+}
+
 void
 peaq_movaccum_set_mode (PeaqMovAccum *acc, PeaqMovAccumMode mode)
 {
@@ -152,6 +165,12 @@ peaq_movaccum_set_mode (PeaqMovAccum *acc, PeaqMovAccumMode mode)
     acc->mode = mode;
     realloc_data (acc, acc->channels);
   }
+}
+
+PeaqMovAccumMode
+peaq_movaccum_get_mode (PeaqMovAccum *acc)
+{
+  return acc->mode;
 }
 
 static void
@@ -179,6 +198,10 @@ realloc_data (PeaqMovAccum *acc, guint old_channels)
       case MODE_ADB:
         acc->data[c] = g_new0 (Fraction, acc->channels);
         acc->data_saved[c] = g_new0 (Fraction, acc->channels);
+        break;
+      case MODE_RMS_ASYM:
+        acc->data[c] = g_new0 (TwinFraction, acc->channels);
+        acc->data_saved[c] = g_new0 (TwinFraction, acc->channels);
         break;
       case MODE_AVG_WINDOW:
         {
@@ -216,6 +239,14 @@ peaq_movaccum_set_tentative (PeaqMovAccum *acc, gboolean tentative)
             ((Fraction *) acc->data_saved[i])->den =
               ((Fraction *) acc->data[i])->den;
             break;
+          case MODE_RMS_ASYM:
+            ((TwinFraction *) acc->data_saved[i])->num1 =
+              ((TwinFraction *) acc->data[i])->num1;
+            ((TwinFraction *) acc->data_saved[i])->num2 =
+              ((TwinFraction *) acc->data[i])->num2;
+            ((TwinFraction *) acc->data_saved[i])->den =
+              ((TwinFraction *) acc->data[i])->den;
+            break;
           case MODE_FILTERED_MAX:
             ((FiltMaxData *) acc->data_saved[i])->max =
               ((FiltMaxData *) acc->data[i])->max;
@@ -238,6 +269,10 @@ peaq_movaccum_accumulate (PeaqMovAccum *acc, guint c, gdouble val)
     case MODE_RMS:
       ((Fraction *)acc->data[c])->num += val * val;
       ((Fraction *)acc->data[c])->den += 1.;
+      break;
+    case MODE_RMS_ASYM:
+      ((TwinFraction *)acc->data[c])->num1 += val * val;
+      ((TwinFraction *)acc->data[c])->den += 1.;
       break;
     case MODE_AVG:
     case MODE_AVG_LOG:
@@ -290,6 +325,12 @@ peaq_movaccum_accumulate_weighted (PeaqMovAccum *acc, guint c, gdouble val,
       ((Fraction *)acc->data[c])->num += weight * val * val;
       ((Fraction *)acc->data[c])->den += weight;
       break;
+    case MODE_RMS_ASYM:
+      /* abuse weight as second input */
+      ((TwinFraction *)acc->data[c])->num1 += val * val;
+      ((TwinFraction *)acc->data[c])->num2 += weight * weight;
+      ((TwinFraction *)acc->data[c])->den += 1.;
+      break;
     case MODE_AVG:
       ((Fraction *)acc->data[c])->num += weight * val;
       ((Fraction *)acc->data[c])->den += weight;
@@ -327,6 +368,12 @@ peaq_movaccum_get_value (PeaqMovAccum const *acc)
       case MODE_RMS:
         value += sqrt (((Fraction *) data[c])->num /
                        ((Fraction *) data[c])->den);
+        break;
+      case MODE_RMS_ASYM:
+        value += sqrt (((TwinFraction *) data[c])->num1 /
+                       ((TwinFraction *) data[c])->den);
+        value += 0.5 * sqrt (((TwinFraction *) data[c])->num2 /
+                             ((TwinFraction *) data[c])->den);
         break;
       case MODE_FILTERED_MAX:
         value += ((FiltMaxData *) data[c])->max;

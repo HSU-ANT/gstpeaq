@@ -46,6 +46,7 @@ enum _PeaqMovAccumMode
   MODE_AVG,
   MODE_AVG_LOG,
   MODE_RMS,
+  MODE_RMS_ASYM,
   MODE_AVG_WINDOW,
   MODE_FILTERED_MAX,
   MODE_ADB
@@ -54,7 +55,9 @@ enum _PeaqMovAccumMode
 GType peaq_movaccum_get_type ();
 PeaqMovAccum *peaq_movaccum_new ();
 void peaq_movaccum_set_channels (PeaqMovAccum *acc, guint channels);
+guint peaq_movaccum_get_channels (PeaqMovAccum const *acc);
 void peaq_movaccum_set_mode (PeaqMovAccum *acc, PeaqMovAccumMode mode);
+PeaqMovAccumMode peaq_movaccum_get_mode (PeaqMovAccum *acc);
 void peaq_movaccum_set_tentative (PeaqMovAccum *acc, gboolean tentative);
 void peaq_movaccum_accumulate (PeaqMovAccum *acc, guint c, gdouble val);
 void peaq_movaccum_accumulate_weighted (PeaqMovAccum *acc, guint c,

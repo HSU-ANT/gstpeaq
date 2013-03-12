@@ -81,8 +81,7 @@ enum _MovAdvanced {
   MOVADV_SEGMENTAL_NMR,
   MOVADV_EHS,
   MOVADV_AVG_LIN_DIST,
-  MOVADVEXTRA_NOISE_LOUD,
-  MOVADVEXTRA_MISSING_COMPONENTS
+  COUNT_MOV_ADVANCED
 };
 
 struct _GstPeaq
@@ -101,7 +100,6 @@ struct _GstPeaq
   gboolean console_output;
   gboolean advanced;
   gint channels;
-  gdouble *masking_difference;
   guint frame_counter;
   guint frame_counter_fb;
   guint loudness_reached_frame;
