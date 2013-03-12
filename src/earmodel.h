@@ -49,20 +49,12 @@ typedef struct _EarModelOutput EarModelOutput;
  *   <mfenced open="[" close="]"><mi>i</mi></mfenced>
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
- * @excitation: The excitation patterns after frequency and time-domain 
- * spreading
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mover><mi>E</mi><mo>~</mo></mover><mi>s</mi></msub>
- *   <mfenced open="[" close="]"><mi>i</mi></mfenced>
- * </math></inlineequation>
- * in <xref linkend="Kabal03" />).
  *
  * Holds the data calculated by the ear model for one frame of audio data.
  */
 struct _EarModelOutput
 {
   gdouble *unsmeared_excitation;
-  gdouble *excitation;
 };
 
 /**
@@ -255,6 +247,8 @@ struct _PeaqEarModel
  * peaq_earmodel_state_free().
  * @process_block: Function to process one block of data, called by
  * peaq_earmodel_process_block().
+ * @get_excitation: Function to obtain the current excitation from the state,
+ * called by peaq_earmodel_get_excitation().
  *
  * Derived classes must provide values for all fields of #PeaqEarModelClass
  * (except for <structfield>parent</structfield>).
@@ -272,6 +266,7 @@ struct _PeaqEarModelClass
   void (*state_free) (PeaqEarModel const *model, gpointer state);
   void (*process_block) (PeaqEarModel const *model, gpointer state,
                          gfloat const *samples, EarModelOutput *output);
+  gdouble const *(*get_excitation) (PeaqEarModel const *model, gpointer state);
 };
 
 GType peaq_earmodel_get_type ();
@@ -280,6 +275,8 @@ void peaq_earmodel_state_free (PeaqEarModel const *model, gpointer state);
 void peaq_earmodel_process_block (PeaqEarModel const *model, gpointer state,
                                   gfloat const *samples,
                                   EarModelOutput *output);
+gdouble const *peaq_earmodel_get_excitation (PeaqEarModel const *model,
+                                             gpointer state);
 guint peaq_earmodel_get_band_count (PeaqEarModel const *model);
 guint peaq_earmodel_get_step_size (PeaqEarModel const *model);
 gdouble peaq_earmodel_get_band_center_frequency (PeaqEarModel const *model,
@@ -293,6 +290,6 @@ gdouble peaq_earmodel_calc_time_constant (PeaqEarModel const *model,
                                           gdouble tau_min, gdouble tau_100);
 gdouble peaq_earmodel_calc_ear_weight (gdouble frequency);
 gdouble peaq_earmodel_calc_loudness (PeaqEarModel const *model,
-                                     gdouble const *excitation);
+                                     gpointer state);
 
 #endif

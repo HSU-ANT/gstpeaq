@@ -114,6 +114,8 @@ static gpointer state_alloc (PeaqEarModel const *model);
 static void state_free (PeaqEarModel const *model, gpointer state);
 static void process_block (PeaqEarModel const *model, gpointer state,
                            gfloat const *sample_data, EarModelOutput *output);
+static gdouble const *get_excitation (PeaqEarModel const *model,
+                                      gpointer state);
 
 
 GType
@@ -157,6 +159,7 @@ class_init (gpointer klass, gpointer class_data)
   ear_model_class->state_alloc = state_alloc;
   ear_model_class->state_free = state_free;
   ear_model_class->process_block = process_block;
+  ear_model_class->get_excitation = get_excitation;
   ear_model_class->step_size = 192;
   /* see section 3.3 in [BS1387], section 4.3 in [Kabal03] */
   ear_model_class->loudness_scale = 1.26539;
@@ -400,6 +403,11 @@ process_block (PeaqEarModel const *model, gpointer state,
     fb_state->excitation[band] =
       a * fb_state->excitation[band] +
       (1. - a) * output->unsmeared_excitation[band];
-    output->excitation[band] = fb_state->excitation[band];
   }
+}
+
+static gdouble const *
+get_excitation (PeaqEarModel const *model, gpointer state)
+{
+  return ((PeaqFilterbankEarModelState *) state)->excitation;
 }

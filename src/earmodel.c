@@ -203,6 +203,28 @@ peaq_earmodel_process_block (PeaqEarModel const *model, gpointer state,
 }
 
 /**
+ * peaq_earmodel_get_excitation:
+ * @model: The underlying #PeaqEarModel.
+ * @state: The current state from which to extract the excitation.
+ *
+ * Returns the current excitation patterns after frequency and imte-domain
+ * spreading
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mover><mi>E</mi><mo>~</mo></mover><mi>s</mi></msub>
+ *   <mfenced open="[" close="]"><mi>i</mi></mfenced>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />).
+ * as computed during the last call to peaq_earmodel_process_block().
+ *
+ * Returns: The current excitation.
+ */
+gdouble const *
+peaq_earmodel_get_excitation (PeaqEarModel const *model, gpointer state)
+{
+  return PEAQ_EARMODEL_GET_CLASS (model)->get_excitation (model, state);
+}
+
+/**
  * peaq_earmodel_get_band_count:
  * @model: The #PeaqEarModel to obtain the number of bands of.
  *
@@ -662,8 +684,8 @@ peaq_earmodel_calc_ear_weight (gdouble frequency)
 /**
  * peaq_earmodel_calc_loudness:
  * @model: The #PeaqEarModel to use for loudness calculation.
- * @excitation: The excitation patterns of the frame to calculate the loudness
- * for.
+ * @state: The state information from which the excitation patterns are
+ * obtained to calculate the loudness for.
  *
  * Calculates the overall loudness
  * <informalequation><math display="block" xmlns="http://www.w3.org/1998/Math/MathML">
@@ -841,11 +863,12 @@ peaq_earmodel_calc_ear_weight (gdouble frequency)
  */
 gdouble
 peaq_earmodel_calc_loudness (PeaqEarModel const *model,
-                             gdouble const* excitation)
+                             gpointer state)
 {
 
   guint i;
   gdouble overall_loudness = 0.;
+  gdouble const* excitation = peaq_earmodel_get_excitation (model, state);
   for (i = 0; i < model->band_count; i++) {
     gdouble loudness = model->loudness_factor[i]
       * (pow (1. - model->threshold[i] +

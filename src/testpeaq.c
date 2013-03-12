@@ -645,7 +645,6 @@ test_ear ()
   band_count = peaq_earmodel_get_band_count (ear);
 
   output.unsmeared_excitation = g_newa (gdouble, band_count);
-  output.excitation = g_newa (gdouble, band_count);
 
   for (i = 0; i < 1024; i++)
     input_data[i] = -1;
@@ -671,7 +670,7 @@ test_ear ()
                      unsmeared_excitation_ref, band_count,
                      "unsmeared_excitation");
 
-  assertArrayEquals (output.excitation, excitation_ref,
+  assertArrayEquals (peaq_earmodel_get_excitation (ear, state), excitation_ref,
                      band_count, "excitation");
 
   for (frame = 0; frame < 10; frame++) {
@@ -696,8 +695,7 @@ test_ear ()
   }
   /* [BS1387] claims that the constants are chosen such that the loudness is 1
    * Sone, [Kabal03] already mentions that the algorithm in fact yields 0.584 */
-  gdouble loudness = 
-      peaq_earmodel_calc_loudness (ear, output.excitation);
+  gdouble loudness = peaq_earmodel_calc_loudness (ear, state);
 #if 0
   if (loudness > 1.01 || loudness < 0.99) {
 #else
@@ -715,7 +713,7 @@ test_ear ()
     peaq_earmodel_process_block (fb_ear, fb_state, input_data,
                                  (EarModelOutput *) &output);
   }
-  loudness = peaq_earmodel_calc_loudness (fb_ear, output.excitation);
+  loudness = peaq_earmodel_calc_loudness (fb_ear, fb_state);
   /* [BS1387] claims that the constants are chosen such that the loudness is 1
    * Sone, [Kabal03] already mentions that the algorithm in fact yields 0.584
    * for the basic version; the advanced also seems to be a bit off */

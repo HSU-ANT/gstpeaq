@@ -97,6 +97,7 @@ struct _PeaqFFTEarModelClass
 
 struct _PeaqFFTEarModelState {
   gdouble *filtered_excitation;
+  gdouble *excitation;
   gdouble power_spectrum[FFT_FRAMESIZE / 2 + 1];
   gdouble weighted_power_spectrum[FFT_FRAMESIZE / 2 + 1];
 };
@@ -110,6 +111,8 @@ static gpointer state_alloc (PeaqEarModel const *model);
 static void state_free (PeaqEarModel const *model, gpointer state);
 void process_block (PeaqEarModel const *model, gpointer state,
                     gfloat const *sample_data, EarModelOutput *output);
+static gdouble const *get_excitation (PeaqEarModel const *model,
+                                      gpointer state);
 static void do_spreading (PeaqFFTEarModel const *model, gdouble const *Pp,
                           gdouble *E2);
 static void get_property (GObject *obj, guint id, GValue *value,
@@ -192,6 +195,7 @@ class_init (gpointer klass, gpointer class_data)
   ear_model_class->state_alloc = state_alloc;
   ear_model_class->state_free = state_free;
   ear_model_class->process_block = process_block;
+  ear_model_class->get_excitation = get_excitation;
 
   ear_model_class->loudness_scale = LOUDNESS_SCALE;
   ear_model_class->step_size = 1024;
@@ -292,6 +296,7 @@ gpointer state_alloc (PeaqEarModel const *model)
 {
   PeaqFFTEarModelState *state = g_new0 (PeaqFFTEarModelState, 1);
   state->filtered_excitation = g_new0 (gdouble, model->band_count);
+  state->excitation = g_new0 (gdouble, model->band_count);
   return state;
 }
 
@@ -299,6 +304,7 @@ static
 void state_free (PeaqEarModel const *model, gpointer state)
 {
   g_free (((PeaqFFTEarModelState *) state)->filtered_excitation);
+  g_free (((PeaqFFTEarModelState *) state)->excitation);
   g_free (state);
 }
 
@@ -471,10 +477,16 @@ process_block (PeaqEarModel const *model, gpointer state,
     gdouble a = peaq_earmodel_get_ear_time_constant (model, i);
     fft_state->filtered_excitation[i] =
       a * fft_state->filtered_excitation[i] + (1. - a) * unsmeared_excitation[i];
-    output->excitation[i] =
+    fft_state->excitation[i] =
       fft_state->filtered_excitation[i] > unsmeared_excitation[i] ?
       fft_state->filtered_excitation[i] : unsmeared_excitation[i];
   }
+}
+
+static gdouble const *
+get_excitation (PeaqEarModel const *model, gpointer state)
+{
+  return ((PeaqFFTEarModelState *) state)->excitation;
 }
 
 /**
