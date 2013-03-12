@@ -635,7 +635,7 @@ test_ear ()
   gfloat input_data[2048];
   PeaqEarModel *ear;
   PeaqEarModel *fb_ear;
-  FFTEarModelOutput output;
+  EarModelOutput output;
 
   ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
   fb_ear = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL, NULL);
@@ -644,8 +644,8 @@ test_ear ()
 
   band_count = peaq_earmodel_get_band_count (ear);
 
-  output.ear_model_output.unsmeared_excitation = g_newa (gdouble, band_count);
-  output.ear_model_output.excitation = g_newa (gdouble, band_count);
+  output.unsmeared_excitation = g_newa (gdouble, band_count);
+  output.excitation = g_newa (gdouble, band_count);
 
   for (i = 0; i < 1024; i++)
     input_data[i] = -1;
@@ -667,19 +667,18 @@ test_ear ()
                        weighted_fft_ref_data,
 		       1025, "weighted_fft");
 
-  assertArrayEquals (output.ear_model_output.unsmeared_excitation,
+  assertArrayEquals (output.unsmeared_excitation,
                      unsmeared_excitation_ref, band_count,
                      "unsmeared_excitation");
 
-  assertArrayEquals (output.ear_model_output.excitation, excitation_ref,
+  assertArrayEquals (output.excitation, excitation_ref,
                      band_count, "excitation");
 
   for (frame = 0; frame < 10; frame++) {
     gdouble SPL;
     for (i = 0; i < 2048; i++)
       input_data[i] = sin (2 * M_PI * 1019.5 / 48000. * (i + frame * 1024));
-    peaq_earmodel_process_block (ear, state, input_data,
-                                 (EarModelOutput *) &output);
+    peaq_earmodel_process_block (ear, state, input_data, &output);
     SPL = 10*log10 (peaq_fftearmodel_get_power_spectrum (state)[43]);
     if (SPL > 92.0001 || SPL < 91.9999) {
       g_printf ("SPL == %f != 92\n", SPL);
@@ -698,7 +697,7 @@ test_ear ()
   /* [BS1387] claims that the constants are chosen such that the loudness is 1
    * Sone, [Kabal03] already mentions that the algorithm in fact yields 0.584 */
   gdouble loudness = 
-      peaq_earmodel_calc_loudness (ear, output.ear_model_output.excitation);
+      peaq_earmodel_calc_loudness (ear, output.excitation);
 #if 0
   if (loudness > 1.01 || loudness < 0.99) {
 #else
@@ -716,8 +715,7 @@ test_ear ()
     peaq_earmodel_process_block (fb_ear, fb_state, input_data,
                                  (EarModelOutput *) &output);
   }
-  loudness = peaq_earmodel_calc_loudness (fb_ear,
-                                          output.ear_model_output.excitation);
+  loudness = peaq_earmodel_calc_loudness (fb_ear, output.excitation);
   /* [BS1387] claims that the constants are chosen such that the loudness is 1
    * Sone, [Kabal03] already mentions that the algorithm in fact yields 0.584
    * for the basic version; the advanced also seems to be a bit off */
