@@ -46,5 +46,6 @@ void peaq_fftearmodel_group_into_bands (PeaqFFTEarModel const *model,
 gdouble const *peaq_fftearmodel_get_masking_difference (PeaqFFTEarModel const *model);
 gdouble const *peaq_fftearmodel_get_power_spectrum (gpointer state);
 gdouble const *peaq_fftearmodel_get_weighted_power_spectrum (gpointer state);
+gboolean peaq_fftearmodel_is_energy_threshold_reached (gpointer state);
 GType peaq_fftearmodel_get_type ();
 #endif

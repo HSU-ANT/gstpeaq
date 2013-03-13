@@ -101,6 +101,7 @@ struct _PeaqFFTEarModelState {
   gdouble *excitation;
   gdouble power_spectrum[FFT_FRAMESIZE / 2 + 1];
   gdouble weighted_power_spectrum[FFT_FRAMESIZE / 2 + 1];
+  gboolean energy_threshold_reached;
 };
 
 static void class_init (gpointer klass, gpointer class_data);
@@ -486,6 +487,16 @@ process_block (PeaqEarModel const *model, gpointer state,
       fft_state->filtered_excitation[i] > fft_state->unsmeared_excitation[i] ?
       fft_state->filtered_excitation[i] : fft_state->unsmeared_excitation[i];
   }
+
+  /* check whether energy threshold has been reached, see section 5.2.4.3 in
+   * [BS1387] */
+  gdouble energy = 0.;
+  for (k = FFT_FRAMESIZE / 2; k < FFT_FRAMESIZE; k++)
+    energy += sample_data[k] * sample_data[k];
+  if (energy >= 8000. / (32768. * 32768.))
+    fft_state->energy_threshold_reached = TRUE;
+  else
+    fft_state->energy_threshold_reached = FALSE;
 }
 
 static gdouble const *
@@ -572,6 +583,23 @@ gdouble const *
 peaq_fftearmodel_get_weighted_power_spectrum (gpointer state)
 {
   return ((PeaqFFTEarModelState *) state)->weighted_power_spectrum;
+}
+
+/**
+ * peaq_fftearmodel_is_energy_threshold_reached:
+ * @state: The #PeaqFFTEarModel's state to query whether the energy threshold
+ * has been reached.
+ *
+ * Returns whether the last frame processed with to
+ * peaq_earmodel_process_block() with the given @state reached the energy
+ * threshold described in section 5.2.4.3 of in <xref linkend="BS1387" />.
+ *
+ * Returns: TRUE if the energy threshold was reached, FALSE otherwise.
+ */
+gboolean
+peaq_fftearmodel_is_energy_threshold_reached (gpointer state)
+{
+  return ((PeaqFFTEarModelState *) state)->energy_threshold_reached;
 }
 
 /**
