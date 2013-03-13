@@ -187,7 +187,10 @@ peaq_earmodel_state_free (PeaqEarModel const *model, gpointer state)
  *
  * Invokes the <structfield>process_block</structfield> function of the derived
  * class to process one frame of audio. The required length of the frame
- * differs between #PeaqFFTEarModel and #PeaqFilterbankEarModel. Any state
+ * differs between #PeaqFFTEarModel and #PeaqFilterbankEarModel; it may be
+ * determined by calling peaq_earmodel_get_frame_size(). Similarly, the amount
+ * by which to advance the data between successive invocations can be
+ * determined by calling peaq_earmodel_get_step_size(). Any state
  * information required between successive invocations is kept in @state, which
  * has be allocated with peaq_earmodel_state_alloc() beforehand.
  *
@@ -284,6 +287,20 @@ params_set_bands (PeaqEarModel *model, gdouble *fc, guint band_count)
 
     update_ear_time_constants (model);
   }
+}
+
+/**
+ * peaq_earmodel_get_frame_size:
+ * @model: The #PeaqEarModel to obtain the frame size of.
+ *
+ * Returns the size of the frames needed by peaq_earmodel_process_block().
+ *
+ * Returns: The frame size required by @model.
+ */
+guint
+peaq_earmodel_get_frame_size (PeaqEarModel const *model)
+{
+  return PEAQ_EARMODEL_GET_CLASS (model)->frame_size;
 }
 
 /**

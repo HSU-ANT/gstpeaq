@@ -256,6 +256,7 @@ struct _PeaqEarModel
 struct _PeaqEarModelClass
 {
   GObjectClass parent;
+  guint frame_size;
   guint step_size;
   gdouble loudness_scale;
   gdouble tau_min;
@@ -278,6 +279,7 @@ void peaq_earmodel_process_block (PeaqEarModel const *model, gpointer state,
 gdouble const *peaq_earmodel_get_excitation (PeaqEarModel const *model,
                                              gpointer state);
 guint peaq_earmodel_get_band_count (PeaqEarModel const *model);
+guint peaq_earmodel_get_frame_size (PeaqEarModel const *model);
 guint peaq_earmodel_get_step_size (PeaqEarModel const *model);
 gdouble peaq_earmodel_get_band_center_frequency (PeaqEarModel const *model,
                                                  guint band);

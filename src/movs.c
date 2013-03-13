@@ -256,6 +256,7 @@ mov_nmr (PeaqFFTEarModel const *ear_model, gpointer *ref_state,
 {
   guint c;
   guint band_count = peaq_earmodel_get_band_count (PEAQ_EARMODEL (ear_model));
+  guint frame_size = peaq_earmodel_get_frame_size (PEAQ_EARMODEL (ear_model));
   gdouble const *masking_difference = 
     peaq_fftearmodel_get_masking_difference (ear_model);
   for (c = 0; c < peaq_movaccum_get_channels (mov_accum_nmr); c++) {
@@ -269,9 +270,9 @@ mov_nmr (PeaqFFTEarModel const *ear_model, gpointer *ref_state,
       peaq_fftearmodel_get_weighted_power_spectrum (ref_state[c]);
     gdouble const *test_weighted_power_spectrum =
       peaq_fftearmodel_get_weighted_power_spectrum (test_state[c]);
-    gdouble noise_spectrum[FFT_FRAMESIZE / 2 + 1];
+    gdouble noise_spectrum[1025];
 
-    for (i = 0; i < FFT_FRAMESIZE / 2 + 1; i++)
+    for (i = 0; i < frame_size / 2 + 1; i++)
       noise_spectrum[i] =
         ref_weighted_power_spectrum[i] -
         2 * sqrt (ref_weighted_power_spectrum[i] *

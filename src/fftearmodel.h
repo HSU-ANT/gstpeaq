@@ -36,14 +36,6 @@
 #define PEAQ_FFTEARMODEL_GET_CLASS(obj) \
   (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_FFTEARMODEL, PeaqFFTEarModelClass))
 
-/**
- * FFT_FRAMESIZE:
- *
- * The length (in samples) of a frame to be processed by 
- * peaq_earmodel_process_block() for #PeaqFFTEarModel instances.
- */
-#define FFT_FRAMESIZE 2048
-
 typedef struct _PeaqFFTEarModelClass PeaqFFTEarModelClass;
 typedef struct _PeaqFFTEarModel PeaqFFTEarModel;
 typedef struct _FFTEarModelOutput FFTEarModelOutput;

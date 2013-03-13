@@ -26,9 +26,8 @@
  * excitation patterns.
  * @title: PeaqFFTEarModel
  *
- * The main processing is performed by calling peaq_earmodel_process_block(),
- * where frames of length %FFT_FRAMESIZE samples are processed, which should be
- * overlapped by 50% from one invocation to the next. The first step is to
+ * The main processing is performed by calling peaq_earmodel_process_block().
+ * The first step is to
  * apply a Hann window and transform the frame to the frequency domain. Then, a
  * filter modelling the effects of the outer and middle ear is applied by
  * weighting the spectral coefficients. These are grouped into frequency bands
@@ -49,6 +48,7 @@
 #include <math.h>
 #include <gst/fft/gstfftf64.h>
 
+#define FFT_FRAMESIZE 2048
 #define GAMMA 0.84971762641205
 #define LOUDNESS_SCALE 1.07664
 
@@ -198,7 +198,8 @@ class_init (gpointer klass, gpointer class_data)
   ear_model_class->get_excitation = get_excitation;
 
   ear_model_class->loudness_scale = LOUDNESS_SCALE;
-  ear_model_class->step_size = 1024;
+  ear_model_class->frame_size = FFT_FRAMESIZE;
+  ear_model_class->step_size = FFT_FRAMESIZE / 2;
   ear_model_class->tau_min = 0.008;
   ear_model_class->tau_100 = 0.030;
 
@@ -567,7 +568,8 @@ peaq_fftearmodel_get_weighted_power_spectrum (gpointer state)
  * peaq_fftearmodel_group_into_bands:
  * @model: the #PeaqFFTEarModel instance structure.
  * @spectrum: pointer to an array of the spectral coefficients with
- * #FFT_FRAMESIZE / 2 + 1 elements
+ * frame_size / 2 + 1 elements, where frame_size is as returned by
+ * peaq_earmodel_get_frame_size().
  * @band_power: pointer to an array in which the power of the individual bands
  * is stored; must have as many entries as there are bands in the underlying
  * model.

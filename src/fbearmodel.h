@@ -37,14 +37,6 @@
   (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_FILTERBANKEARMODEL, PeaqFilterbankEarModelClass))
 
 
-/**
- * FB_FRAMESIZE:
- *
- * The length (in samples) of a frame to be processed by 
- * peaq_earmodel_process_block() for #PeaqFilterbankEarModel instances.
- */
-#define FB_FRAMESIZE 192
-
 typedef struct _PeaqFilterbankEarModelClass PeaqFilterbankEarModelClass;
 typedef struct _PeaqFilterbankEarModel PeaqFilterbankEarModel;
 

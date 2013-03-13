@@ -24,9 +24,8 @@
  * @short_description: Filter-bank based ear model.
  * @title: PeaqFilterbankEarModel
  *
- * The processing is performed by calling peaq_earmodel_process_block(),
- * where frames of length %FB_FRAMESIZE samples are processed, which should not be
- * overlapped from one invocation to the next. The first step is to
+ * The processing is performed by calling peaq_earmodel_process_block(). The
+ * first step is to
  * apply a DC rejection filter (high pass at 20 Hz) and decompose the signal
  * into 40 bands using an FIR filter bank. After weighting the individual bands
  * with the outer and middle ear filter, the signal energy in spread accross
@@ -45,6 +44,7 @@
 #include <math.h>
 #include <string.h>
 
+#define FB_FRAMESIZE 192
 #define SLOPE_FILTER_A 0.993355506255034     /* exp (-32 / (48000 * 0.1)) */
 #define DIST 0.921851456499719               /* pow(0.1,(z[39]-z[0])/(39*20)) */
 #define CL 0.0802581846102741                /* pow (DIST, 31) */
@@ -160,7 +160,8 @@ class_init (gpointer klass, gpointer class_data)
   ear_model_class->state_free = state_free;
   ear_model_class->process_block = process_block;
   ear_model_class->get_excitation = get_excitation;
-  ear_model_class->step_size = 192;
+  ear_model_class->frame_size = FB_FRAMESIZE;
+  ear_model_class->step_size = FB_FRAMESIZE;
   /* see section 3.3 in [BS1387], section 4.3 in [Kabal03] */
   ear_model_class->loudness_scale = 1.26539;
   /* see section 2.2.11 in [BS1387], section 3.7 in [Kabal03] */

@@ -31,10 +31,6 @@
 #include "gstpeaq.h"
 #include "movs.h"
 
-#define FFT_STEPSIZE (FFT_FRAMESIZE/2)
-#define FFT_BLOCKSIZE_BYTES (FFT_FRAMESIZE * sizeof(gfloat))
-#define FFT_STEPSIZE_BYTES (FFT_STEPSIZE * sizeof(gfloat))
-#define FB_BLOCKSIZE_BYTES (FB_FRAMESIZE * sizeof(gfloat))
 //#define EHS_ENERGY_THRESHOLD 7.442401884276241e-6
 #define EHS_ENERGY_THRESHOLD 7.45058059692383e-06
 #define MAXLAG 256
@@ -535,53 +531,48 @@ pads_buffer (GstCollectPads2 *pads, GstCollectData2 *data, GstBuffer *buffer,
       gst_adapter_push (peaq->test_adapter_fb, gst_buffer_copy (buffer));
     gst_adapter_push (peaq->test_adapter_fft, buffer);
   }
-
-  while (gst_adapter_available (peaq->ref_adapter_fft) >=
-         peaq->channels * FFT_BLOCKSIZE_BYTES &&
-         gst_adapter_available (peaq->test_adapter_fft) >=
-         peaq->channels * FFT_BLOCKSIZE_BYTES)
+ 
+  guint required_size =
+    peaq->channels * sizeof (gfloat) *
+    peaq_earmodel_get_frame_size (peaq->fft_ear_model);
+  guint step_size_bytes =
+    peaq->channels * sizeof (gfloat) *
+    peaq_earmodel_get_step_size (peaq->fft_ear_model);
+  while (gst_adapter_available (peaq->ref_adapter_fft) >= required_size &&
+         gst_adapter_available (peaq->test_adapter_fft) >= required_size)
   {
     gfloat *refframe =
       (gfloat *) gst_adapter_peek (peaq->ref_adapter_fft,
-                                   peaq->channels * FFT_BLOCKSIZE_BYTES);
+                                   required_size);
     gfloat *testframe =
       (gfloat *) gst_adapter_peek (peaq->test_adapter_fft,
-                                   peaq->channels * FFT_BLOCKSIZE_BYTES);
+                                   required_size);
     if (peaq->advanced)
       gst_peaq_process_fft_block_advanced (peaq, refframe, testframe);
     else
       gst_peaq_process_fft_block_basic (peaq, refframe, testframe);
-    g_assert (gst_adapter_available (peaq->ref_adapter_fft) >=
-              peaq->channels * FFT_BLOCKSIZE_BYTES);
-    gst_adapter_flush (peaq->ref_adapter_fft,
-                       peaq->channels * FFT_STEPSIZE_BYTES);
-    g_assert (gst_adapter_available (peaq->test_adapter_fft) >=
-              peaq->channels * FFT_BLOCKSIZE_BYTES);
-    gst_adapter_flush (peaq->test_adapter_fft,
-                       peaq->channels * FFT_STEPSIZE_BYTES);
+    g_assert (gst_adapter_available (peaq->ref_adapter_fft) >= required_size);
+    gst_adapter_flush (peaq->ref_adapter_fft, step_size_bytes);
+    g_assert (gst_adapter_available (peaq->test_adapter_fft) >= required_size);
+    gst_adapter_flush (peaq->test_adapter_fft, step_size_bytes);
   }
 
   if (peaq->advanced) {
-    while (gst_adapter_available (peaq->ref_adapter_fb) >=
-           peaq->channels * FB_BLOCKSIZE_BYTES &&
-           gst_adapter_available (peaq->test_adapter_fb) >=
-           peaq->channels * FB_BLOCKSIZE_BYTES)
+    guint required_size =
+      peaq->channels * sizeof (gfloat) *
+      peaq_earmodel_get_frame_size (peaq->fb_ear_model);
+    while (gst_adapter_available (peaq->ref_adapter_fb) >= required_size &&
+           gst_adapter_available (peaq->test_adapter_fb) >= required_size)
     {
       gfloat *refframe =
-        (gfloat *) gst_adapter_peek (peaq->ref_adapter_fb,
-                                     peaq->channels * FB_BLOCKSIZE_BYTES);
+        (gfloat *) gst_adapter_peek (peaq->ref_adapter_fb, required_size);
       gfloat *testframe = 
-        (gfloat *) gst_adapter_peek (peaq->test_adapter_fb,
-                                     peaq->channels * FB_BLOCKSIZE_BYTES);
+        (gfloat *) gst_adapter_peek (peaq->test_adapter_fb, required_size);
       gst_peaq_process_fb_block (peaq, refframe, testframe);
-      g_assert (gst_adapter_available (peaq->ref_adapter_fb) >=
-                peaq->channels * FB_BLOCKSIZE_BYTES);
-      gst_adapter_flush (peaq->ref_adapter_fb,
-                         peaq->channels * FB_BLOCKSIZE_BYTES);
-      g_assert (gst_adapter_available (peaq->test_adapter_fb) >=
-                peaq->channels * FB_BLOCKSIZE_BYTES);
-      gst_adapter_flush (peaq->test_adapter_fb,
-                         peaq->channels * FB_BLOCKSIZE_BYTES);
+      g_assert (gst_adapter_available (peaq->ref_adapter_fb) >= required_size);
+      gst_adapter_flush (peaq->ref_adapter_fb, required_size);
+      g_assert (gst_adapter_available (peaq->test_adapter_fb) >= required_size);
+      gst_adapter_flush (peaq->test_adapter_fb, required_size);
     }
   }
 
@@ -619,28 +610,29 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
        * parent change_state so that streaming can finish */
       gst_collect_pads2_stop (peaq->collect);
 
-      // TODO: do something similar for the filter bank adapters
+      guint frame_size = peaq_earmodel_get_frame_size (peaq->fft_ear_model);
+      guint required_size = peaq->channels * sizeof (gfloat) * frame_size;
       ref_data_left_count = gst_adapter_available (peaq->ref_adapter_fft);
       test_data_left_count = gst_adapter_available (peaq->test_adapter_fft);
       if (ref_data_left_count || test_data_left_count) {
         gfloat *padded_ref_frame =
-          g_newa (gfloat, peaq->channels * FFT_FRAMESIZE);
+          g_newa (gfloat, peaq->channels * frame_size);
         gfloat *padded_test_frame =
-          g_newa (gfloat, peaq->channels * FFT_FRAMESIZE);
+          g_newa (gfloat, peaq->channels * frame_size);
         guint ref_data_count =
-          MIN (ref_data_left_count, peaq->channels * FFT_BLOCKSIZE_BYTES);
+          MIN (ref_data_left_count, required_size);
         guint test_data_count =
-          MIN (test_data_left_count, peaq->channels * FFT_BLOCKSIZE_BYTES);
+          MIN (test_data_left_count, required_size);
         gfloat *refframe = (gfloat *) gst_adapter_peek (peaq->ref_adapter_fft,
 							ref_data_count);
         gfloat *testframe = (gfloat *) gst_adapter_peek (peaq->test_adapter_fft,
 							 test_data_count);
 	g_memmove (padded_ref_frame, refframe, ref_data_count);
 	memset (((char *) padded_ref_frame) + ref_data_count, 0,
-                peaq->channels * FFT_BLOCKSIZE_BYTES - ref_data_count);
+                required_size - ref_data_count);
 	g_memmove (padded_test_frame, testframe, test_data_count);
 	memset (((char *) padded_test_frame) + test_data_count, 0,
-                peaq->channels * FFT_BLOCKSIZE_BYTES - test_data_count);
+                required_size - test_data_count);
         if (peaq->advanced)
           gst_peaq_process_fft_block_advanced (peaq, padded_ref_frame,
                                                padded_test_frame);
@@ -656,27 +648,27 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
       }
 
       if (peaq->advanced) {
+        guint frame_size = peaq_earmodel_get_frame_size (peaq->fb_ear_model);
+        guint required_size = peaq->channels * sizeof (gfloat) * frame_size;
         ref_data_left_count = gst_adapter_available (peaq->ref_adapter_fb);
         test_data_left_count = gst_adapter_available (peaq->test_adapter_fb);
         if (ref_data_left_count || test_data_left_count) {
           gfloat *padded_ref_frame =
-            g_newa (gfloat, peaq->channels * FB_FRAMESIZE);
+            g_newa (gfloat, peaq->channels * frame_size);
           gfloat *padded_test_frame =
-            g_newa (gfloat, peaq->channels * FB_FRAMESIZE);
-          guint ref_data_count =
-            MIN (ref_data_left_count, peaq->channels * FB_BLOCKSIZE_BYTES);
-          guint test_data_count =
-            MIN (test_data_left_count, peaq->channels * FB_BLOCKSIZE_BYTES);
+            g_newa (gfloat, peaq->channels * frame_size);
+          guint ref_data_count = MIN (ref_data_left_count, required_size);
+          guint test_data_count = MIN (test_data_left_count, required_size);
           gfloat *refframe = (gfloat *) gst_adapter_peek (peaq->ref_adapter_fb,
                                                           ref_data_count);
           gfloat *testframe = (gfloat *) gst_adapter_peek (peaq->test_adapter_fb,
                                                            test_data_count);
           g_memmove (padded_ref_frame, refframe, ref_data_count);
           memset (((char *) padded_ref_frame) + ref_data_count, 0,
-                  peaq->channels * FB_BLOCKSIZE_BYTES - ref_data_count);
+                  required_size - ref_data_count);
           g_memmove (padded_test_frame, testframe, test_data_count);
           memset (((char *) padded_test_frame) + test_data_count, 0,
-                  peaq->channels * FB_BLOCKSIZE_BYTES - test_data_count);
+                  required_size - test_data_count);
           gst_peaq_process_fb_block (peaq, padded_ref_frame, padded_test_frame);
           g_assert (gst_adapter_available (peaq->ref_adapter_fb) >= 
                     ref_data_count);
@@ -734,9 +726,10 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
 
   PeaqEarModel *ear_params = peaq->fft_ear_model;
   guint band_count = peaq_earmodel_get_band_count (ear_params);
+  guint frame_size = peaq_earmodel_get_frame_size (ear_params);
 
-  gboolean above_thres = is_frame_above_threshold (refdata, FFT_FRAMESIZE,
-                                                   channels);
+  gboolean above_thres =
+    is_frame_above_threshold (refdata, frame_size, channels);
 
   for (i = 0; i < COUNT_MOV_BASIC; i++)
     peaq_movaccum_set_tentative (peaq->mov_accum[i], !above_thres);
@@ -753,9 +746,9 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
     gfloat *refdata_c;
     gfloat *testdata_c;
     if (channels != 1) {
-      refdata_c = g_newa (gfloat, FFT_BLOCKSIZE_BYTES);
-      testdata_c = g_newa (gfloat, FFT_BLOCKSIZE_BYTES);
-      for (i = 0; i < FFT_FRAMESIZE; i++) {
+      refdata_c = g_newa (gfloat, frame_size);
+      testdata_c = g_newa (gfloat, frame_size);
+      for (i = 0; i < frame_size; i++) {
         refdata_c[i] = refdata[channels * i +c];
         testdata_c[i] = testdata[channels * i +c];
       }
@@ -847,7 +840,7 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
       peaq_movaccum_accumulate (peaq->mov_accum[MOVBASIC_EHS], c, ehs[c]);
   }
 
-  for (i = 0; i < channels * FFT_FRAMESIZE / 2; i++) {
+  for (i = 0; i < channels * frame_size / 2; i++) {
     peaq->total_signal_energy
       += refdata[i] * refdata[i];
     peaq->total_noise_energy 
@@ -868,9 +861,10 @@ gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
 
   PeaqEarModel *ear_params = peaq->fft_ear_model;
   guint band_count = peaq_earmodel_get_band_count (ear_params);
+  guint frame_size = peaq_earmodel_get_frame_size (ear_params);
 
-  gboolean above_thres = is_frame_above_threshold (refdata, FFT_FRAMESIZE,
-                                                   channels);
+  gboolean above_thres =
+    is_frame_above_threshold (refdata, frame_size, channels);
 
   peaq_movaccum_set_tentative (peaq->mov_accum[MOVADV_SEGMENTAL_NMR],
                                !above_thres);
@@ -887,9 +881,9 @@ gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
     gfloat *refdata_c;
     gfloat *testdata_c;
     if (channels != 1) {
-      refdata_c = g_newa (gfloat, FFT_BLOCKSIZE_BYTES);
-      testdata_c = g_newa (gfloat, FFT_BLOCKSIZE_BYTES);
-      for (i = 0; i < FFT_FRAMESIZE; i++) {
+      refdata_c = g_newa (gfloat, frame_size);
+      testdata_c = g_newa (gfloat, frame_size);
+      for (i = 0; i < frame_size; i++) {
         refdata_c[i] = refdata[channels * i +c];
         testdata_c[i] = testdata[channels * i +c];
       }
@@ -930,7 +924,7 @@ gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
       peaq_movaccum_accumulate (peaq->mov_accum[MOVADV_EHS], c, ehs[c]);
   }
 
-  for (i = 0; i < channels * FFT_FRAMESIZE / 2; i++) {
+  for (i = 0; i < channels * frame_size / 2; i++) {
     peaq->total_signal_energy += refdata[i] * refdata[i];
     peaq->total_noise_energy 
       += (refdata[i] - testdata[i]) * (refdata[i] - testdata[i]);
@@ -944,11 +938,12 @@ gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
 {
   guint c;
   gint channels = peaq->channels;
-  PeaqEarModel *ear_params = PEAQ_EARMODEL (peaq->fb_ear_model);
+  PeaqEarModel *ear_params = peaq->fb_ear_model;
   guint band_count = peaq_earmodel_get_band_count (ear_params);
+  guint frame_size = peaq_earmodel_get_frame_size (ear_params);
 
-  gboolean above_thres = is_frame_above_threshold (refdata, FB_FRAMESIZE,
-                                                   channels);
+  gboolean above_thres =
+    is_frame_above_threshold (refdata, frame_size, channels);
 
   peaq_movaccum_set_tentative (peaq->mov_accum[MOVADV_RMS_MOD_DIFF],
                                !above_thres);
@@ -967,9 +962,9 @@ gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
     gfloat *refdata_c;
     gfloat *testdata_c;
     if (channels != 1) {
-      refdata_c = g_newa (gfloat, FB_BLOCKSIZE_BYTES);
-      testdata_c = g_newa (gfloat, FB_BLOCKSIZE_BYTES);
-      for (i = 0; i < FB_FRAMESIZE; i++) {
+      refdata_c = g_newa (gfloat, frame_size);
+      testdata_c = g_newa (gfloat, frame_size);
+      for (i = 0; i < frame_size; i++) {
         refdata_c[i] = refdata[channels * i + c];
         testdata_c[i] = testdata[channels * i + c];
       }
@@ -1068,19 +1063,20 @@ calc_ehs (GstPeaq const *peaq, gfloat const *refdata, gfloat const *testdata,
   gdouble energy = 0.;
   *ehs_valid = FALSE;
   GstPeaqClass *peaq_class = GST_PEAQ_GET_CLASS (peaq);
-  for (i = FFT_FRAMESIZE / 2; i < FFT_FRAMESIZE; i++)
+  guint frame_size = peaq_earmodel_get_frame_size (peaq->fft_ear_model);
+  for (i = frame_size / 2; i < frame_size; i++)
     energy += refdata[i] * refdata[i];
   if (energy >= EHS_ENERGY_THRESHOLD)
     *ehs_valid = TRUE;
   else {
     energy = 0.;
-    for (i = FFT_FRAMESIZE / 2; i < FFT_FRAMESIZE; i++)
+    for (i = frame_size / 2; i < frame_size; i++)
       energy += testdata[i] * testdata[i];
     if (energy >= EHS_ENERGY_THRESHOLD)
       *ehs_valid = TRUE;
   }
   if (*ehs_valid) {
-    gdouble d[FFT_FRAMESIZE / 2 + 1];
+    gdouble *d = g_newa (gdouble, frame_size / 2 + 1);
     gdouble c[MAXLAG];
     gdouble d0;
     gdouble dk;
