@@ -102,6 +102,7 @@ struct _PeaqFilterbankEarModelState
   gdouble cu[BUFFER_LENGTH];
   gdouble *E0_buf[40];
   gdouble excitation[40];
+  gdouble unsmeared_excitation[40];
 };
 
 
@@ -113,9 +114,11 @@ static void set_playback_level (PeaqEarModel *model, double level);
 static gpointer state_alloc (PeaqEarModel const *model);
 static void state_free (PeaqEarModel const *model, gpointer state);
 static void process_block (PeaqEarModel const *model, gpointer state,
-                           gfloat const *sample_data, EarModelOutput *output);
+                           gfloat const *sample_data);
 static gdouble const *get_excitation (PeaqEarModel const *model,
                                       gpointer state);
+static gdouble const *get_unsmeared_excitation (PeaqEarModel const *model,
+                                                gpointer state);
 
 
 GType
@@ -160,6 +163,7 @@ class_init (gpointer klass, gpointer class_data)
   ear_model_class->state_free = state_free;
   ear_model_class->process_block = process_block;
   ear_model_class->get_excitation = get_excitation;
+  ear_model_class->get_unsmeared_excitation = get_unsmeared_excitation;
   ear_model_class->frame_size = FB_FRAMESIZE;
   ear_model_class->step_size = FB_FRAMESIZE;
   /* see section 3.3 in [BS1387], section 4.3 in [Kabal03] */
@@ -262,7 +266,7 @@ void state_free (PeaqEarModel const *model, gpointer state)
 
 static void
 process_block (PeaqEarModel const *model, gpointer state,
-               gfloat const *sample_data, EarModelOutput *output)
+               gfloat const *sample_data)
 {
   guint k;
   guint band;
@@ -395,7 +399,7 @@ process_block (PeaqEarModel const *model, gpointer state,
 
     /* adding of internal noise; 2.2.10 in [BS1387], 3.6 in [Kabal03] */
     gdouble EThres = peaq_earmodel_get_internal_noise (model, band);
-    output->unsmeared_excitation[band] = E1[band] + EThres;
+    fb_state->unsmeared_excitation[band] = E1[band] + EThres;
 
     /* time domain smearing (2) - forward masking; 2.2.11 in [BS1387], 3.7 in
      * [Kabal03] */
@@ -403,7 +407,7 @@ process_block (PeaqEarModel const *model, gpointer state,
 
     fb_state->excitation[band] =
       a * fb_state->excitation[band] +
-      (1. - a) * output->unsmeared_excitation[band];
+      (1. - a) * fb_state->unsmeared_excitation[band];
   }
 }
 
@@ -411,4 +415,10 @@ static gdouble const *
 get_excitation (PeaqEarModel const *model, gpointer state)
 {
   return ((PeaqFilterbankEarModelState *) state)->excitation;
+}
+
+static gdouble const *
+get_unsmeared_excitation (PeaqEarModel const *model, gpointer state)
+{
+  return ((PeaqFilterbankEarModelState *) state)->unsmeared_excitation;
 }

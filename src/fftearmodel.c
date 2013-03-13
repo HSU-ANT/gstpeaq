@@ -97,6 +97,7 @@ struct _PeaqFFTEarModelClass
 
 struct _PeaqFFTEarModelState {
   gdouble *filtered_excitation;
+  gdouble *unsmeared_excitation;
   gdouble *excitation;
   gdouble power_spectrum[FFT_FRAMESIZE / 2 + 1];
   gdouble weighted_power_spectrum[FFT_FRAMESIZE / 2 + 1];
@@ -110,9 +111,11 @@ static void set_playback_level (PeaqEarModel *model, double level);
 static gpointer state_alloc (PeaqEarModel const *model);
 static void state_free (PeaqEarModel const *model, gpointer state);
 void process_block (PeaqEarModel const *model, gpointer state,
-                    gfloat const *sample_data, EarModelOutput *output);
+                    gfloat const *sample_data);
 static gdouble const *get_excitation (PeaqEarModel const *model,
                                       gpointer state);
+static gdouble const *get_unsmeared_excitation (PeaqEarModel const *model,
+                                                gpointer state);
 static void do_spreading (PeaqFFTEarModel const *model, gdouble const *Pp,
                           gdouble *E2);
 static void get_property (GObject *obj, guint id, GValue *value,
@@ -196,6 +199,7 @@ class_init (gpointer klass, gpointer class_data)
   ear_model_class->state_free = state_free;
   ear_model_class->process_block = process_block;
   ear_model_class->get_excitation = get_excitation;
+  ear_model_class->get_unsmeared_excitation = get_unsmeared_excitation;
 
   ear_model_class->loudness_scale = LOUDNESS_SCALE;
   ear_model_class->frame_size = FFT_FRAMESIZE;
@@ -297,6 +301,7 @@ gpointer state_alloc (PeaqEarModel const *model)
 {
   PeaqFFTEarModelState *state = g_new0 (PeaqFFTEarModelState, 1);
   state->filtered_excitation = g_new0 (gdouble, model->band_count);
+  state->unsmeared_excitation = g_new0 (gdouble, model->band_count);
   state->excitation = g_new0 (gdouble, model->band_count);
   return state;
 }
@@ -305,6 +310,7 @@ static
 void state_free (PeaqEarModel const *model, gpointer state)
 {
   g_free (((PeaqFFTEarModelState *) state)->filtered_excitation);
+  g_free (((PeaqFFTEarModelState *) state)->unsmeared_excitation);
   g_free (((PeaqFFTEarModelState *) state)->excitation);
   g_free (state);
 }
@@ -409,7 +415,7 @@ void state_free (PeaqEarModel const *model, gpointer state)
  */
 void
 process_block (PeaqEarModel const *model, gpointer state,
-               gfloat const *sample_data, EarModelOutput *output)
+               gfloat const *sample_data)
 {
   guint k, i;
   PeaqFFTEarModelState *fft_state = (PeaqFFTEarModelState *) state;
@@ -423,9 +429,6 @@ process_block (PeaqEarModel const *model, gpointer state,
     g_newa (gdouble, peaq_earmodel_get_band_count (model));
   gdouble *noisy_band_power =
     g_newa (gdouble, peaq_earmodel_get_band_count (model));
-  gdouble *unsmeared_excitation = output->unsmeared_excitation;
-
-  g_assert (output);
 
   /* apply a Hann window to the input data frame; (3) in [BS1387], part of (4)
    * in [Kabal03] */
@@ -467,7 +470,7 @@ process_block (PeaqEarModel const *model, gpointer state,
 
   /* do (frequency) spreading according to section 2.1.7 in [BS1387] / section
    * 2.8 in [Kabal03] */
-  do_spreading (fft_model, noisy_band_power, unsmeared_excitation);
+  do_spreading (fft_model, noisy_band_power, fft_state->unsmeared_excitation);
 
   /* do time domain spreading according to section 2.1.8 of [BS1387] / section
    * 2.9 of [Kabal03]
@@ -477,10 +480,11 @@ process_block (PeaqEarModel const *model, gpointer state,
   for (i = 0; i < model->band_count; i++) {
     gdouble a = peaq_earmodel_get_ear_time_constant (model, i);
     fft_state->filtered_excitation[i] =
-      a * fft_state->filtered_excitation[i] + (1. - a) * unsmeared_excitation[i];
+      a * fft_state->filtered_excitation[i] +
+      (1. - a) * fft_state->unsmeared_excitation[i];
     fft_state->excitation[i] =
-      fft_state->filtered_excitation[i] > unsmeared_excitation[i] ?
-      fft_state->filtered_excitation[i] : unsmeared_excitation[i];
+      fft_state->filtered_excitation[i] > fft_state->unsmeared_excitation[i] ?
+      fft_state->filtered_excitation[i] : fft_state->unsmeared_excitation[i];
   }
 }
 
@@ -488,6 +492,12 @@ static gdouble const *
 get_excitation (PeaqEarModel const *model, gpointer state)
 {
   return ((PeaqFFTEarModelState *) state)->excitation;
+}
+
+static gdouble const *
+get_unsmeared_excitation (PeaqEarModel const *model, gpointer state)
+{
+  return ((PeaqFFTEarModelState *) state)->unsmeared_excitation;
 }
 
 /**

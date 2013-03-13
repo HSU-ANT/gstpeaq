@@ -635,7 +635,6 @@ test_ear ()
   gfloat input_data[2048];
   PeaqEarModel *ear;
   PeaqEarModel *fb_ear;
-  EarModelOutput output;
 
   ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
   fb_ear = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL, NULL);
@@ -644,19 +643,15 @@ test_ear ()
 
   band_count = peaq_earmodel_get_band_count (ear);
 
-  output.unsmeared_excitation = g_newa (gdouble, band_count);
-
   for (i = 0; i < 1024; i++)
     input_data[i] = -1;
   input_data[i++] = 0;
   while (i < 2048)
     input_data[i++] = 1;
-  peaq_earmodel_process_block (ear, state, input_data,
-                               (EarModelOutput *) &output);
+  peaq_earmodel_process_block (ear, state, input_data);
   for (i = 0; i < 2048; i++)
     input_data[i] = (gfloat) (i - 1024) / 1024;
-  peaq_earmodel_process_block (ear, state, input_data,
-                               (EarModelOutput *) &output);
+  peaq_earmodel_process_block (ear, state, input_data);
 
   assertArrayEqualsSq (peaq_fftearmodel_get_power_spectrum (state),
                        fft_ref_data, 1025,
@@ -666,7 +661,7 @@ test_ear ()
                        weighted_fft_ref_data,
 		       1025, "weighted_fft");
 
-  assertArrayEquals (output.unsmeared_excitation,
+  assertArrayEquals (peaq_earmodel_get_unsmeared_excitation (ear, state),
                      unsmeared_excitation_ref, band_count,
                      "unsmeared_excitation");
 
@@ -677,7 +672,7 @@ test_ear ()
     gdouble SPL;
     for (i = 0; i < 2048; i++)
       input_data[i] = sin (2 * M_PI * 1019.5 / 48000. * (i + frame * 1024));
-    peaq_earmodel_process_block (ear, state, input_data, &output);
+    peaq_earmodel_process_block (ear, state, input_data);
     SPL = 10*log10 (peaq_fftearmodel_get_power_spectrum (state)[43]);
     if (SPL > 92.0001 || SPL < 91.9999) {
       g_printf ("SPL == %f != 92\n", SPL);
@@ -690,8 +685,7 @@ test_ear ()
     gdouble scale = pow (10., (40. - 92.) / 20);
     for (i = 0; i < 2048; i++)
       input_data[i] = scale * sin (2 * M_PI * 1000. / 48000. * (i + frame * 1024));
-    peaq_earmodel_process_block (ear, state, input_data,
-                                 (EarModelOutput *) &output);
+    peaq_earmodel_process_block (ear, state, input_data);
   }
   /* [BS1387] claims that the constants are chosen such that the loudness is 1
    * Sone, [Kabal03] already mentions that the algorithm in fact yields 0.584 */
@@ -710,8 +704,7 @@ test_ear ()
     gdouble scale = pow (10., (40. - 92.) / 20);
     for (i = 0; i < 192; i++)
       input_data[i] = scale * sin (2 * M_PI * 1000. / 48000. * (i + frame * 192));
-    peaq_earmodel_process_block (fb_ear, fb_state, input_data,
-                                 (EarModelOutput *) &output);
+    peaq_earmodel_process_block (fb_ear, fb_state, input_data);
   }
   loudness = peaq_earmodel_calc_loudness (fb_ear, fb_state);
   /* [BS1387] claims that the constants are chosen such that the loudness is 1

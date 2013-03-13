@@ -183,7 +183,6 @@ peaq_earmodel_state_free (PeaqEarModel const *model, gpointer state)
  * @model: The #PeaqEarModel instance to free state data for.
  * @state: The instance state data.
  * @samples: One frame of input data.
- * @output: The #EarModelOutput to store the results in.
  *
  * Invokes the <structfield>process_block</structfield> function of the derived
  * class to process one frame of audio. The required length of the frame
@@ -193,16 +192,12 @@ peaq_earmodel_state_free (PeaqEarModel const *model, gpointer state)
  * determined by calling peaq_earmodel_get_step_size(). Any state
  * information required between successive invocations is kept in @state, which
  * has be allocated with peaq_earmodel_state_alloc() beforehand.
- *
- * The result is stored in @output. Note that the fields of @output have to be
- * preallocated to the correct sizes (number of bands).
  */
 void
 peaq_earmodel_process_block (PeaqEarModel const *model, gpointer state,
-                             gfloat const *samples, EarModelOutput *output)
+                             gfloat const *samples)
 {
-  PEAQ_EARMODEL_GET_CLASS (model)->process_block (model, state, samples,
-                                                  output);
+  PEAQ_EARMODEL_GET_CLASS (model)->process_block (model, state, samples);
 }
 
 /**
@@ -210,13 +205,13 @@ peaq_earmodel_process_block (PeaqEarModel const *model, gpointer state,
  * @model: The underlying #PeaqEarModel.
  * @state: The current state from which to extract the excitation.
  *
- * Returns the current excitation patterns after frequency and imte-domain
+ * Returns the current excitation patterns after frequency and time-domain
  * spreading
  * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
  *   <msub><mover><mi>E</mi><mo>~</mo></mover><mi>s</mi></msub>
  *   <mfenced open="[" close="]"><mi>i</mi></mfenced>
  * </math></inlineequation>
- * in <xref linkend="Kabal03" />).
+ * in <xref linkend="Kabal03" />)
  * as computed during the last call to peaq_earmodel_process_block().
  *
  * Returns: The current excitation.
@@ -225,6 +220,30 @@ gdouble const *
 peaq_earmodel_get_excitation (PeaqEarModel const *model, gpointer state)
 {
   return PEAQ_EARMODEL_GET_CLASS (model)->get_excitation (model, state);
+}
+
+/**
+ * peaq_earmodel_get_unsmeared_excitation:
+ * @model: The underlying #PeaqEarModel.
+ * @state: The current state from which to extract the unsmeared excitation.
+ *
+ * Returns the current unsmeared excitation patterns after frequency, but
+ * before time-domain spreading
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mi>E</mi><mi>s</mi></msub>
+ *   <mfenced open="[" close="]"><mi>i</mi></mfenced>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />)
+ * as computed during the last call to peaq_earmodel_process_block().
+ *
+ * Returns: The current excitation.
+ */
+gdouble const *
+peaq_earmodel_get_unsmeared_excitation (PeaqEarModel const *model,
+                                        gpointer state)
+{
+  return PEAQ_EARMODEL_GET_CLASS (model)->get_unsmeared_excitation (model,
+                                                                    state);
 }
 
 /**

@@ -41,23 +41,6 @@ typedef struct _PeaqEarModel PeaqEarModel;
 typedef struct _EarModelOutput EarModelOutput;
 
 /**
- * EarModelOutput:
- * @unsmeared_excitation: The excitation patterns after frequency spreading, 
- * but before time-domain spreading
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>E</mi><mi>s</mi></msub>
- *   <mfenced open="[" close="]"><mi>i</mi></mfenced>
- * </math></inlineequation>
- * in <xref linkend="Kabal03" />).
- *
- * Holds the data calculated by the ear model for one frame of audio data.
- */
-struct _EarModelOutput
-{
-  gdouble *unsmeared_excitation;
-};
-
-/**
  * PeaqEarModel:
  * @parent: The parent #GObject.
  * @band_count: Number of frequency bands.
@@ -208,6 +191,8 @@ struct _PeaqEarModel
 /**
  * PeaqEarModelClass:
  * @parent: The parent #GObjectClass.
+ * @frame_size: The size in samples of one frame to process with
+ * peaq_earmodel_process_block()/@process_block.
  * @step_size: The step size in samples to progress between successive
  * invocations of peaq_earmodel_process_block()/@process_block.
  * @loudness_scale: The frequency independent loudness scaling
@@ -249,6 +234,9 @@ struct _PeaqEarModel
  * peaq_earmodel_process_block().
  * @get_excitation: Function to obtain the current excitation from the state,
  * called by peaq_earmodel_get_excitation().
+ * @get_unsmeared_excitation: Function to obtain the current unsmeared
+ * excitation from the state, called by
+ * peaq_earmodel_get_unsmeared_excitation().
  *
  * Derived classes must provide values for all fields of #PeaqEarModelClass
  * (except for <structfield>parent</structfield>).
@@ -266,18 +254,21 @@ struct _PeaqEarModelClass
   gpointer (*state_alloc) (PeaqEarModel const *model);
   void (*state_free) (PeaqEarModel const *model, gpointer state);
   void (*process_block) (PeaqEarModel const *model, gpointer state,
-                         gfloat const *samples, EarModelOutput *output);
+                         gfloat const *samples);
   gdouble const *(*get_excitation) (PeaqEarModel const *model, gpointer state);
+  gdouble const *(*get_unsmeared_excitation) (PeaqEarModel const *model,
+                                              gpointer state);
 };
 
 GType peaq_earmodel_get_type ();
 gpointer peaq_earmodel_state_alloc (PeaqEarModel const *model);
 void peaq_earmodel_state_free (PeaqEarModel const *model, gpointer state);
 void peaq_earmodel_process_block (PeaqEarModel const *model, gpointer state,
-                                  gfloat const *samples,
-                                  EarModelOutput *output);
+                                  gfloat const *samples);
 gdouble const *peaq_earmodel_get_excitation (PeaqEarModel const *model,
                                              gpointer state);
+gdouble const *peaq_earmodel_get_unsmeared_excitation (PeaqEarModel const *model,
+                                                       gpointer state);
 guint peaq_earmodel_get_band_count (PeaqEarModel const *model);
 guint peaq_earmodel_get_frame_size (PeaqEarModel const *model);
 guint peaq_earmodel_get_step_size (PeaqEarModel const *model);
