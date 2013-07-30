@@ -89,9 +89,8 @@ struct _GstPeaq
   GstElement element;
   GstPad *refpad;
   GstPad *testpad;
-  GstCollectPads *collect;
-  GstCollectData *ref_collect_data;
-  GstCollectData *test_collect_data;
+  gboolean ref_eos;
+  gboolean test_eos;
   GstAdapter *ref_adapter_fft;
   GstAdapter *test_adapter_fft;
   GstAdapter *ref_adapter_fb;
