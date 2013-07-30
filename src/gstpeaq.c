@@ -130,7 +130,8 @@ static void gst_peaq_set_property (GObject * obj, guint id,
 				   const GValue * value, GParamSpec * pspec);
 static GstCaps *get_caps (GstPad *pad);
 static gboolean set_caps (GstPad *pad, GstCaps *caps);
-static GstFlowReturn pads_buffer (GstCollectPads2 *pads, GstCollectData2 *data,
+static GstFlowReturn pads_collected (GstCollectPads *pads, gpointer user_data);
+static GstFlowReturn pads_buffer (GstCollectPads *pads, GstCollectData *data,
                                   GstBuffer *buffer, gpointer user_data);
 static GstStateChangeReturn gst_peaq_change_state (GstElement * element,
 						   GstStateChange transition);
@@ -258,8 +259,8 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   GstPadTemplate *template;
   PeaqEarModel *model_params;
 
-  peaq->collect = gst_collect_pads2_new ();
-  gst_collect_pads2_set_buffer_function (peaq->collect, pads_buffer, peaq);
+  peaq->collect = gst_collect_pads_new ();
+  gst_collect_pads_set_function (peaq->collect, pads_collected, peaq);
 
   peaq->ref_adapter_fft = gst_adapter_new ();
   peaq->test_adapter_fft = gst_adapter_new ();
@@ -273,8 +274,9 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   template = gst_static_pad_template_get (&gst_peaq_ref_template);
   peaq->refpad = gst_pad_new_from_template (template, "ref");
   gst_object_unref (template);
-  gst_collect_pads2_add_pad (peaq->collect, peaq->refpad,
-                             sizeof (GstCollectData2));
+  peaq->ref_collect_data = gst_collect_pads_add_pad (peaq->collect,
+                                                     peaq->refpad,
+                                                     sizeof (GstCollectData));
   gst_pad_set_setcaps_function (peaq->refpad, set_caps);
   gst_pad_set_getcaps_function (peaq->refpad, get_caps);
   gst_element_add_pad (GST_ELEMENT (peaq), peaq->refpad);
@@ -282,8 +284,9 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
   template = gst_static_pad_template_get (&gst_peaq_test_template);
   peaq->testpad = gst_pad_new_from_template (template, "test");
   gst_object_unref (template);
-  gst_collect_pads2_add_pad (peaq->collect, peaq->testpad,
-                             sizeof (GstCollectData2));
+  peaq->test_collect_data = gst_collect_pads_add_pad (peaq->collect,
+                                                      peaq->testpad,
+                                                      sizeof (GstCollectData));
   gst_pad_set_setcaps_function (peaq->testpad, set_caps);
   gst_pad_set_getcaps_function (peaq->testpad, get_caps);
   gst_element_add_pad (GST_ELEMENT (peaq), peaq->testpad);
@@ -485,10 +488,29 @@ set_caps (GstPad *pad, GstCaps *caps)
   return TRUE;
 }
 
+static GstFlowReturn
+pads_collected (GstCollectPads *pads, gpointer user_data)
+{
+  GstPeaq *peaq;
+  GstBuffer *buffer;
+  GstFlowReturn ret;
+
+  peaq = GST_PEAQ (user_data);
+
+  buffer = gst_collect_pads_pop (peaq->collect, peaq->ref_collect_data);
+  ret = pads_buffer (peaq->collect, peaq->ref_collect_data, buffer, user_data);
+  if (ret != GST_FLOW_OK)
+    return ret;
+
+  buffer = gst_collect_pads_pop (peaq->collect, peaq->test_collect_data);
+  ret = pads_buffer (peaq->collect, peaq->test_collect_data, buffer, user_data);
+  return ret;
+}
 
 static GstFlowReturn
-pads_buffer (GstCollectPads2 *pads, GstCollectData2 *data, GstBuffer *buffer,
+pads_buffer (GstCollectPads *pads, GstCollectData *data, GstBuffer *buffer,
              gpointer user_data)
+
 {
   GstPeaq *peaq;
 
@@ -598,14 +620,14 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
         peaq->test_fb_ear_state[0] = peaq_earmodel_state_alloc (peaq->fb_ear_model);
         peaq->test_fb_ear_state[1] = peaq_earmodel_state_alloc (peaq->fb_ear_model);
       }
-      gst_collect_pads2_start (peaq->collect);
+      gst_collect_pads_start (peaq->collect);
       break;
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
       /* need to unblock the collectpads before calling the
        * parent change_state so that streaming can finish */
-      gst_collect_pads2_stop (peaq->collect);
+      gst_collect_pads_stop (peaq->collect);
 
       guint frame_size = peaq_earmodel_get_frame_size (peaq->fft_ear_model);
       guint required_size = peaq->channels * sizeof (gfloat) * frame_size;
