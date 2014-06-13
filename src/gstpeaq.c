@@ -123,32 +123,32 @@ static gdouble wx[11][3] = {
 static double wxb[] = { -2.518254, 0.654841, -2.207228 };
 static double wy[] = { -3.817048, 4.107138, 4.629582, -0.307594 };
 
-static void gst_peaq_finalize (GObject * object);
-static void gst_peaq_get_property (GObject * obj, guint id, GValue * value,
-				   GParamSpec * pspec);
-static void gst_peaq_set_property (GObject * obj, guint id,
-				   const GValue * value, GParamSpec * pspec);
+static void finalize (GObject * object);
+static void get_property (GObject *obj, guint id, GValue *value,
+                          GParamSpec *pspec);
+static void set_property (GObject *obj, guint id, const GValue *value,
+                          GParamSpec *pspec);
 static GstCaps *get_caps (GstPad *pad);
 static gboolean set_caps (GstPad *pad, GstCaps *caps);
 static GstFlowReturn pad_chain (GstPad *pad, GstBuffer *buffer);
 static gboolean pad_event (GstPad *pad, GstEvent *event);
 static GstStateChangeReturn gst_peaq_change_state (GstElement * element,
 						   GstStateChange transition);
-static void gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
-                                              gfloat *testdata);
-static void gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
-                                                 gfloat *testdata);
-static void gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata,
-                                       gfloat *testdata);
+static void process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
+                                     gfloat *testdata);
+static void process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
+                                        gfloat *testdata);
+static void process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata);
 static void calc_ehs (GstPeaq const *peaq, gpointer *ref_state,
                       gpointer *test_state, PeaqMovAccum *mov_accum);
-static double gst_peaq_calculate_di (GstPeaq * peaq);
-static double gst_peaq_calculate_di_advanced (GstPeaq *peaq);
-static double gst_peaq_calculate_odg (GstPeaq * peaq);
+static double calculate_di (GstPeaq * peaq);
+static double calculate_di_advanced (GstPeaq *peaq);
+static double calculate_odg (GstPeaq * peaq);
 static gboolean is_frame_above_threshold (gfloat *framedata, guint framesize,
                                           guint channels);
 
-gboolean query(GstElement *element, GstQuery *query)
+static gboolean
+query(GstElement *element, GstQuery *query)
 {
   switch (query->type) {
     case GST_QUERY_LATENCY:
@@ -179,7 +179,7 @@ gst_peaq_base_init (gpointer g_class)
   element_class->query = query;
 
   element_class->change_state = gst_peaq_change_state;
-  gobject_class->finalize = gst_peaq_finalize;
+  gobject_class->finalize = finalize;
 
   peaq_class->sampling_rate = 48000;
 }
@@ -202,8 +202,8 @@ gst_peaq_class_init (GstPeaqClass * peaq_class)
       (1 - cos (2 * M_PI * i / (MAXLAG - 1))) / MAXLAG;
 #endif
 
-  object_class->get_property = gst_peaq_get_property;
-  object_class->set_property = gst_peaq_set_property;
+  object_class->get_property = get_property;
+  object_class->set_property = set_property;
   g_object_class_install_property (object_class,
 				   PROP_PLAYBACK_LEVEL,
 				   g_param_spec_double ("playback_level",
@@ -313,7 +313,7 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
 }
 
 static void
-gst_peaq_finalize (GObject * object)
+finalize (GObject * object)
 {
   guint i;
   GstPeaq *peaq = GST_PEAQ (object);
@@ -337,8 +337,7 @@ gst_peaq_finalize (GObject * object)
 }
 
 static void
-gst_peaq_get_property (GObject * obj, guint id, GValue * value,
-		       GParamSpec * pspec)
+get_property (GObject *obj, guint id, GValue *value, GParamSpec *pspec)
 {
   GstPeaq *peaq = GST_PEAQ (obj);
   switch (id) {
@@ -348,12 +347,12 @@ gst_peaq_get_property (GObject * obj, guint id, GValue * value,
       break;
     case PROP_DI:
       if (peaq->advanced)
-        g_value_set_double (value, gst_peaq_calculate_di_advanced (peaq));
+        g_value_set_double (value, calculate_di_advanced (peaq));
       else
-        g_value_set_double (value, gst_peaq_calculate_di (peaq));
+        g_value_set_double (value, calculate_di (peaq));
       break;
     case PROP_ODG:
-      g_value_set_double (value, gst_peaq_calculate_odg (peaq));
+      g_value_set_double (value, calculate_odg (peaq));
       break;
     case PROP_TOTALSNR:
       {
@@ -368,8 +367,7 @@ gst_peaq_get_property (GObject * obj, guint id, GValue * value,
 }
 
 static void
-gst_peaq_set_property (GObject * obj, guint id, const GValue * value,
-		       GParamSpec * pspec)
+set_property (GObject *obj, guint id, const GValue *value, GParamSpec *pspec)
 {
   GstPeaq *peaq = GST_PEAQ (obj);
   switch (id) {
@@ -469,6 +467,7 @@ get_caps (GstPad *pad)
   } else {
     caps = mycaps;
   }
+  gst_object_unref (peaq);
   return caps;
 }
 
@@ -478,6 +477,7 @@ set_caps (GstPad *pad, GstCaps *caps)
   GstPeaq *peaq = GST_PEAQ (gst_pad_get_parent_element (pad));
   gst_structure_get_int (gst_caps_get_structure (caps, 0),
                          "channels", &(peaq->channels));
+  gst_object_unref (peaq);
   return TRUE;
 }
 
@@ -537,9 +537,9 @@ pad_chain (GstPad *pad, GstBuffer *buffer)
       (gfloat *) gst_adapter_peek (peaq->test_adapter_fft,
                                    required_size);
     if (peaq->advanced)
-      gst_peaq_process_fft_block_advanced (peaq, refframe, testframe);
+      process_fft_block_advanced (peaq, refframe, testframe);
     else
-      gst_peaq_process_fft_block_basic (peaq, refframe, testframe);
+      process_fft_block_basic (peaq, refframe, testframe);
     g_assert (gst_adapter_available (peaq->ref_adapter_fft) >= required_size);
     gst_adapter_flush (peaq->ref_adapter_fft, step_size_bytes);
     g_assert (gst_adapter_available (peaq->test_adapter_fft) >= required_size);
@@ -557,7 +557,7 @@ pad_chain (GstPad *pad, GstBuffer *buffer)
         (gfloat *) gst_adapter_peek (peaq->ref_adapter_fb, required_size);
       gfloat *testframe = 
         (gfloat *) gst_adapter_peek (peaq->test_adapter_fb, required_size);
-      gst_peaq_process_fb_block (peaq, refframe, testframe);
+      process_fb_block (peaq, refframe, testframe);
       g_assert (gst_adapter_available (peaq->ref_adapter_fb) >= required_size);
       gst_adapter_flush (peaq->ref_adapter_fb, required_size);
       g_assert (gst_adapter_available (peaq->test_adapter_fb) >= required_size);
@@ -652,11 +652,10 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
 	memset (((char *) padded_test_frame) + test_data_count, 0,
                 required_size - test_data_count);
         if (peaq->advanced)
-          gst_peaq_process_fft_block_advanced (peaq, padded_ref_frame,
-                                               padded_test_frame);
+          process_fft_block_advanced (peaq, padded_ref_frame,
+                                      padded_test_frame);
         else
-          gst_peaq_process_fft_block_basic (peaq, padded_ref_frame,
-                                            padded_test_frame);
+          process_fft_block_basic (peaq, padded_ref_frame, padded_test_frame);
 	g_assert (gst_adapter_available (peaq->ref_adapter_fft) >= 
 		  ref_data_count);
 	gst_adapter_flush (peaq->ref_adapter_fft, ref_data_count);
@@ -687,7 +686,7 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
           g_memmove (padded_test_frame, testframe, test_data_count);
           memset (((char *) padded_test_frame) + test_data_count, 0,
                   required_size - test_data_count);
-          gst_peaq_process_fb_block (peaq, padded_ref_frame, padded_test_frame);
+          process_fb_block (peaq, padded_ref_frame, padded_test_frame);
           g_assert (gst_adapter_available (peaq->ref_adapter_fb) >= 
                     ref_data_count);
           gst_adapter_flush (peaq->ref_adapter_fb, ref_data_count);
@@ -697,7 +696,7 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
         }
       }
 
-      gst_peaq_calculate_odg (peaq);
+      calculate_odg (peaq);
 
       peaq_earmodel_state_free (peaq->fft_ear_model, peaq->ref_fft_ear_state[0]);
       peaq_earmodel_state_free (peaq->fft_ear_model, peaq->ref_fft_ear_state[1]);
@@ -789,8 +788,7 @@ apply_ear_model_and_preprocess (GstPeaq *peaq, PeaqEarModel *model,
 }
 
 static void
-gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
-                                  gfloat *testdata)
+process_fft_block_basic (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
 {
   guint i;
   gint channels = peaq->channels;
@@ -863,8 +861,7 @@ gst_peaq_process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
 }
 
 static void
-gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
-                                     gfloat *testdata)
+process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
 {
   guint i;
   gint channels = peaq->channels;
@@ -905,7 +902,7 @@ gst_peaq_process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
 }
 
 static void
-gst_peaq_process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
+process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
 {
   gint channels = peaq->channels;
   PeaqEarModel *ear_params = peaq->fb_ear_model;
@@ -1055,7 +1052,7 @@ calc_ehs (GstPeaq const *peaq, gpointer *ref_state, gpointer *test_state,
 }
 
 static double
-gst_peaq_calculate_di (GstPeaq * peaq)
+calculate_di (GstPeaq * peaq)
 {
   guint i;
   gdouble movs[11];
@@ -1106,7 +1103,7 @@ gst_peaq_calculate_di (GstPeaq * peaq)
 }
 
 static double
-gst_peaq_calculate_di_advanced (GstPeaq *peaq)
+calculate_di_advanced (GstPeaq *peaq)
 {
   guint i;
   gdouble x[5];
@@ -1162,13 +1159,13 @@ gst_peaq_calculate_di_advanced (GstPeaq *peaq)
 }
 
 static double
-gst_peaq_calculate_odg (GstPeaq * peaq)
+calculate_odg (GstPeaq * peaq)
 {
   gdouble distortion_index;
   if (peaq->advanced)
-    distortion_index = gst_peaq_calculate_di_advanced (peaq);
+    distortion_index = calculate_di_advanced (peaq);
   else
-    distortion_index = gst_peaq_calculate_di (peaq);
+    distortion_index = calculate_di (peaq);
   gdouble odg = -3.98 + 4.2 / (1 + exp (-distortion_index));
   if (peaq->console_output) {
     g_printf ("Objective Difference Grade: %.3f\n", odg);
