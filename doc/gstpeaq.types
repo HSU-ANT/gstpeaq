@@ -15,3 +15,6 @@ peaq_leveladapter_get_type
 
 #include "modpatt.h"
 peaq_modulationprocessor_get_type
+
+#include "movaccum.h"
+peaq_movaccum_get_type

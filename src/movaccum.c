@@ -19,6 +19,13 @@
  * Boston, MA 02111-1307, USA.
  */
 
+/**
+ * SECTION:movaccum
+ * @short_description: Model output variable accumulator.
+ * @title: PeaqMovAccum
+ *
+ */
+
 #include "movaccum.h"
 
 #include <math.h>
@@ -57,12 +64,22 @@ struct _FiltMaxData {
   gdouble filt_state;
 };
 
+/**
+ * PeaqMovAccumClass:
+ * 
+ * The opaque PeaqMovAccumClass structure.
+ */
 struct _PeaqMovAccumClass
 {
   GObjectClass parent;
 };
 
 struct _PeaqMovAccum
+/**
+ * PeaqMovAccum:
+ * 
+ * The opaque PeaqMovAccum structure.
+ */
 {
   GObjectClass parent;
   Status status;
