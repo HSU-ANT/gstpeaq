@@ -68,9 +68,9 @@ mov_modulation_difference_B (PeaqModulationProcessor * const *ref_mod_proc,
     }
     mod_diff_1b *= 100. / band_count;
     mod_diff_2b *= 100. / band_count;
-    peaq_movaccum_accumulate_weighted (mov_accum1, c, mod_diff_1b, temp_wt);
-    peaq_movaccum_accumulate_weighted (mov_accum2, c, mod_diff_2b, temp_wt);
-    peaq_movaccum_accumulate (mov_accum_win, c, mod_diff_1b);
+    peaq_movaccum_accumulate (mov_accum1, c, mod_diff_1b, temp_wt);
+    peaq_movaccum_accumulate (mov_accum2, c, mod_diff_2b, temp_wt);
+    peaq_movaccum_accumulate (mov_accum_win, c, mod_diff_1b, 1.);
   }
 }
 
@@ -106,7 +106,7 @@ mov_modulation_difference_A (PeaqModulationProcessor * const *ref_mod_proc,
          pow (peaq_earmodel_get_internal_noise (ear_model, i), 0.3));
     }
     mod_diff_a *= 100. / band_count;
-    peaq_movaccum_accumulate_weighted (mov_accum, c, mod_diff_a, temp_wt);
+    peaq_movaccum_accumulate (mov_accum, c, mod_diff_a, temp_wt);
   }
 }
 
@@ -125,7 +125,7 @@ mov_noise_loudness (PeaqModulationProcessor * const *ref_mod_proc,
     gdouble noise_loudness =
       calc_noise_loudness (1.5, 0.15, 0.5, 0., ref_mod_proc[c],
                            test_mod_proc[c], ref_excitation, test_excitation);
-    peaq_movaccum_accumulate (mov_accum, c, noise_loudness);
+    peaq_movaccum_accumulate (mov_accum, c, noise_loudness, 1.);
   }
 }
 
@@ -148,8 +148,7 @@ void mov_noise_loud_asym (PeaqModulationProcessor * const *ref_mod_proc,
     gdouble missing_components =
       calc_noise_loudness (1.5, 0.15, 1., 0., test_mod_proc[c],
                            ref_mod_proc[c], test_excitation, ref_excitation);
-    peaq_movaccum_accumulate_weighted (mov_accum, c, noise_loudness,
-                                       missing_components);
+    peaq_movaccum_accumulate (mov_accum, c, noise_loudness, missing_components);
   }
 }
 
@@ -172,7 +171,7 @@ mov_lin_dist (PeaqModulationProcessor * const *ref_mod_proc,
       calc_noise_loudness (1.5, 0.15, 1., 0., ref_mod_proc[c],
                            ref_mod_proc[c], ref_adapted_excitation,
                            ref_excitation);
-    peaq_movaccum_accumulate (mov_accum, c, noise_loudness);
+    peaq_movaccum_accumulate (mov_accum, c, noise_loudness, 1.);
   }
 }
 
@@ -243,8 +242,8 @@ mov_bandwidth (gpointer *ref_state, gpointer *test_state,
           bw_test = i;
           break;
         }
-      peaq_movaccum_accumulate (mov_accum_ref, c, bw_ref);
-      peaq_movaccum_accumulate (mov_accum_test, c, bw_test);
+      peaq_movaccum_accumulate (mov_accum_ref, c, bw_ref, 1.);
+      peaq_movaccum_accumulate (mov_accum_test, c, bw_test, 1.);
     }
   }
 }
@@ -295,12 +294,12 @@ mov_nmr (PeaqFFTEarModel const *ear_model, gpointer *ref_state,
     nmr /= band_count;
 
     if (peaq_movaccum_get_mode (mov_accum_nmr) == MODE_AVG_LOG)
-      peaq_movaccum_accumulate (mov_accum_nmr, c, nmr);
+      peaq_movaccum_accumulate (mov_accum_nmr, c, nmr, 1.);
     else
-      peaq_movaccum_accumulate (mov_accum_nmr, c, 10. * log10 (nmr));
+      peaq_movaccum_accumulate (mov_accum_nmr, c, 10. * log10 (nmr), 1.);
     if (mov_accum_rel_dist_frames)
       peaq_movaccum_accumulate (mov_accum_rel_dist_frames, c,
-                                nmr_max > 1.41253754462275 ? 1. : 0.);
+                                nmr_max > 1.41253754462275 ? 1. : 0., 1.);
   }
 }
 
@@ -348,9 +347,9 @@ mov_prob_detect (PeaqEarModel const *ear_model, gpointer *ref_state,
   binaural_detection_probability = 1. - binaural_detection_probability;
   if (binaural_detection_probability > 0.5) {
     peaq_movaccum_accumulate (mov_accum_adb, 0,
-                              binaural_detection_steps);
+                              binaural_detection_steps, 1.);
   }
   peaq_movaccum_accumulate (mov_accum_mfpd, 0,
-                            binaural_detection_probability);
+                            binaural_detection_probability, 1.);
 }
 

@@ -278,26 +278,31 @@ peaq_movaccum_set_tentative (PeaqMovAccum *acc, gboolean tentative)
 }
 
 void
-peaq_movaccum_accumulate (PeaqMovAccum *acc, guint c, gdouble val)
+peaq_movaccum_accumulate (PeaqMovAccum *acc, guint c, gdouble val,
+                          gdouble weight)
 {
   if (acc->status == STATUS_INIT)
     return;
   switch (acc->mode) {
     case MODE_RMS:
-      ((Fraction *)acc->data[c])->num += val * val;
-      ((Fraction *)acc->data[c])->den += 1.;
+      weight *= weight;
+      ((Fraction *)acc->data[c])->num += weight * val * val;
+      ((Fraction *)acc->data[c])->den += weight;
       break;
     case MODE_RMS_ASYM:
+      /* abuse weight as second input */
       ((TwinFraction *)acc->data[c])->num1 += val * val;
+      ((TwinFraction *)acc->data[c])->num2 += weight * weight;
       ((TwinFraction *)acc->data[c])->den += 1.;
       break;
     case MODE_AVG:
     case MODE_AVG_LOG:
     case MODE_ADB:
-      ((Fraction *)acc->data[c])->num += val;
-      ((Fraction *)acc->data[c])->den += 1.;
+      ((Fraction *)acc->data[c])->num += weight * val;
+      ((Fraction *)acc->data[c])->den += weight;
       break;
     case MODE_AVG_WINDOW:
+      /* weight is ignored */
       {
         guint i;
         gdouble val_sqrt = sqrt (val);
@@ -320,43 +325,13 @@ peaq_movaccum_accumulate (PeaqMovAccum *acc, guint c, gdouble val)
       }
       break;
     case MODE_FILTERED_MAX:
+      /* weight is ignored */
       {
         FiltMaxData *filt_data = (FiltMaxData *) acc->data[c];
         filt_data->filt_state = 0.9 * filt_data->filt_state + 0.1 * val;
         if (filt_data->filt_state > filt_data->max)
           filt_data->max = filt_data->filt_state;
       }
-      break;
-  }
-}
-
-void
-peaq_movaccum_accumulate_weighted (PeaqMovAccum *acc, guint c, gdouble val,
-                                   gdouble weight)
-{
-  if (acc->status == STATUS_INIT)
-    return;
-  switch (acc->mode) {
-    case MODE_RMS:
-      weight *= weight;
-      ((Fraction *)acc->data[c])->num += weight * val * val;
-      ((Fraction *)acc->data[c])->den += weight;
-      break;
-    case MODE_RMS_ASYM:
-      /* abuse weight as second input */
-      ((TwinFraction *)acc->data[c])->num1 += val * val;
-      ((TwinFraction *)acc->data[c])->num2 += weight * weight;
-      ((TwinFraction *)acc->data[c])->den += 1.;
-      break;
-    case MODE_AVG:
-      ((Fraction *)acc->data[c])->num += weight * val;
-      ((Fraction *)acc->data[c])->den += weight;
-      break;
-    case MODE_AVG_LOG:
-    case MODE_ADB:
-    case MODE_AVG_WINDOW:
-    case MODE_FILTERED_MAX:
-      g_warn_if_reached ();
       break;
   }
 }

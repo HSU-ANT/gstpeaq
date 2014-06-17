@@ -302,9 +302,8 @@ guint peaq_movaccum_get_channels (PeaqMovAccum const *acc);
 void peaq_movaccum_set_mode (PeaqMovAccum *acc, PeaqMovAccumMode mode);
 PeaqMovAccumMode peaq_movaccum_get_mode (PeaqMovAccum *acc);
 void peaq_movaccum_set_tentative (PeaqMovAccum *acc, gboolean tentative);
-void peaq_movaccum_accumulate (PeaqMovAccum *acc, guint c, gdouble val);
-void peaq_movaccum_accumulate_weighted (PeaqMovAccum *acc, guint c,
-                                        gdouble val, gdouble weight);
+void peaq_movaccum_accumulate (PeaqMovAccum *acc, guint c, gdouble val,
+                               gdouble weight);
 gdouble peaq_movaccum_get_value (PeaqMovAccum const *acc);
 
 #endif

@@ -1047,7 +1047,7 @@ calc_ehs (GstPeaq const *peaq, gpointer *ref_state, gpointer *test_state,
         ehs = new_s;
       s = new_s;
     }
-    peaq_movaccum_accumulate (mov_accum, chan, ehs);
+    peaq_movaccum_accumulate (mov_accum, chan, ehs, 1.);
   }
 }
 
