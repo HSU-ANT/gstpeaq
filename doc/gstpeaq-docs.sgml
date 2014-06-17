@@ -1,6 +1,11 @@
 <?xml version="1.0"?>
 <!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN" 
-               "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd">
+               "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"
+[
+<!ENTITY % mathml PUBLIC "-//W3C//DTD MathML 2.0//EN"
+           "http://www.w3.org/Math/DTD/mathml2/mathml2.dtd">
+%mathml;
+]>
 <book id="index" xmlns:xi="http://www.w3.org/2003/XInclude">
   <bookinfo>
     <title>GstPeaq Reference Manual</title>
