@@ -42,7 +42,11 @@ typedef struct _PeaqMovAccum PeaqMovAccum;
 
 /**
  * PeaqMovAccumMode:
- * @MODE_AVG: <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ * @MODE_AVG: Linear averaging as decribed in section 5.2.1 of <xref
+ * linkend="BS1387" />, used for Segmental NMR, Error Harmonic Structure,
+ * Average Linear Distortion, Bandwidth, Average Moduation Difference, and
+ * Relative Distorted Frames model output variables:
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
  *   <msub><mi>X</mi><mi>c</mi></msub>
  *   <mo>=</mo>
  *   <mfrac>
@@ -65,8 +69,11 @@ typedef struct _PeaqMovAccum PeaqMovAccum;
  *       <msub><mi>w</mi><mi>i</mi></msub>
  *     </mrow>
  *   </mfrac>
- * </math></inlineequation>
- * @MODE_AVG_LOG: <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ * </math></informalequation>
+ * @MODE_AVG_LOG: A variant of linear averaging which takes a logarithm in the
+ * end as needed for the Total NMR model output variable, see section 4.5.1 of
+ * <xref linkend="BS1387" />:
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
  *   <mrow>
  *     <msub><mi>X</mi><mi>c</mi></msub>
  *     <mo>=</mo>
@@ -97,8 +104,11 @@ typedef struct _PeaqMovAccum PeaqMovAccum;
  *       </mfrac>
  *     </mfenced>
  *   </mrow>
- * </math></inlineequation>
- * @MODE_RMS: <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ * </math></informalequation>
+ * @MODE_RMS: Root-mean-square averaging as described in section 5.2.2 of <xref
+ * linkend="BS1387" />, used for Modulation Difference and Noise Loudness model
+ * output variables:
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
  *   <msub><mi>X</mi><mi>c</mi></msub>
  *   <mo>=</mo>
  *   <msqrt><mfrac>
@@ -121,8 +131,11 @@ typedef struct _PeaqMovAccum PeaqMovAccum;
  *       <msup><msub><mi>w</mi><mi>i</mi></msub><mn>2</mn></msup>
  *     </mrow>
  *   </mfrac></msqrt>
- * </math></inlineequation>
- * @MODE_RMS_ASYM: <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ * </math></informalequation>
+ * @MODE_RMS_ASYM: A variant of root-mean-square averaging used for the
+ * Asymmetric Noise Loudness model output variable, see section 4.3.3 of <xref
+ * linkend="BS1387" />:
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
  *   <mrow>
  *     <msub><mi>X</mi><mi>c</mi></msub>
  *     <mo>=</mo>
@@ -154,8 +167,10 @@ typedef struct _PeaqMovAccum PeaqMovAccum;
  *       </mrow>
  *     </msqrt>
  *   </mrow>
- * </math></inlineequation>
- * @MODE_AVG_WINDOW: <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ * </math></informalequation>
+ * @MODE_AVG_WINDOW: Windowed averaging as described in section 5.2.3 of <xref
+ * linkend="BS1387" />, used for Modulation Difference model output variable:
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
  *   <msub><mi>X</mi><mi>c</mi></msub>
  *   <mo>=</mo>
  *   <msqrt>
@@ -184,8 +199,14 @@ typedef struct _PeaqMovAccum PeaqMovAccum;
  *       </msup>
  *     </mrow>
  *   </msqrt>
- * </math></inlineequation>
- * @MODE_FILTERED_MAX: <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ * </math></informalequation>
+ * Note that no model output variable obtained from the filter bank ear model
+ * uses windowed averaging, hence the longer averaging window defined in <xref
+ * linkend="BS1387" /> is not supported.
+ * @MODE_FILTERED_MAX: Filtered maximum as used by the Maximum Filtered
+ * Probability of Detection model output variable, see section 4.7.1 in <xref
+ * linkend="BS1387" />:
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
  *   <mrow>
  *     <msub><mi>X</mi><mi>c</mi></msub>
  *     <mo>=</mo>
@@ -205,8 +226,13 @@ typedef struct _PeaqMovAccum PeaqMovAccum;
  *     <mo>&InvisibleTimes;</mo>
  *     <msub><mi>x</mi><mi>i</mi></msub>
  *   </mrow>
- * </math></inlineequation>
- * @MODE_ADB: <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ * </math></informalequation>
+ * @MODE_ADB: Special accumulation mode for the Average Distorted Block model
+ * output variable, see section 4.7.2 in <xref linkend="BS1387" /> and note
+ * that <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ * <msub><mi>w</mi><mi>i</mi></msub></math></inlineequation> should always be
+ * set to one:
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
  *   <mrow>
  *     <msub><mi>X</mi><mi>c</mi></msub>
  *     <mo>=</mo>
@@ -280,9 +306,22 @@ typedef struct _PeaqMovAccum PeaqMovAccum;
  *       </mtable>
  *     </mfenced>
  *   </mrow>
- * </math></inlineequation>
+ * </math></informalequation>
  *
- * Accumulation mode of MOV.
+ * Accumulation mode of the model output variable. For all channels 
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>c</mi>
+ * </math></inlineequation>, the accumulation over time steps 
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>i</mi>
+ * </math></inlineequation> is performed independently according to the
+ * formulas below, where
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ * <msub><mi>x</mi><mi>i</mi></msub></math></inlineequation> and
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ * <msub><mi>w</mi><mi>i</mi></msub></math></inlineequation> denote the inputs
+ * to peaq_movaccum_accumulate(). The resulting per-channel values
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ * <msub><mi>X</mi><mi>c</mi></msub></math></inlineequation> are averaged to
+ * obtain the final result as returned by peaq_movaccum_get_value().
  */
 typedef enum
 {
