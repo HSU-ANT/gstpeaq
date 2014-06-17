@@ -378,7 +378,6 @@ peaq_movaccum_get_value (PeaqMovAccum const *acc)
         break;
     }
   }
-  if (acc->mode != MODE_FILTERED_MAX && acc->mode != MODE_ADB)
-    value /= acc->channels;
+  value /= acc->channels;
   return value;
 }

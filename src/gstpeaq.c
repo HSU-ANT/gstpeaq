@@ -505,7 +505,10 @@ pad_chain (GstPad *pad, GstBuffer *buffer)
     element->pending_state = GST_STATE_VOID_PENDING;
 
     for (i = 0; i < COUNT_MOV_BASIC; i++)
-      peaq_movaccum_set_channels (peaq->mov_accum[i], peaq->channels);
+      if (i == MOVBASIC_ADB || i == MOVBASIC_MFPD)
+        peaq_movaccum_set_channels (peaq->mov_accum[i], 1);
+      else
+        peaq_movaccum_set_channels (peaq->mov_accum[i], peaq->channels);
   }
 
   if (pad == peaq->refpad) {
