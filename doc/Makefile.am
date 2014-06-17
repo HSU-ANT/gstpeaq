@@ -75,7 +75,7 @@ include $(top_srcdir)/gtk-doc.make
 
 # Other files to distribute
 # e.g. EXTRA_DIST += version.xml.in
-EXTRA_DIST += gtk-doc.xsl
+# EXTRA_DIST += gtk-doc.xsl
 
 # Go to subdirectory with man pages
 SUBDIRS = man
