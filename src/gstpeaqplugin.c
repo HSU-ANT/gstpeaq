@@ -25,6 +25,8 @@
 
 #include "gstpeaq.h"
 
+#include <gst/gst.h>
+
 static gboolean
 plugin_init (GstPlugin * plugin)
 {

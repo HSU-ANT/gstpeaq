@@ -25,10 +25,18 @@
 #endif
 
 #include <glib/gprintf.h>
+#include <gst/base/gstadapter.h>
+#include <gst/fft/gstfftf64.h>
+#include <gst/gst.h>
 #include <math.h>
 #include <string.h>
 
 #include "gstpeaq.h"
+#include "fbearmodel.h"
+#include "fftearmodel.h"
+#include "leveladapter.h"
+#include "modpatt.h"
+#include "movaccum.h"
 #include "movs.h"
 
 //#define EHS_ENERGY_THRESHOLD 7.442401884276241e-6
@@ -44,6 +52,71 @@ enum
   PROP_ODG,
   PROP_TOTALSNR,
   PROP_CONSOLE_OUTPUT
+};
+
+enum _MovAdvanced {
+  MOVADV_RMS_MOD_DIFF,
+  MOVADV_RMS_NOISE_LOUD_ASYM,
+  MOVADV_SEGMENTAL_NMR,
+  MOVADV_EHS,
+  MOVADV_AVG_LIN_DIST,
+  COUNT_MOV_ADVANCED
+};
+
+enum _MovBasic {
+  MOVBASIC_BANDWIDTH_REF,
+  MOVBASIC_BANDWIDTH_TEST,
+  MOVBASIC_TOTAL_NMR,
+  MOVBASIC_WIN_MOD_DIFF,
+  MOVBASIC_ADB,
+  MOVBASIC_EHS,
+  MOVBASIC_AVG_MOD_DIFF_1,
+  MOVBASIC_AVG_MOD_DIFF_2,
+  MOVBASIC_RMS_NOISE_LOUD,
+  MOVBASIC_MFPD,
+  MOVBASIC_REL_DIST_FRAMES,
+  COUNT_MOV_BASIC
+};
+
+struct _GstPeaq
+{
+  GstElement element;
+  GstPad *refpad;
+  GstPad *testpad;
+  gboolean ref_eos;
+  gboolean test_eos;
+  GstAdapter *ref_adapter_fft;
+  GstAdapter *test_adapter_fft;
+  GstAdapter *ref_adapter_fb;
+  GstAdapter *test_adapter_fb;
+  GstFFTF64 *correlation_fft;
+  GstFFTF64 *correlator_fft;
+  GstFFTF64 *correlator_inverse_fft;
+  gboolean console_output;
+  gboolean advanced;
+  gint channels;
+  guint frame_counter;
+  guint frame_counter_fb;
+  guint loudness_reached_frame;
+  PeaqEarModel *fft_ear_model;
+  gpointer ref_fft_ear_state[2];
+  gpointer test_fft_ear_state[2];
+  PeaqEarModel *fb_ear_model;
+  gpointer ref_fb_ear_state[2];
+  gpointer test_fb_ear_state[2];
+  PeaqLevelAdapter *level_adapter[2];
+  PeaqModulationProcessor *ref_modulation_processor[2];
+  PeaqModulationProcessor *test_modulation_processor[2];
+  PeaqMovAccum *mov_accum[COUNT_MOV_BASIC];
+  gdouble total_signal_energy;
+  gdouble total_noise_energy;
+};
+
+struct _GstPeaqClass
+{
+  GstElementClass parent_class;
+  guint sampling_rate;
+  gdouble *correlation_window;
 };
 
 static const GstElementDetails peaq_details =

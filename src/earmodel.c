@@ -38,6 +38,8 @@
 #include "earmodel.h"
 #include "gstpeaq.h"
 
+#include <math.h>
+
 enum
 {
   PROP_0,

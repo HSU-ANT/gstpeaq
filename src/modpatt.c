@@ -37,6 +37,8 @@
 #include "modpatt.h"
 #include "gstpeaq.h"
 
+#include <math.h>
+
 /**
  * PeaqModulationProcessorClass:
  *
