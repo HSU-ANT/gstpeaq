@@ -36,6 +36,8 @@
   (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_EARMODEL, \
                               PeaqEarModelClass))
 
+#define SAMPLINGRATE 48000
+
 typedef struct _PeaqEarModelClass PeaqEarModelClass;
 typedef struct _PeaqEarModel PeaqEarModel;
 typedef struct _EarModelOutput EarModelOutput;
@@ -270,6 +272,7 @@ gdouble const *peaq_earmodel_get_excitation (PeaqEarModel const *model,
 gdouble const *peaq_earmodel_get_unsmeared_excitation (PeaqEarModel const *model,
                                                        gpointer state);
 guint peaq_earmodel_get_band_count (PeaqEarModel const *model);
+guint peaq_earmodel_get_sampling_rate (PeaqEarModel const *model);
 guint peaq_earmodel_get_frame_size (PeaqEarModel const *model);
 guint peaq_earmodel_get_step_size (PeaqEarModel const *model);
 gdouble peaq_earmodel_get_band_center_frequency (PeaqEarModel const *model,

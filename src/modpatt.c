@@ -35,7 +35,6 @@
 #endif
 
 #include "modpatt.h"
-#include "gstpeaq.h"
 
 #include <math.h>
 
@@ -225,15 +224,17 @@ void
 peaq_modulationprocessor_process (PeaqModulationProcessor *modproc,
 				  gdouble const* unsmeared_excitation)
 {
-  guint band_count, step_size, k;
+  guint k;
 
-  band_count = peaq_earmodel_get_band_count (modproc->ear_model);
-  step_size = peaq_earmodel_get_step_size (modproc->ear_model);
+  guint band_count = peaq_earmodel_get_band_count (modproc->ear_model);
+  guint step_size = peaq_earmodel_get_step_size (modproc->ear_model);
+  guint sampling_rate = peaq_earmodel_get_sampling_rate (modproc->ear_model);
+  gdouble derivative_factor = (gdouble) sampling_rate / step_size;
 
   for (k = 0; k < band_count; k++) {
     /* (54) in [BS1387] */ 
     gdouble loudness = pow (unsmeared_excitation[k], 0.3);
-    gdouble loudness_derivative = (gdouble) SAMPLINGRATE / step_size *
+    gdouble loudness_derivative = derivative_factor *
       ABS (loudness - modproc->previous_loudness[k]);
     modproc->filtered_loudness_derivative[k] =
       modproc->ear_time_constants[k] *

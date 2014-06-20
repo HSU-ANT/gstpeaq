@@ -42,8 +42,6 @@ G_BEGIN_DECLS;
 							    GST_TYPE_PEAQ, \
 							    GstPeaqClass))
 
-#define SAMPLINGRATE 48000
-
 typedef struct _GstPeaq GstPeaq;
 typedef struct _GstPeaqClass GstPeaqClass;
 typedef struct _GstPeaqAggregatedDataFFTBasic GstPeaqAggregatedDataFFTBasic;

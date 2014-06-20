@@ -263,6 +263,12 @@ peaq_earmodel_get_band_count (PeaqEarModel const *model)
   return model->band_count;
 }
 
+guint
+peaq_earmodel_get_sampling_rate (PeaqEarModel const *model)
+{
+  return SAMPLINGRATE;
+}
+
 static void
 params_set_bands (PeaqEarModel *model, gdouble *fc, guint band_count)
 {
