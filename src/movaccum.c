@@ -57,23 +57,27 @@ enum _Status
   STATUS_TENTATIVE
 };
 
-struct _Fraction {
+struct _Fraction
+{
   gdouble num;
   gdouble den;
 };
 
-struct _TwinFraction {
+struct _TwinFraction
+{
   gdouble num1;
   gdouble num2;
   gdouble den;
 };
 
-struct _WinAvgData {
+struct _WinAvgData
+{
   Fraction frac;
   gdouble past_sqrts[3];
 };
 
-struct _FiltMaxData {
+struct _FiltMaxData
+{
   gdouble max;
   gdouble filt_state;
 };
@@ -370,20 +374,20 @@ peaq_movaccum_accumulate (PeaqMovAccum *acc, guint c, gdouble val,
   switch (acc->mode) {
     case MODE_RMS:
       weight *= weight;
-      ((Fraction *)acc->data[c])->num += weight * val * val;
-      ((Fraction *)acc->data[c])->den += weight;
+      ((Fraction *) acc->data[c])->num += weight * val * val;
+      ((Fraction *) acc->data[c])->den += weight;
       break;
     case MODE_RMS_ASYM:
       /* abuse weight as second input */
-      ((TwinFraction *)acc->data[c])->num1 += val * val;
-      ((TwinFraction *)acc->data[c])->num2 += weight * weight;
-      ((TwinFraction *)acc->data[c])->den += 1.;
+      ((TwinFraction *) acc->data[c])->num1 += val * val;
+      ((TwinFraction *) acc->data[c])->num2 += weight * weight;
+      ((TwinFraction *) acc->data[c])->den += 1.;
       break;
     case MODE_AVG:
     case MODE_AVG_LOG:
     case MODE_ADB:
-      ((Fraction *)acc->data[c])->num += weight * val;
-      ((Fraction *)acc->data[c])->den += weight;
+      ((Fraction *) acc->data[c])->num += weight * val;
+      ((Fraction *) acc->data[c])->den += weight;
       break;
     case MODE_AVG_WINDOW:
       /* weight is ignored */
