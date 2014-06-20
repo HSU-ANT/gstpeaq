@@ -24,6 +24,20 @@
  * @short_description: Model output variable accumulator.
  * @title: PeaqMovAccum
  *
+ * For each frame of audio data, the diverse analysis methods yield a range of
+ * intermediate values. These have to be accumulated to obtain the final Model
+ * Output Variables (MOVs). Depending on the MOV, accumulation has to be
+ * carried out in different ways, all of which can be handled by a
+ * #PeaqMovAccum instance by setting the correct #PeaqMovAccumMode with
+ * peaq_movaccum_set_mode().
+ *
+ * Ignoring quiet frames at the end of the data is supported with a tentative
+ * mode. Once a quiet frame is detected, tentative mode can be activated and
+ * any accumulation done will not be reflected in the accumulator value. Thus,
+ * if the file ends while still in tentative mode (no louder frames have
+ * occurred), the value before the first quiet frame will be used.  If,
+ * however, a louder frame occurs, tentative mode can be deactived to commit
+ * all accumulation done in the mean time.
  */
 
 #include "movaccum.h"
@@ -116,6 +130,15 @@ peaq_movaccum_get_type ()
   return type;
 }
 
+/**
+ * peaq_movaccum_new:
+ *
+ * Creates a new #PeaqMovAccum instance. The number of channels is initially
+ * set to zero and has to be changed with peaq_movaccum_set_channels() before
+ * accumulation can start.
+ *
+ * Returns: The newly created #PeaqMovAccum instance.
+ */
 PeaqMovAccum *
 peaq_movaccum_new ()
 {
@@ -159,6 +182,16 @@ finalize (GObject *obj)
   g_free (acc->data_saved);
 }
 
+/**
+ * peaq_movaccum_set_channels:
+ * @acc: The #PeaqMovAccum instance to set the number of the channels for.
+ * @channels: The number of independent channels the given #PeaqMovAccum shall
+ * be configured to support.
+ *
+ * Accumulation is performed individually for all channels; the final value
+ * returned by peaq_movaccum_get_value() is obtained by averaging accross
+ * channels.
+ */
 void
 peaq_movaccum_set_channels (PeaqMovAccum *acc, guint channels)
 {
@@ -169,12 +202,30 @@ peaq_movaccum_set_channels (PeaqMovAccum *acc, guint channels)
   }
 }
 
+/**
+ * peaq_movaccum_get_channels:
+ * @acc: The #PeaqMovAccum instance to get the number of the channels from.
+ *
+ * Returns the configured number of channels as set with
+ * peaq_movaccum_set_channels().
+ *
+ * Returns: The number of channels the given #PeaqMovAccum is set up to
+ *          support.
+ */
 guint
 peaq_movaccum_get_channels (PeaqMovAccum const *acc)
 {
   return acc->channels;
 }
 
+/**
+ * peaq_movaccum_set_mode:
+ * @acc: The #PeaqMovAccum instance to set the mode for.
+ * @mode: The #PeaqMovAccumMode the given #PeaqMovAccum will use.
+ *
+ * Configures the way the accumulation is carried out by means of the given
+ * #PeaqMovAccumMode.
+ */
 void
 peaq_movaccum_set_mode (PeaqMovAccum *acc, PeaqMovAccumMode mode)
 {
@@ -184,6 +235,15 @@ peaq_movaccum_set_mode (PeaqMovAccum *acc, PeaqMovAccumMode mode)
   }
 }
 
+/**
+ * peaq_movaccum_get_mode:
+ * @acc: The #PeaqMovAccum instance to get the active #PeaqMovAccumMode of.
+ *
+ * Returns the configured accumulatio mode as set with
+ * peaq_movaccum_set_mode().
+ *
+ * Returns: The #PeaqMovAccumMode the given #PeaqMovAccum is set up to use.
+ */
 PeaqMovAccumMode
 peaq_movaccum_get_mode (PeaqMovAccum *acc)
 {
@@ -237,6 +297,18 @@ realloc_data (PeaqMovAccum *acc, guint old_channels)
 }
 
 
+/**
+ * peaq_movaccum_set_tentative:
+ * @acc: The @PeaqMovAccum of which to control the tentative state.
+ * @tentative: Whether to enable or disable the tentative state.
+ *
+ * Enables or disables tentative state. In tentative state, values are
+ * accumulated as usual when calling peaq_movaccum_accumulate(), but the value
+ * returned by peaq_movaccum_get_value() is kept at the value it had
+ * immediately before setting tentative state. Once tentative state is
+ * disabled, the final value is updated to include all values accumulated
+ * during tentative state.
+ */
 void
 peaq_movaccum_set_tentative (PeaqMovAccum *acc, gboolean tentative)
 {
@@ -277,6 +349,18 @@ peaq_movaccum_set_tentative (PeaqMovAccum *acc, gboolean tentative)
   }
 }
 
+/**
+ * peaq_movaccum_accumulate:
+ * @acc: The #PeaqMovAccum instance to use for accumulation.
+ * @c: Number of channel to accumulate to.
+ * @val: First value for accumulation.
+ * @weight: Second value for accumulation, usually the weight.
+ *
+ * Accumulates one more value in the given #PeaqMovAccum. The method used for
+ * accumulation and the exact meaning of @val and @weight depend on the
+ * #PeaqMovAccumMode set with peaq_movaccum_set_mode().
+ * 
+ */
 void
 peaq_movaccum_accumulate (PeaqMovAccum *acc, guint c, gdouble val,
                           gdouble weight)
@@ -336,6 +420,16 @@ peaq_movaccum_accumulate (PeaqMovAccum *acc, guint c, gdouble val,
   }
 }
 
+/**
+ * peaq_movaccum_get_value:
+ * @acc: The #PeaqMovAccum to get the current accumulator value of.
+ *
+ * Returns the current value of the accumulator. The method used for
+ * accumulation and calculation of the final value depend on the
+ * #PeaqMovAccumMode set with peaq_movaccum_set_mode().
+ *
+ * Returns: The current accumulated value.
+ */
 gdouble
 peaq_movaccum_get_value (PeaqMovAccum const *acc)
 {

@@ -658,6 +658,8 @@ do_spreading (PeaqFFTEarModel const *model, gdouble const *Pp, gdouble *E2)
   gdouble *Ene = g_newa (gdouble, model->parent.band_count);
   const gdouble aLe = model->lower_spreading_exponantiated;
 
+  g_assert (band_count > 0);
+
   for (i = 0; i < band_count; i++) {
     /* from (23) in [Kabal03] */
     gdouble aUCE = model->aUC[i] * pow (Pp[i], 0.2 * model->deltaZ);

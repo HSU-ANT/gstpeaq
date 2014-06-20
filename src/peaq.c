@@ -127,6 +127,8 @@ main(int argc, char *argv[])
   gst_object_unref (bus);
 
   peaq = gst_element_factory_make ("peaq", "peaq");
+  gst_object_ref (peaq);
+  gst_object_sink (peaq);
   g_object_set (G_OBJECT (peaq), "advanced", advanced,
                 "console_output", FALSE, NULL);
   ref_source = gst_element_factory_make ("filesrc", "ref_file-source");
@@ -161,11 +163,14 @@ main(int argc, char *argv[])
   g_main_loop_run (loop);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
+  gst_object_unref (pipeline);
 
   g_object_get (peaq, "odg", &odg, NULL);
   g_printf ("Objective Difference Grade: %.3f\n", odg);
   g_object_get (peaq, "di", &di, NULL);
   g_printf ("Distortion Index: %.3f\n", di);
+
+  gst_object_unref (peaq);
 
   g_main_loop_unref (loop);
 
