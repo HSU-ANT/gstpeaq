@@ -263,6 +263,15 @@ peaq_earmodel_get_band_count (PeaqEarModel const *model)
   return model->band_count;
 }
 
+/**
+ * peaq_earmodel_get_sampling_rate:
+ * @model: The #PeaqEarModel to obtain the sampling rate of.
+ *
+ * Returns the sampling rate the ear model expects. The data fed to the
+ * ear-model should be sampled with this sampling rate.
+ *
+ * Returns: The sampling rate expected by @model.
+ */
 guint
 peaq_earmodel_get_sampling_rate (PeaqEarModel const *model)
 {

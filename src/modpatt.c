@@ -189,6 +189,9 @@ peaq_modulationprocessor_set_ear_model (PeaqModulationProcessor *modproc,
  * peaq_modulationprocessor_get_ear_model:
  * @modproc: The #PeaqModulationProcessor to get the #PeaqEarModel of.
  *
+ * Returns the #PeaqEarModel used by the @modproc to get the frequency band
+ * information.
+ *
  * Returns: The #PeaqEarModel as set with
  * peaq_modulationprocessor_set_ear_model().
  */
