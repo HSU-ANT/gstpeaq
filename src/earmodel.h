@@ -40,7 +40,6 @@
 
 typedef struct _PeaqEarModelClass PeaqEarModelClass;
 typedef struct _PeaqEarModel PeaqEarModel;
-typedef struct _EarModelOutput EarModelOutput;
 
 /**
  * PeaqEarModel:
