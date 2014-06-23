@@ -38,7 +38,6 @@
 
 typedef struct _PeaqFFTEarModelClass PeaqFFTEarModelClass;
 typedef struct _PeaqFFTEarModel PeaqFFTEarModel;
-typedef struct _FFTEarModelOutput FFTEarModelOutput;
 
 void peaq_fftearmodel_group_into_bands (PeaqFFTEarModel const *model,
                                         gdouble const *spectrum,

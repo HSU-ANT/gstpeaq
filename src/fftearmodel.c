@@ -319,9 +319,8 @@ void state_free (PeaqEarModel const *model, gpointer state)
 /*
  * process_block:
  * @model: the #PeaqFFTEarModel instance structure.
+ * @state: the state data of type PeaqFFTEarModelState.
  * @sample_data: pointer to a frame of #FFT_FRAMESIZE samples to be processed.
- * @output: pointer to a #FFTEarModelOutput structure which is filled with the
- * computed output data.
  *
  * Performs the computation described in section 2.1 of <xref linkend="BS1387"
  * /> and section 2 of <xref linkend="Kabal03" /> for one single frame of
