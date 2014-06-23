@@ -207,6 +207,7 @@ static GstFlowReturn pad_chain (GstPad *pad, GstBuffer *buffer);
 static gboolean pad_event (GstPad *pad, GstEvent *event);
 static GstStateChangeReturn gst_peaq_change_state (GstElement * element,
 						   GstStateChange transition);
+static gboolean send_event (GstElement *element, GstEvent *event);
 static void process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
                                      gfloat *testdata);
 static void process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
@@ -250,8 +251,9 @@ gst_peaq_base_init (gpointer g_class)
   gst_element_class_set_details (element_class, &peaq_details);
 
   element_class->query = query;
-
   element_class->change_state = gst_peaq_change_state;
+  element_class->send_event = send_event;
+
   gobject_class->finalize = finalize;
 
   peaq_class->sampling_rate = 48000;
@@ -805,6 +807,16 @@ gst_peaq_change_state (GstElement * element, GstStateChange transition)
   }
 
   return GST_STATE_CHANGE_SUCCESS;
+}
+
+static gboolean
+send_event (GstElement *element, GstEvent *event)
+{
+  if (event->type == GST_EVENT_LATENCY) {
+    return TRUE;
+  } else {
+    return parent_class->send_event (element, event);
+  }
 }
 
 static void
