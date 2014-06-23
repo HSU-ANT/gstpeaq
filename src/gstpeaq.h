@@ -44,9 +44,6 @@ G_BEGIN_DECLS;
 
 typedef struct _GstPeaq GstPeaq;
 typedef struct _GstPeaqClass GstPeaqClass;
-typedef struct _GstPeaqAggregatedDataFFTBasic GstPeaqAggregatedDataFFTBasic;
-typedef struct _GstPeaqAggregatedDataFFTAdvanced GstPeaqAggregatedDataFFTAdvanced;
-typedef struct _GstPeaqAggregatedDataFB GstPeaqAggregatedDataFB;
 
 GType gst_peaq_get_type ();
 

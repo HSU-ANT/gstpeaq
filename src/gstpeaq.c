@@ -43,6 +43,10 @@
 #define EHS_ENERGY_THRESHOLD 7.45058059692383e-06
 #define MAXLAG 256
 
+typedef struct _GstPeaqAggregatedDataFFTBasic GstPeaqAggregatedDataFFTBasic;
+typedef struct _GstPeaqAggregatedDataFFTAdvanced GstPeaqAggregatedDataFFTAdvanced;
+typedef struct _GstPeaqAggregatedDataFB GstPeaqAggregatedDataFB;
+
 enum
 {
   PROP_0,
@@ -115,7 +119,6 @@ struct _GstPeaq
 struct _GstPeaqClass
 {
   GstElementClass parent_class;
-  guint sampling_rate;
   gdouble *correlation_window;
 };
 
@@ -205,8 +208,9 @@ static GstCaps *get_caps (GstPad *pad);
 static gboolean set_caps (GstPad *pad, GstCaps *caps);
 static GstFlowReturn pad_chain (GstPad *pad, GstBuffer *buffer);
 static gboolean pad_event (GstPad *pad, GstEvent *event);
-static GstStateChangeReturn gst_peaq_change_state (GstElement * element,
-						   GstStateChange transition);
+static gboolean query (GstElement *element, GstQuery *query);
+static GstStateChangeReturn change_state (GstElement * element,
+                                          GstStateChange transition);
 static gboolean send_event (GstElement *element, GstEvent *event);
 static void process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
                                      gfloat *testdata);
@@ -222,7 +226,7 @@ static gboolean is_frame_above_threshold (gfloat *framedata, guint framesize,
                                           guint channels);
 
 static gboolean
-query(GstElement *element, GstQuery *query)
+query (GstElement *element, GstQuery *query)
 {
   switch (query->type) {
     case GST_QUERY_LATENCY:
@@ -238,7 +242,6 @@ query(GstElement *element, GstQuery *query)
 static void
 gst_peaq_base_init (gpointer g_class)
 {
-  GstPeaqClass *peaq_class = GST_PEAQ_CLASS (g_class);
   GstElementClass *element_class = GST_ELEMENT_CLASS (g_class);
   GObjectClass *gobject_class = G_OBJECT_CLASS (g_class);
 
@@ -251,12 +254,10 @@ gst_peaq_base_init (gpointer g_class)
   gst_element_class_set_details (element_class, &peaq_details);
 
   element_class->query = query;
-  element_class->change_state = gst_peaq_change_state;
+  element_class->change_state = change_state;
   element_class->send_event = send_event;
 
   gobject_class->finalize = finalize;
-
-  peaq_class->sampling_rate = 48000;
 }
 
 static void
@@ -331,7 +332,6 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
 {
   guint i;
   GstPadTemplate *template;
-  PeaqEarModel *model_params;
 
   peaq->ref_adapter_fft = gst_adapter_new ();
   peaq->test_adapter_fft = gst_adapter_new ();
@@ -370,19 +370,17 @@ gst_peaq_init (GstPeaq * peaq, GstPeaqClass * g_class)
 
   peaq->fft_ear_model = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
   peaq->fb_ear_model = NULL;
-  model_params = peaq->fft_ear_model;
 
-  peaq->fb_ear_model = NULL;
-  peaq->level_adapter[0] = peaq_leveladapter_new (model_params);
-  peaq->level_adapter[1] = peaq_leveladapter_new (model_params);
+  peaq->level_adapter[0] = peaq_leveladapter_new (peaq->fft_ear_model);
+  peaq->level_adapter[1] = peaq_leveladapter_new (peaq->fft_ear_model);
   peaq->ref_modulation_processor[0] =
-    peaq_modulationprocessor_new (model_params);
+    peaq_modulationprocessor_new (peaq->fft_ear_model);
   peaq->ref_modulation_processor[1] =
-    peaq_modulationprocessor_new (model_params);
+    peaq_modulationprocessor_new (peaq->fft_ear_model);
   peaq->test_modulation_processor[0] =
-    peaq_modulationprocessor_new (model_params);
+    peaq_modulationprocessor_new (peaq->fft_ear_model);
   peaq->test_modulation_processor[1] =
-    peaq_modulationprocessor_new (model_params);
+    peaq_modulationprocessor_new (peaq->fft_ear_model);
   for (i = 0; i < COUNT_MOV_BASIC; i++)
     peaq->mov_accum[i] = peaq_movaccum_new ();
 }
@@ -679,7 +677,7 @@ pad_event (GstPad *pad, GstEvent* event)
 }
 
 static GstStateChangeReturn
-gst_peaq_change_state (GstElement * element, GstStateChange transition)
+change_state (GstElement * element, GstStateChange transition)
 {
   GstPeaq *peaq;
   guint ref_data_left_count, test_data_left_count;
