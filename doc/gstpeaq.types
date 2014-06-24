@@ -1,3 +1,8 @@
+#include <gst/gst.h>
+
+#include "gstpeaq.h"
+gst_peaq_get_type
+
 #include "earmodel.h"
 peaq_earmodel_get_type
 
@@ -7,14 +12,11 @@ peaq_fftearmodel_get_type
 #include "fbearmodel.h"
 peaq_filterbankearmodel_get_type
 
-% #include "gstpeaq.h"
-% gst_peaq_get_type
-
-#include "leveladapter.h"
-peaq_leveladapter_get_type
-
 #include "modpatt.h"
 peaq_modulationprocessor_get_type
 
 #include "movaccum.h"
 peaq_movaccum_get_type
+
+#include "leveladapter.h"
+peaq_leveladapter_get_type

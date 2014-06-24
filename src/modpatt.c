@@ -85,7 +85,7 @@ peaq_modulationprocessor_get_type ()
       init	                /* instance_init */
     };
     type = g_type_register_static (G_TYPE_OBJECT,
-				   "GstPeaqModulationProcessor", &info, 0);
+				   "PeaqModulationProcessor", &info, 0);
   }
   return type;
 }

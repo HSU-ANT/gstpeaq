@@ -129,7 +129,7 @@ peaq_movaccum_get_type ()
       init                      /* instance_init */
     };
     type =
-      g_type_register_static (G_TYPE_OBJECT, "GstPeaqMovAccum", &info, 0);
+      g_type_register_static (G_TYPE_OBJECT, "PeaqMovAccum", &info, 0);
   }
   return type;
 }
