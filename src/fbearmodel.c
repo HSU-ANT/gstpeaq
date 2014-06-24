@@ -53,7 +53,7 @@
 typedef struct _PeaqFilterbankEarModelState PeaqFilterbankEarModelState;
 
 /* taken from Table 8 in [BS1387] */
-const guint filter_length[40] = {
+static const guint filter_length[40] = {
   1456, 1438, 1406, 1362, 1308, 1244, 1176, 1104, 1030, 956, 884, 814, 748,
   686, 626, 570, 520, 472, 430, 390, 354, 320, 290, 262, 238, 214, 194, 176,
   158, 144, 130, 118, 106, 96, 86, 78, 70, 64, 58, 52
@@ -119,6 +119,9 @@ static gdouble const *get_excitation (PeaqEarModel const *model,
                                       gpointer state);
 static gdouble const *get_unsmeared_excitation (PeaqEarModel const *model,
                                                 gpointer state);
+static void apply_filter_bank (PeaqFilterbankEarModel *model,
+                               PeaqFilterbankEarModelState *fb_state,
+                               gdouble *fb_out_re, gdouble *fb_out_im);
 
 
 GType
@@ -308,38 +311,11 @@ process_block (PeaqEarModel const *model, gpointer state,
       gdouble fb_out_im[40];
       gdouble A_re[40];
       gdouble A_im[40];
+
+      apply_filter_bank (PEAQ_FILTERBANKEARMODEL(model), fb_state, fb_out_re, fb_out_im);
       for (band = 0; band < 40; band++) {
-        guint n;
-        guint N = filter_length[band];
-        /* additional delay, (31) in [BS1387] */
-        guint D = 1 + (filter_length[0] - N) / 2;
-        gdouble re_out = 0;
-        gdouble im_out = 0;
-        /* exploit symmetry in filter responses */
-        guint N_2 = N / 2;
-        gdouble *in1 = fb_state->fb_buf + D + fb_state->fb_buf_offset;
-        gdouble *in2 = fb_state->fb_buf + D + N + fb_state->fb_buf_offset;
-        gdouble *h_re = PEAQ_FILTERBANKEARMODEL (model)->fbh_re[band];
-        gdouble *h_im = PEAQ_FILTERBANKEARMODEL (model)->fbh_im[band];
-        /* first filter coefficient is zero, so skip it */
-        for (n = 1; n < N_2; n++) {
-          in1++;
-          h_re++;
-          h_im++;
-          in2--;
-          re_out += (*in1 + *in2) * *h_re; /* even symmetry */
-          im_out += (*in1 - *in2) * *h_im; /* odd symmetry */
-        }
-        /* include term for n=N/2 only once */
-        in1++;
-        h_re++;
-        h_im++;
-        re_out += *in1 * *h_re;
-        im_out += *in1 * *h_im;
-        fb_out_re[band] = re_out;
-        fb_out_im[band] = im_out;
-        A_re[band] = re_out;
-        A_im[band] = im_out;
+        A_re[band] = fb_out_re[band];
+        A_im[band] = fb_out_im[band];
       }
 
       /* frequency domain spreading; 2.2.7 in [BS1387], 3.4 in [Kabal03] */
@@ -408,6 +384,45 @@ process_block (PeaqEarModel const *model, gpointer state,
     fb_state->excitation[band] =
       a * fb_state->excitation[band] +
       (1. - a) * fb_state->unsmeared_excitation[band];
+  }
+}
+
+static void
+apply_filter_bank (PeaqFilterbankEarModel *model,
+                   PeaqFilterbankEarModelState *fb_state,
+                   gdouble *fb_out_re, gdouble *fb_out_im)
+{
+  guint band;
+  for (band = 0; band < 40; band++) {
+    guint n;
+    guint N = filter_length[band];
+    /* additional delay, (31) in [BS1387] */
+    guint D = 1 + (filter_length[0] - N) / 2;
+    gdouble re_out = 0;
+    gdouble im_out = 0;
+    /* exploit symmetry in filter responses */
+    guint N_2 = N / 2;
+    gdouble *in1 = fb_state->fb_buf + D + fb_state->fb_buf_offset;
+    gdouble *in2 = fb_state->fb_buf + D + N + fb_state->fb_buf_offset;
+    gdouble *h_re = model->fbh_re[band];
+    gdouble *h_im = model->fbh_im[band];
+    /* first filter coefficient is zero, so skip it */
+    for (n = 1; n < N_2; n++) {
+      in1++;
+      h_re++;
+      h_im++;
+      in2--;
+      re_out += (*in1 + *in2) * *h_re; /* even symmetry */
+      im_out += (*in1 - *in2) * *h_im; /* odd symmetry */
+    }
+    /* include term for n=N/2 only once */
+    in1++;
+    h_re++;
+    h_im++;
+    re_out += *in1 * *h_re;
+    im_out += *in1 * *h_im;
+    fb_out_re[band] = re_out;
+    fb_out_im[band] = im_out;
   }
 }
 
