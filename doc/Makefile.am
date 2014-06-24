@@ -25,7 +25,7 @@ SCANGOBJ_OPTIONS=--type-init-func="gst_init(NULL,0)"
 
 # Extra options to supply to gtkdoc-scan.
 # e.g. SCAN_OPTIONS=--deprecated-guards="GTK_DISABLE_DEPRECATED" 
-SCAN_OPTIONS=
+SCAN_OPTIONS=--rebuild-sections
 
 # Extra options to supply to gtkdoc-mkdb.
 # e.g. MKDB_OPTIONS=--sgml-mode --output-format=xml
@@ -76,6 +76,8 @@ include $(top_srcdir)/gtk-doc.make
 # Other files to distribute
 # e.g. EXTRA_DIST += version.xml.in
 # EXTRA_DIST += gtk-doc.xsl
+#
+CLEANFILES += $(DOC_MODULE)-sections.txt
 
 # Go to subdirectory with man pages
 SUBDIRS = man

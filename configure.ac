@@ -25,7 +25,7 @@ PKG_CHECK_MODULES(PKGCONF_BIN, [gstreamer-0.10])
 
 GST_SET_PLUGINDIR
 
-GTK_DOC_CHECK(1.0)
+GTK_DOC_CHECK([1.10],[--flavour no-tmpl])
 
 AC_CONFIG_HEADER([config.h])
 AC_CONFIG_FILES([Makefile src/Makefile doc/Makefile doc/man/Makefile])
