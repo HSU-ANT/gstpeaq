@@ -19,6 +19,12 @@
  * Boston, MA 02111-1307, USA.
  */
 
+/**
+ * SECTION:movs
+ * @short_description: Model output variable calculation.
+ * @title: MOVs
+ */
+
 #include "movs.h"
 
 #include <math.h>
@@ -31,16 +37,18 @@ static gdouble calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0
                                     gdouble const *test_excitation);
 
 void
-mov_modulation_difference_B (PeaqModulationProcessor * const *ref_mod_proc,
-                             PeaqModulationProcessor * const *test_mod_proc,
-                             PeaqMovAccum *mov_accum1, PeaqMovAccum *mov_accum2,
-                             PeaqMovAccum *mov_accum_win)
+peaq_mov_modulation_difference (PeaqModulationProcessor * const *ref_mod_proc,
+                                PeaqModulationProcessor * const *test_mod_proc,
+                                PeaqMovAccum *mov_accum1,
+                                PeaqMovAccum *mov_accum2,
+                                PeaqMovAccum *mov_accum_win)
 {
   guint c;
   PeaqEarModel *ear_model =
     peaq_modulationprocessor_get_ear_model (ref_mod_proc[0]);
   guint band_count = peaq_earmodel_get_band_count (ear_model);
 
+  gdouble levWt = mov_accum2 ? 100. : 1.;
   for (c = 0; c < peaq_movaccum_get_channels (mov_accum1); c++) {
     guint i;
     gdouble const *modulation_ref =
@@ -61,59 +69,27 @@ mov_modulation_difference_B (PeaqModulationProcessor * const *ref_mod_proc,
       /* (63) in [BS1387] with negWt = 0.1, offset = 0.01 */
       w = modulation_test[i] >= modulation_ref[i] ? 1. : .1;
       mod_diff_2b += w * diff / (0.01 + modulation_ref[i]);
-      /* (65) in [BS1387] with levWt = 100 */
+      /* (65) in [BS1387] with levWt = 100 if more than one accumulator is
+         given, 1 otherwise */
       temp_wt += average_loudness_ref[i] /
         (average_loudness_ref[i] +
-         100. * pow (peaq_earmodel_get_internal_noise (ear_model, i), 0.3));
+         levWt * pow (peaq_earmodel_get_internal_noise (ear_model, i), 0.3));
     }
     mod_diff_1b *= 100. / band_count;
     mod_diff_2b *= 100. / band_count;
     peaq_movaccum_accumulate (mov_accum1, c, mod_diff_1b, temp_wt);
-    peaq_movaccum_accumulate (mov_accum2, c, mod_diff_2b, temp_wt);
-    peaq_movaccum_accumulate (mov_accum_win, c, mod_diff_1b, 1.);
+    if (mov_accum2)
+      peaq_movaccum_accumulate (mov_accum2, c, mod_diff_2b, temp_wt);
+    if (mov_accum_win)
+      peaq_movaccum_accumulate (mov_accum_win, c, mod_diff_1b, 1.);
   }
 }
 
 void
-mov_modulation_difference_A (PeaqModulationProcessor * const *ref_mod_proc,
-                             PeaqModulationProcessor * const *test_mod_proc,
-                             PeaqMovAccum *mov_accum)
-{
-  guint c;
-  PeaqEarModel *ear_model =
-    peaq_modulationprocessor_get_ear_model (ref_mod_proc[0]);
-  guint band_count = peaq_earmodel_get_band_count (ear_model);
-
-  for (c = 0; c < peaq_movaccum_get_channels (mov_accum); c++) {
-    guint i;
-    gdouble mod_diff_a;
-    gdouble temp_wt;
-    gdouble const *modulation_ref =
-      peaq_modulationprocessor_get_modulation (ref_mod_proc[c]);
-    gdouble const *modulation_test =
-      peaq_modulationprocessor_get_modulation (test_mod_proc[c]);
-    gdouble const *average_loudness_ref =
-      peaq_modulationprocessor_get_average_loudness (ref_mod_proc[c]);
-    mod_diff_a = 0.;
-    temp_wt = 0.;
-    for (i = 0; i < band_count; i++) {
-      gdouble diff = ABS (modulation_test[i] - modulation_ref[i]);
-      /* (63) in [BS1387] with negWt = 1, offset = 1 */
-      mod_diff_a += diff / (1. + modulation_ref[i]);
-      /* (65) in [BS1387] with levWt = 1 */
-      temp_wt += average_loudness_ref[i] /
-        (average_loudness_ref[i] +
-         pow (peaq_earmodel_get_internal_noise (ear_model, i), 0.3));
-    }
-    mod_diff_a *= 100. / band_count;
-    peaq_movaccum_accumulate (mov_accum, c, mod_diff_a, temp_wt);
-  }
-}
-
-void
-mov_noise_loudness (PeaqModulationProcessor * const *ref_mod_proc,
-                    PeaqModulationProcessor * const *test_mod_proc,
-                    PeaqLevelAdapter * const *level, PeaqMovAccum *mov_accum)
+peaq_mov_noise_loudness (PeaqModulationProcessor * const *ref_mod_proc,
+                         PeaqModulationProcessor * const *test_mod_proc,
+                         PeaqLevelAdapter * const *level,
+                         PeaqMovAccum *mov_accum)
 {
   guint c;
 
@@ -129,7 +105,8 @@ mov_noise_loudness (PeaqModulationProcessor * const *ref_mod_proc,
   }
 }
 
-void mov_noise_loud_asym (PeaqModulationProcessor * const *ref_mod_proc,
+void
+peaq_mov_noise_loud_asym (PeaqModulationProcessor * const *ref_mod_proc,
                           PeaqModulationProcessor * const *test_mod_proc,
                           PeaqLevelAdapter * const *level,
                           PeaqMovAccum *mov_accum)
@@ -153,9 +130,9 @@ void mov_noise_loud_asym (PeaqModulationProcessor * const *ref_mod_proc,
 }
 
 void
-mov_lin_dist (PeaqModulationProcessor * const *ref_mod_proc,
-              PeaqLevelAdapter * const *level, gpointer *state,
-              PeaqMovAccum *mov_accum)
+peaq_mov_lin_dist (PeaqModulationProcessor * const *ref_mod_proc,
+                   PeaqLevelAdapter * const *level, gpointer *state,
+                   PeaqMovAccum *mov_accum)
 {
   guint c;
   PeaqEarModel *ear_model =
@@ -175,13 +152,13 @@ mov_lin_dist (PeaqModulationProcessor * const *ref_mod_proc,
   }
 }
 
-gdouble
+static gdouble
 calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0,
-                     gdouble NLmin,
-                     PeaqModulationProcessor const *ref_mod_proc,
-                     PeaqModulationProcessor const *test_mod_proc,
-                     gdouble const *ref_excitation,
-                     gdouble const *test_excitation)
+                          gdouble NLmin,
+                          PeaqModulationProcessor const *ref_mod_proc,
+                          PeaqModulationProcessor const *test_mod_proc,
+                          gdouble const *ref_excitation,
+                          gdouble const *test_excitation)
 {
   guint i;
   gdouble noise_loudness = 0.;
@@ -213,8 +190,8 @@ calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0,
 }
 
 void
-mov_bandwidth (gpointer *ref_state, gpointer *test_state,
-               PeaqMovAccum *mov_accum_ref, PeaqMovAccum *mov_accum_test)
+peaq_mov_bandwidth (gpointer *ref_state, gpointer *test_state,
+                    PeaqMovAccum *mov_accum_ref, PeaqMovAccum *mov_accum_test)
 {
   guint c;
 
@@ -249,9 +226,9 @@ mov_bandwidth (gpointer *ref_state, gpointer *test_state,
 }
 
 void
-mov_nmr (PeaqFFTEarModel const *ear_model, gpointer *ref_state,
-         gpointer *test_state, PeaqMovAccum *mov_accum_nmr,
-         PeaqMovAccum *mov_accum_rel_dist_frames)
+peaq_mov_nmr (PeaqFFTEarModel const *ear_model, gpointer *ref_state,
+              gpointer *test_state, PeaqMovAccum *mov_accum_nmr,
+              PeaqMovAccum *mov_accum_rel_dist_frames)
 {
   guint c;
   guint band_count = peaq_earmodel_get_band_count (PEAQ_EARMODEL (ear_model));
@@ -304,9 +281,9 @@ mov_nmr (PeaqFFTEarModel const *ear_model, gpointer *ref_state,
 }
 
 void
-mov_prob_detect (PeaqEarModel const *ear_model, gpointer *ref_state,
-                 gpointer *test_state, PeaqMovAccum *mov_accum_adb,
-                 PeaqMovAccum *mov_accum_mfpd)
+peaq_mov_prob_detect (PeaqEarModel const *ear_model, gpointer *ref_state,
+                      gpointer *test_state, PeaqMovAccum *mov_accum_adb,
+                      PeaqMovAccum *mov_accum_mfpd)
 {
   guint c;
   guint i;
