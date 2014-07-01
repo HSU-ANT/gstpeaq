@@ -36,9 +36,174 @@ static gdouble calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0
                                     gdouble const *ref_excitation,
                                     gdouble const *test_excitation);
 
+/**
+ * peaq_mov_modulation_difference:
+ * @ref_mod_proc: Modulation processors of the reference signal (one per
+ * channel).
+ * @test_mod_proc: Modulation processors of the test signal (one per channel).
+ * @mov_accum1: Accumulator for the AvgModDiff1B or RmsModDiffA MOVs.
+ * @mov_accum2: Accumulator for the AvgModDiff2B MOV or NULL.
+ * @mov_accum_win: Accumulator for the WinModDiff1B MOV or NULL.
+ *
+ * Calculates the modulation difference based MOVs as described in section 4.2
+ * of <xref linkend="BS1387" />. Given the modulation patterns 
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mi>Mod</mi><mi>Ref</mi></msub>
+ *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation> 
+ * and
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mi>Mod</mi><mi>Test</mi></msub>
+ *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation> 
+ * of reference and test signal, as obtained from @ref_mod_proc and
+ * @test_mod_proc with peaq_modulationprocessor_get_modulation(), the
+ * modulation difference is calculated according to
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>ModDiff</mi><mo>=</mo>
+ *   <mfrac><mn>100</mn><mi>Z</mi></mfrac>
+ *   <mo>&InvisibleTimes;</mo>
+ *   <munderover>
+ *     <mo>&sum;</mo>
+ *     <mrow><mi>k</mi><mo>=</mo><mn>0</mn></mrow>
+ *     <mrow><mi>Z</mi><mo>-</mo><mn>1</mn></mrow>
+ *   </munderover>
+ *   <mi>w</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   <mo>&InvisibleTimes;</mo>
+ *   <mfrac>
+ *     <mfenced open="|" close="|">
+ *       <msub><mi>Mod</mi><mi>Test</mi></msub>
+ *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       <mo>-</mo>
+ *       <msub><mi>Mod</mi><mi>Ref</mi></msub>
+ *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *     </mfenced>
+ *     <mrow>
+ *       <mi>offset</mi>
+ *       <mo>+</mo>
+ *       <msub><mi>Mod</mi><mi>Ref</mi></msub>
+ *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *     </mrow>
+ *   </mfrac>
+ *   <mspace width="2em" />
+ *   <mtext> where </mtext>
+ *   <mspace width="2em" />
+ *   <mi>w</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   <mo>=</mo>
+ *   <mfenced open="{" close="">
+ *     <mtable>
+ *       <mtr>
+ *         <mtd><mn>1</mn></mtd>
+ *         <mtd>
+ *           <mtext>if </mtext>
+ *           <msub><mi>Mod</mi><mi>Test</mi></msub>
+ *           <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *           <mo>&ge;</mo>
+ *           <msub><mi>Mod</mi><mi>Ref</mi></msub>
+ *           <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *         </mtd>
+ *       </mtr>
+ *       <mtr><mtd><mi>negWt</mi></mtd><mtd><mtext>else</mtext></mtd></mtr>
+ *     </mtable>
+ *   </mfenced>
+ * </math></informalequation> 
+ * and
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>Z</mi>
+ * </math></inlineequation> 
+ * denotes the number of bands. The parameters
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>offset</mi>
+ * </math></inlineequation> 
+ * and
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>negWt</mi>
+ * </math></inlineequation> 
+ * are chosen as:
+ * <table>
+ *   <tbody>
+ *     <tr>
+ *       <td>
+ *         <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *           <mi>offset</mi><mo>=</mo><mn>1</mn>
+ *         </math></inlineequation> 
+ *       </td>
+ *       <td>
+ *         <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *           <mi>negWt</mi><mo>=</mo><mn>1</mn>
+ *         </math></inlineequation> 
+ *       </td>
+ *       <td>for @mov_accum1 and @mov_accum_win</td>
+ *     </tr>
+ *     <tr>
+ *       <td>
+ *         <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *           <mi>offset</mi><mo>=</mo><mn>0.01</mn>
+ *         </math></inlineequation> 
+ *       </td>
+ *       <td>
+ *         <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *           <mi>negWt</mi><mo>=</mo><mn>0.1</mn>
+ *         </math></inlineequation> 
+ *       </td>
+ *       <td>for @mov_accum2.</td>
+ *     </tr>
+ *   </tbody>
+ * </table>
+ * Accumulation of @mov_accum1 and @mov_accum2 (if provided) is weighted with
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>TempWt</mi><mo>=</mo>
+ *   <munderover>
+ *     <mo>&sum;</mo>
+ *     <mrow><mi>k</mi><mo>=</mo><mn>0</mn></mrow>
+ *     <mrow><mi>Z</mi><mo>-</mo><mn>1</mn></mrow>
+ *   </munderover>
+ *   <mfrac>
+ *     <mrow>
+ *       <msub><mover accent="true"><mi>E</mi><mi>-</mi></mover><mi>Ref</mi></msub>
+ *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *     </mrow>
+ *     <mrow>
+ *       <msub><mover accent="true"><mi>E</mi><mi>-</mi></mover><mi>Ref</mi></msub>
+ *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       <mo>+</mo>
+ *       <mi>levWt</mi>
+ *       <mo>&sdot;</mo>
+ *       <msup>
+ *         <mrow>
+ *           <msub><mi>E</mi><mi>Thres</mi></msub>
+ *           <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *         </mrow>
+ *         <mn>0.3</mn>
+ *       </msup>
+ *     </mrow>
+ *   </mfrac>
+ * </math></informalequation> 
+ * where 
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mover accent="true"><mi>E</mi><mi>-</mi></mover><mi>Ref</mi></msub>
+ *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation> 
+ * is the average loudness obtained form @ref_mod_proc with
+ * peaq_modulationprocessor_get_average_loudness(),
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mi>E</mi><mi>Thres</mi></msub>
+ *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation> 
+ * is the internal ear noise as returned by peaq_earmodel_get_internal_noise(),
+ * and
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>levWt</mi><mo>=</mo><mn>1</mn>
+ * </math></inlineequation> 
+ * if @mov_accum2 is NULL and
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>levWt</mi><mo>=</mo><mn>100</mn>
+ * </math></inlineequation> 
+ * otherwise.
+ */
 void
-peaq_mov_modulation_difference (PeaqModulationProcessor * const *ref_mod_proc,
-                                PeaqModulationProcessor * const *test_mod_proc,
+peaq_mov_modulation_difference (PeaqModulationProcessor* const *ref_mod_proc,
+                                PeaqModulationProcessor* const *test_mod_proc,
                                 PeaqMovAccum *mov_accum1,
                                 PeaqMovAccum *mov_accum2,
                                 PeaqMovAccum *mov_accum_win)

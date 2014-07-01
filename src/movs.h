@@ -27,8 +27,8 @@
 #include "modpatt.h"
 #include "movaccum.h"
 
-void peaq_mov_modulation_difference (PeaqModulationProcessor * const *ref_mod_proc,
-                                     PeaqModulationProcessor * const *test_mod_proc,
+void peaq_mov_modulation_difference (PeaqModulationProcessor* const *ref_mod_proc,
+                                     PeaqModulationProcessor* const *test_mod_proc,
                                      PeaqMovAccum *mov_accum1,
                                      PeaqMovAccum *mov_accum2,
                                      PeaqMovAccum *mov_accum_win);
