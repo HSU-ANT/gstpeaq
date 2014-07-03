@@ -41,15 +41,15 @@ void peaq_mov_noise_loud_asym (PeaqModulationProcessor * const *ref_mod_proc,
                                PeaqLevelAdapter * const *level,
                                PeaqMovAccum *mov_accum);
 void peaq_mov_lin_dist (PeaqModulationProcessor * const *ref_mod_proc,
-                        PeaqLevelAdapter * const *level, gpointer *state,
+                        PeaqLevelAdapter * const *level, const gpointer *state,
                         PeaqMovAccum *mov_accum);
-void peaq_mov_bandwidth (gpointer *ref_state, gpointer *test_state,
+void peaq_mov_bandwidth (const gpointer *ref_state, const gpointer *test_state,
                          PeaqMovAccum *mov_accum_ref,
                          PeaqMovAccum *mov_accum_test);
-void peaq_mov_nmr (PeaqFFTEarModel const *ear_model, gpointer *ref_state,
-                   gpointer *test_state, PeaqMovAccum *mov_accum_nmr,
+void peaq_mov_nmr (PeaqFFTEarModel const *ear_model, const gpointer *ref_state,
+                   const gpointer *test_state, PeaqMovAccum *mov_accum_nmr,
                    PeaqMovAccum *mov_accum_rel_dist_frames);
-void peaq_mov_prob_detect (PeaqEarModel const *ear_model, gpointer *ref_state,
-                           gpointer *test_state, PeaqMovAccum *mov_accum_adb,
+void peaq_mov_prob_detect (PeaqEarModel const *ear_model, const gpointer *ref_state,
+                           const gpointer *test_state, PeaqMovAccum *mov_accum_adb,
                            PeaqMovAccum *mov_accum_mfpd);
 #endif

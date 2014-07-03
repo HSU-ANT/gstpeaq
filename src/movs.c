@@ -29,6 +29,8 @@
 
 #include <math.h>
 
+#define FIVE_DB_POWER_FACTOR 3.16227766016838
+
 static gdouble calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0,
                                     gdouble NLmin,
                                     PeaqModulationProcessor const *ref_mod_proc,
@@ -72,11 +74,13 @@ static gdouble calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0
  *   <mo>&InvisibleTimes;</mo>
  *   <mfrac>
  *     <mfenced open="|" close="|">
- *       <msub><mi>Mod</mi><mi>Test</mi></msub>
- *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *       <mo>-</mo>
- *       <msub><mi>Mod</mi><mi>Ref</mi></msub>
- *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       <mrow>
+ *         <msub><mi>Mod</mi><mi>Test</mi></msub>
+ *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *         <mo>-</mo>
+ *         <msub><mi>Mod</mi><mi>Ref</mi></msub>
+ *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       </mrow>
  *     </mfenced>
  *     <mrow>
  *       <mi>offset</mi>
@@ -296,7 +300,7 @@ peaq_mov_noise_loud_asym (PeaqModulationProcessor * const *ref_mod_proc,
 
 void
 peaq_mov_lin_dist (PeaqModulationProcessor * const *ref_mod_proc,
-                   PeaqLevelAdapter * const *level, gpointer *state,
+                   PeaqLevelAdapter * const *level, const gpointer *state,
                    PeaqMovAccum *mov_accum)
 {
   guint c;
@@ -354,8 +358,86 @@ calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0,
   return noise_loudness;
 }
 
+/**
+ * peaq_mov_bandwidth:
+ * @ref_state: State of the reference signal #PeaqFFTEarModel.
+ * @test_state: State of the test signal #PeaqFFTEarModel.
+ * @mov_accum_ref: Accumulator for the BandwidthRefB MOV.
+ * @mov_accum_test: Accumulator for the BandwidthTestB MOV.
+ *
+ * Calculates the bandwidth based MOVs as described in section 4.4
+ * of <xref linkend="BS1387" />. The power spectra
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msup>
+ *     <mfenced open="|" close="|"><mrow>
+ *       <msub><mi>F</mi><mi>Ref</mi></msub>
+ *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *     </mrow></mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ * </math></inlineequation>
+ * and
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msup>
+ *     <mfenced open="|" close="|"><mrow>
+ *       <msub><mi>F</mi><mi>Test</mi></msub>
+ *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *     </mrow></mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ * </math></inlineequation>
+ * are obtained from @ref_state and @test_state, respectively, using
+ * peaq_fftearmodel_get_power_spectrum().The first step is to determine the
+ * zero threshold
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <munder>
+ *     <mi>max</mi>
+ *     <mrow><mn>921</mn><mo>&le;</mo><mi>k</mi><mo>&le;</mo><mn>1023</mn></mrow>
+ *   </munder>
+ *   <msup>
+ *     <mfenced open="|" close="|"><mrow>
+ *       <msub><mi>F</mi><mi>Ref</mi></msub>
+ *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *     </mrow></mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ * </math></inlineequation>.
+ * The reference signal bandwidth is then determined as the largest 
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>k</mi>
+ * </math></inlineequation>
+ * such that
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msup>
+ *     <mfenced open="|" close="|"><mrow>
+ *       <msub><mi>F</mi><mi>Ref</mi></msub>
+ *       <mfenced open="[" close="]"><mrow><mi>k</mi><mo>-</mo><mn>1</mn></mrow></mfenced>
+ *     </mrow></mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ * </math></inlineequation>
+ * is 10 dB above the zero threshold. Likewise, the test signal bandwidth is
+ * then determined as the largest 
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>k</mi>
+ * </math></inlineequation>
+ * smaller than the reference signal bandwidth such that
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msup>
+ *     <mfenced open="|" close="|"><mrow>
+ *       <msub><mi>F</mi><mi>Test</mi></msub>
+ *       <mfenced open="[" close="]"><mrow><mi>k</mi><mo>-</mo><mn>1</mn></mrow></mfenced>
+ *     </mrow></mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ * </math></inlineequation>
+ * is 5 dB above the zero threshold. If no frequency bin is above the zero
+ * threshold, the respective bandwidth is set to zero. The resulting bandwidths
+ * are accumulated to @mov_accum_ref and @mov_accum_test only if the reference
+ * bandwidth is greater than 346.
+ */
 void
-peaq_mov_bandwidth (gpointer *ref_state, gpointer *test_state,
+peaq_mov_bandwidth (const gpointer *ref_state, const gpointer *test_state,
                     PeaqMovAccum *mov_accum_ref, PeaqMovAccum *mov_accum_test)
 {
   guint c;
@@ -368,19 +450,19 @@ peaq_mov_bandwidth (gpointer *ref_state, gpointer *test_state,
       peaq_fftearmodel_get_power_spectrum (test_state[c]);
     gdouble zero_threshold = test_power_spectrum[921];
     for (i = 922; i < 1024; i++)
-      if (test_power_spectrum[i] > zero_threshold)
+      if (test_power_spectrum[i] >= zero_threshold)
         zero_threshold = test_power_spectrum[i];
     guint bw_ref = 0;
     for (i = 921; i > 0; i--)
-      if (ref_power_spectrum[i - 1] > 10 * zero_threshold) {
+      if (ref_power_spectrum[i - 1] > 10. * zero_threshold) {
         bw_ref = i;
         break;
       }
     if (bw_ref > 346) {
       guint bw_test = 0;
       for (i = bw_ref; i > 0; i--)
-        if (test_power_spectrum[i - 1] >
-            3.16227766016838 * zero_threshold) {
+        if (test_power_spectrum[i - 1] >=
+            FIVE_DB_POWER_FACTOR * zero_threshold) {
           bw_test = i;
           break;
         }
@@ -391,8 +473,8 @@ peaq_mov_bandwidth (gpointer *ref_state, gpointer *test_state,
 }
 
 void
-peaq_mov_nmr (PeaqFFTEarModel const *ear_model, gpointer *ref_state,
-              gpointer *test_state, PeaqMovAccum *mov_accum_nmr,
+peaq_mov_nmr (PeaqFFTEarModel const *ear_model, const gpointer *ref_state,
+              const gpointer *test_state, PeaqMovAccum *mov_accum_nmr,
               PeaqMovAccum *mov_accum_rel_dist_frames)
 {
   guint c;
@@ -446,8 +528,8 @@ peaq_mov_nmr (PeaqFFTEarModel const *ear_model, gpointer *ref_state,
 }
 
 void
-peaq_mov_prob_detect (PeaqEarModel const *ear_model, gpointer *ref_state,
-                      gpointer *test_state, PeaqMovAccum *mov_accum_adb,
+peaq_mov_prob_detect (PeaqEarModel const *ear_model, const gpointer *ref_state,
+                      const gpointer *test_state, PeaqMovAccum *mov_accum_adb,
                       PeaqMovAccum *mov_accum_mfpd)
 {
   guint c;
