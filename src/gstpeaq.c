@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2006, 2007, 2010, 2011, 2012, 2013
+ * Copyright (C) 2006, 2007, 2010, 2011, 2012, 2013, 2014
  * Martin Holters <martin.holters@hsuhh.de>
  *
  * gstpeaq.c: Compute objective audio quality measures
@@ -117,12 +117,6 @@ struct _GstPeaqClass
   GstElementClass parent_class;
   gdouble *correlation_window;
 };
-
-static const GstElementDetails peaq_details =
-GST_ELEMENT_DETAILS ("Perceptual evaluation of audio quality",
-		     "Sink/Audio",
-		     "Compute objective audio quality measures",
-		     "Martin Holters <martin.holters@hsuhh.de>");
 
 #define STATIC_CAPS \
   GST_STATIC_CAPS ( \
@@ -273,7 +267,11 @@ base_init (gpointer g_class)
   pad_template = gst_static_pad_template_get (&gst_peaq_test_template);
   gst_element_class_add_pad_template (element_class, pad_template);
 
-  gst_element_class_set_details (element_class, &peaq_details);
+  gst_element_class_set_details_simple (element_class,
+                                        "Perceptual evaluation of audio quality",
+                                        "Sink/Audio",
+                                        "Compute objective audio quality measures",
+                                        "Martin Holters <martin.holters@hsuhh.de>");
 
   element_class->query = query;
   element_class->change_state = change_state;

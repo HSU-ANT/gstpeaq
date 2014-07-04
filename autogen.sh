@@ -6,4 +6,4 @@ aclocal -I m4
 autoheader
 autoconf
 automake --add-missing
-CFLAGS="-Wall -Werror -g" ./configure --enable-gtk-doc --prefix=/usr
+CFLAGS="-Wall -Werror -g -DGST_DISABLE_DEPRECATED" ./configure --enable-gtk-doc --prefix=/usr

@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2012, 2013 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2012, 2013, 2014 Martin Holters <martin.holters@hsuhh.de>
  *
  * peaq.c: Command-line frontend to process given WAV files
  *
@@ -21,6 +21,7 @@
 
 #include <gst/gst.h>
 #include <glib/gprintf.h>
+#include <stdlib.h>
 
 static gchar **filenames;
 static gboolean advanced = FALSE;
@@ -143,9 +144,9 @@ main(int argc, char *argv[])
   test_resample = gst_element_factory_make ("audioresample", "test-resampler");
 
   g_signal_connect (ref_parser, "pad-added", G_CALLBACK (new_pad),
-                    gst_element_get_pad (ref_converter, "sink"));
+                    gst_element_get_static_pad (ref_converter, "sink"));
   g_signal_connect (test_parser, "pad-added", G_CALLBACK (new_pad),
-                    gst_element_get_pad (test_converter, "sink"));
+                    gst_element_get_static_pad (test_converter, "sink"));
 
   gst_bin_add_many (GST_BIN (pipeline), 
                     ref_source, ref_parser, ref_converter, ref_resample,

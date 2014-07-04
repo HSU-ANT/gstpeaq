@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2013 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2013, 2014 Martin Holters <martin.holters@hsuhh.de>
  *
  * movs.h: Model Output Variables.
  *
