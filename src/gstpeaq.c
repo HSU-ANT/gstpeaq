@@ -1060,6 +1060,7 @@ process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
                               peaq->level_adapter,
                               peaq->mov_accum[MOVADV_RMS_NOISE_LOUD_ASYM]);
     peaq_mov_lin_dist (peaq->ref_modulation_processor,
+                       peaq->test_modulation_processor,
                        peaq->level_adapter,
                        peaq->ref_fb_ear_state,
                        peaq->mov_accum[MOVADV_AVG_LIN_DIST]);

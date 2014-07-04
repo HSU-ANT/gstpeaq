@@ -41,6 +41,7 @@ void peaq_mov_noise_loud_asym (PeaqModulationProcessor * const *ref_mod_proc,
                                PeaqLevelAdapter * const *level,
                                PeaqMovAccum *mov_accum);
 void peaq_mov_lin_dist (PeaqModulationProcessor * const *ref_mod_proc,
+                        PeaqModulationProcessor * const *test_mod_proc,
                         PeaqLevelAdapter * const *level, const gpointer *state,
                         PeaqMovAccum *mov_accum);
 void peaq_mov_bandwidth (const gpointer *ref_state, const gpointer *test_state,

@@ -26,6 +26,7 @@
  */
 
 #include "movs.h"
+#include "settings.h"
 
 #include <math.h>
 
@@ -290,16 +291,22 @@ peaq_mov_noise_loud_asym (PeaqModulationProcessor * const *ref_mod_proc,
     gdouble noise_loudness =
       calc_noise_loudness (2.5, 0.3, 1., 0.1, ref_mod_proc[c],
                            test_mod_proc[c], ref_excitation, test_excitation);
-    /* TODO: should the modulation patterns really also be swapped? */
+#if defined(SWAP_MOD_PATTS_FOR_NOISE_LOUDNESS_MOVS) && SWAP_MOD_PATTS_FOR_NOISE_LOUDNESS_MOVS
     gdouble missing_components =
       calc_noise_loudness (1.5, 0.15, 1., 0., test_mod_proc[c],
                            ref_mod_proc[c], test_excitation, ref_excitation);
+#else
+    gdouble missing_components =
+      calc_noise_loudness (1.5, 0.15, 1., 0., ref_mod_proc[c],
+                           test_mod_proc[c], test_excitation, ref_excitation);
+#endif
     peaq_movaccum_accumulate (mov_accum, c, noise_loudness, missing_components);
   }
 }
 
 void
 peaq_mov_lin_dist (PeaqModulationProcessor * const *ref_mod_proc,
+                   PeaqModulationProcessor * const *test_mod_proc,
                    PeaqLevelAdapter * const *level, const gpointer *state,
                    PeaqMovAccum *mov_accum)
 {
@@ -312,22 +319,28 @@ peaq_mov_lin_dist (PeaqModulationProcessor * const *ref_mod_proc,
       peaq_leveladapter_get_adapted_ref (level[c]);
     gdouble const *ref_excitation =
       peaq_earmodel_get_excitation (ear_model, state[c]);
-    /* TODO: should the modulation patterns really also be swapped? */
+#if defined(SWAP_MOD_PATTS_FOR_NOISE_LOUDNESS_MOVS) && SWAP_MOD_PATTS_FOR_NOISE_LOUDNESS_MOVS
     gdouble noise_loudness =
       calc_noise_loudness (1.5, 0.15, 1., 0., ref_mod_proc[c],
                            ref_mod_proc[c], ref_adapted_excitation,
                            ref_excitation);
+#else
+    gdouble noise_loudness =
+      calc_noise_loudness (1.5, 0.15, 1., 0., ref_mod_proc[c],
+                           test_mod_proc[c], ref_adapted_excitation,
+                           ref_excitation);
+#endif
     peaq_movaccum_accumulate (mov_accum, c, noise_loudness, 1.);
   }
 }
 
 static gdouble
 calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0,
-                          gdouble NLmin,
-                          PeaqModulationProcessor const *ref_mod_proc,
-                          PeaqModulationProcessor const *test_mod_proc,
-                          gdouble const *ref_excitation,
-                          gdouble const *test_excitation)
+                     gdouble NLmin,
+                     PeaqModulationProcessor const *ref_mod_proc,
+                     PeaqModulationProcessor const *test_mod_proc,
+                     gdouble const *ref_excitation,
+                     gdouble const *test_excitation)
 {
   guint i;
   gdouble noise_loudness = 0.;
@@ -339,7 +352,7 @@ calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0,
   gdouble const *test_modulation =
     peaq_modulationprocessor_get_modulation (test_mod_proc);
   for (i = 0; i < band_count; i++) {
-    /* 67) in [BS1387] */
+    /* (67) in [BS1387] */
     gdouble sref = thres_fac * ref_modulation[i] + S0;
     gdouble stest = thres_fac * test_modulation[i] + S0;
     gdouble ethres = peaq_earmodel_get_internal_noise (ear_model, i);
