@@ -69,6 +69,7 @@ struct _PeaqFFTEarModel
 {
   PeaqEarModel parent;
   GstFFTF64 *gstfft;
+  gdouble *outer_middle_ear_weight;
   gdouble deltaZ;
   gdouble level_factor;
   guint *band_lower_end;
@@ -92,7 +93,6 @@ struct _PeaqFFTEarModelClass
 {
   PeaqEarModelClass parent;
   gdouble *hann_window;
-  gdouble *outer_middle_ear_weight;
 };
 
 struct _PeaqFFTEarModelState {
@@ -214,15 +214,6 @@ class_init (gpointer klass, gpointer class_data)
     fft_model_class->hann_window[k] =
       sqrt(8./3.) * 0.5 * (1. - cos (2 * M_PI * k / (N - 1)));
   }
-
-  /* pre-compute weighting coefficients for outer and middle ear weighting 
-   * function; (7) in [BS1387], (6) in [Kabal03], but taking the squared value
-   * for applying in the power domain */
-  fft_model_class->outer_middle_ear_weight = g_new (gdouble, N / 2 + 1);
-  for (k = 0; k <= N / 2; k++) {
-    fft_model_class->outer_middle_ear_weight[k] = 
-      pow (peaq_earmodel_calc_ear_weight ((gdouble) k * SAMPLINGRATE / N), 2);
-  }
 }
 
 /*
@@ -239,6 +230,18 @@ init (GTypeInstance *obj, gpointer klass)
   PeaqFFTEarModel *model = PEAQ_FFTEARMODEL (obj);
 
   model->gstfft = gst_fft_f64_new (FFT_FRAMESIZE, FALSE);
+
+  /* pre-compute weighting coefficients for outer and middle ear weighting 
+   * function; (7) in [BS1387], (6) in [Kabal03], but taking the squared value
+   * for applying in the power domain */
+  guint N = FFT_FRAMESIZE;
+  guint k;
+  model->outer_middle_ear_weight = g_new (gdouble, N / 2 + 1);
+  gdouble sampling_rate = peaq_earmodel_get_sampling_rate (PEAQ_EARMODEL (obj));
+  for (k = 0; k <= N / 2; k++) {
+    model->outer_middle_ear_weight[k] = 
+      pow (peaq_earmodel_calc_ear_weight ((gdouble) k * sampling_rate / N), 2);
+  }
 }
 
 /*
@@ -255,6 +258,7 @@ finalize (GObject *obj)
     G_OBJECT_CLASS (g_type_class_peek_parent (g_type_class_peek
                                               (PEAQ_TYPE_FFTEARMODEL)));
   gst_fft_f64_free (model->gstfft);
+  g_free (model->outer_middle_ear_weight);
   g_free (model->band_lower_end);
   g_free (model->band_upper_end);
   g_free (model->band_lower_weight);
@@ -453,7 +457,7 @@ process_block (PeaqEarModel const *model, gpointer state,
      * domain), (8) in [Kabal03] */
     fft_state->weighted_power_spectrum[k] =
       fft_state->power_spectrum[k] *
-      fft_model_class->outer_middle_ear_weight[k];
+      fft_model->outer_middle_ear_weight[k];
   }
 
   /* group the outer ear weighted FFT outputs into critical bands according to
@@ -739,6 +743,9 @@ set_property (GObject *obj, guint id, const GValue *value, GParamSpec *pspec)
         model->lower_spreading_exponantiated =
           pow (model->lower_spreading, 0.4);
 
+        gdouble sampling_rate =
+          peaq_earmodel_get_sampling_rate (PEAQ_EARMODEL (obj));
+
         for (band = 0; band < band_count; band++) {
           gdouble zl = zL + band * model->deltaZ;
           gdouble zu = MIN(zU, zL + (band + 1) * model->deltaZ);
@@ -752,23 +759,23 @@ set_property (GObject *obj, guint id, const GValue *value, GParamSpec *pspec)
           gdouble fl = 650. * sinh (zl / 7.);
           gdouble fu = 650. * sinh (zu / 7.);
           model->band_lower_end[band]
-            = (guint) round (fl / SAMPLINGRATE * FFT_FRAMESIZE);
+            = (guint) round (fl / sampling_rate * FFT_FRAMESIZE);
           model->band_upper_end[band]
-            = (guint) round (fu / SAMPLINGRATE * FFT_FRAMESIZE);
+            = (guint) round (fu / sampling_rate * FFT_FRAMESIZE);
           gdouble upper_freq =
-            (2 * model->band_lower_end[band] + 1) / 2. * SAMPLINGRATE /
+            (2 * model->band_lower_end[band] + 1) / 2. * sampling_rate /
             FFT_FRAMESIZE;
           if (upper_freq > fu)
             upper_freq = fu;
           gdouble U = upper_freq - fl;
-          model->band_lower_weight[band] = U * FFT_FRAMESIZE / SAMPLINGRATE;
+          model->band_lower_weight[band] = U * FFT_FRAMESIZE / sampling_rate;
           if (model->band_lower_end[band] == model->band_upper_end[band]) {
             model->band_upper_weight[band] = 0;
           } else {
             gdouble lower_freq = (2 * model->band_upper_end[band] - 1) / 2.
-              * SAMPLINGRATE / FFT_FRAMESIZE;
+              * sampling_rate / FFT_FRAMESIZE;
             U = fu - lower_freq;
-            model->band_upper_weight[band] = U * FFT_FRAMESIZE / SAMPLINGRATE;
+            model->band_upper_weight[band] = U * FFT_FRAMESIZE / sampling_rate;
           }
 
           /* pre-compute internal noise, time constants for time smearing,
