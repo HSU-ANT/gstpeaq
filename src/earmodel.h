@@ -36,8 +36,6 @@
   (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_EARMODEL, \
                               PeaqEarModelClass))
 
-#define SAMPLINGRATE 48000
-
 typedef struct _PeaqEarModelClass PeaqEarModelClass;
 typedef struct _PeaqEarModel PeaqEarModel;
 

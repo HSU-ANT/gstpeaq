@@ -40,6 +40,8 @@
 
 #include <math.h>
 
+#define SAMPLINGRATE 48000
+
 enum
 {
   PROP_0,
