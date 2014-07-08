@@ -99,14 +99,14 @@ struct _GstPeaq
   guint frame_counter_fb;
   guint loudness_reached_frame;
   PeaqEarModel *fft_ear_model;
-  gpointer ref_fft_ear_state[2];
-  gpointer test_fft_ear_state[2];
+  gpointer *ref_fft_ear_state;
+  gpointer *test_fft_ear_state;
   PeaqEarModel *fb_ear_model;
-  gpointer ref_fb_ear_state[2];
-  gpointer test_fb_ear_state[2];
-  PeaqLevelAdapter *level_adapter[2];
-  PeaqModulationProcessor *ref_modulation_processor[2];
-  PeaqModulationProcessor *test_modulation_processor[2];
+  gpointer *ref_fb_ear_state;
+  gpointer *test_fb_ear_state;
+  PeaqLevelAdapter **level_adapter;
+  PeaqModulationProcessor **ref_modulation_processor;
+  PeaqModulationProcessor **test_modulation_processor;
   PeaqMovAccum *mov_accum[COUNT_MOV_BASIC];
   gdouble total_signal_energy;
   gdouble total_noise_energy;
@@ -122,7 +122,6 @@ struct _GstPeaqClass
   GST_STATIC_CAPS ( \
 		    "audio/x-raw-float, " \
 		    "rate = (int) 48000, " \
-		    "channels = (int) { 1, 2 }, " \
 		    "endianness = (int) BYTE_ORDER, " \
 		    "width = (int) 32" \
 		  )
@@ -191,6 +190,8 @@ static void base_init (gpointer g_class);
 static void class_init (gpointer g_class, gpointer class_data);
 static void init (GTypeInstance *obj, gpointer g_class);
 static void finalize (GObject * object);
+static void free_per_channel_data(GstPeaq *peaq);
+static void alloc_per_channel_data(GstPeaq *peaq);
 static void get_property (GObject *obj, guint id, GValue *value,
                           GParamSpec *pspec);
 static void set_property (GObject *obj, guint id, const GValue *value,
@@ -391,19 +392,18 @@ init (GTypeInstance *obj, gpointer g_class)
   peaq->total_signal_energy = 0.;
   peaq->total_noise_energy = 0.;
 
+  peaq->channels = 0;
   peaq->fft_ear_model = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
   peaq->fb_ear_model = NULL;
 
-  peaq->level_adapter[0] = peaq_leveladapter_new (peaq->fft_ear_model);
-  peaq->level_adapter[1] = peaq_leveladapter_new (peaq->fft_ear_model);
-  peaq->ref_modulation_processor[0] =
-    peaq_modulationprocessor_new (peaq->fft_ear_model);
-  peaq->ref_modulation_processor[1] =
-    peaq_modulationprocessor_new (peaq->fft_ear_model);
-  peaq->test_modulation_processor[0] =
-    peaq_modulationprocessor_new (peaq->fft_ear_model);
-  peaq->test_modulation_processor[1] =
-    peaq_modulationprocessor_new (peaq->fft_ear_model);
+  peaq->ref_fft_ear_state = NULL;
+  peaq->test_fft_ear_state = NULL;
+  peaq->ref_fb_ear_state = NULL;
+  peaq->test_fb_ear_state = NULL;
+
+  peaq->level_adapter = NULL;
+  peaq->ref_modulation_processor = NULL;
+  peaq->test_modulation_processor = NULL;
   for (i = 0; i < COUNT_MOV_BASIC; i++)
     peaq->mov_accum[i] = peaq_movaccum_new ();
 }
@@ -421,18 +421,88 @@ finalize (GObject * object)
   g_object_unref (peaq->ref_adapter_fb);
   g_object_unref (peaq->test_adapter_fb);
   g_object_unref (peaq->fft_ear_model);
-  g_object_unref (peaq->level_adapter[0]);
-  g_object_unref (peaq->level_adapter[1]);
-  g_object_unref (peaq->ref_modulation_processor[0]);
-  g_object_unref (peaq->ref_modulation_processor[1]);
-  g_object_unref (peaq->test_modulation_processor[0]);
-  g_object_unref (peaq->test_modulation_processor[1]);
   gst_fft_f64_free (peaq->correlation_fft);
   gst_fft_f64_free (peaq->correlator_fft);
   gst_fft_f64_free (peaq->correlator_inverse_fft);
   for (i = 0; i < COUNT_MOV_BASIC; i++)
     g_object_unref (peaq->mov_accum[i]);
   G_OBJECT_CLASS (parent_class)->finalize (object);
+}
+
+static void
+free_per_channel_data (GstPeaq *peaq)
+{
+  guint c;
+
+  if (peaq->ref_fft_ear_state) {
+    for (c = 0; c < peaq->channels; c++)
+      peaq_earmodel_state_free (peaq->fft_ear_model, peaq->ref_fft_ear_state[c]);
+    g_free (peaq->ref_fft_ear_state);
+  }
+  if (peaq->test_fft_ear_state) {
+    for (c = 0; c < peaq->channels; c++)
+      peaq_earmodel_state_free (peaq->fft_ear_model, peaq->test_fft_ear_state[c]);
+    g_free (peaq->test_fft_ear_state);
+  }
+  if (peaq->level_adapter) {
+    for (c = 0; c < peaq->channels; c++)
+      g_object_unref (peaq->level_adapter[c]);
+    g_free (peaq->level_adapter);
+  }
+  if (peaq->ref_modulation_processor) {
+    for (c = 0; c < peaq->channels; c++)
+      g_object_unref (peaq->ref_modulation_processor[c]);
+    g_free (peaq->ref_modulation_processor);
+  }
+  if (peaq->test_modulation_processor) {
+    for (c = 0; c < peaq->channels; c++)
+      g_object_unref (peaq->test_modulation_processor[c]);
+    g_free (peaq->test_modulation_processor);
+  }
+  if (peaq->ref_fb_ear_state) {
+    for (c = 0; c < peaq->channels; c++)
+      peaq_earmodel_state_free (peaq->fb_ear_model, peaq->ref_fb_ear_state[c]);
+    g_free (peaq->ref_fb_ear_state);
+  }
+  if (peaq->test_fb_ear_state) {
+    for (c = 0; c < peaq->channels; c++)
+      peaq_earmodel_state_free (peaq->fb_ear_model, peaq->test_fb_ear_state[c]);
+    g_free (peaq->test_fb_ear_state);
+  }
+}
+
+static void
+alloc_per_channel_data (GstPeaq *peaq)
+{
+  guint c;
+
+  peaq->ref_fft_ear_state = g_new (gpointer, peaq->channels);
+  peaq->test_fft_ear_state = g_new (gpointer, peaq->channels);
+  peaq->level_adapter = g_new (PeaqLevelAdapter *, peaq->channels);
+  peaq->ref_modulation_processor = g_new (PeaqModulationProcessor *, peaq->channels);
+  peaq->test_modulation_processor = g_new (PeaqModulationProcessor *, peaq->channels);
+  for (c = 0; c < peaq->channels; c++) {
+    peaq->ref_fft_ear_state[c] = peaq_earmodel_state_alloc (peaq->fft_ear_model);
+    peaq->test_fft_ear_state[c] = peaq_earmodel_state_alloc (peaq->fft_ear_model);
+    peaq->level_adapter[c] = peaq_leveladapter_new (peaq->fft_ear_model);
+    peaq->ref_modulation_processor[c] =
+      peaq_modulationprocessor_new (peaq->fft_ear_model);
+    peaq->test_modulation_processor[c] =
+      peaq_modulationprocessor_new (peaq->fft_ear_model);
+  }
+  if (peaq->advanced) {
+    peaq->ref_fb_ear_state = g_new (gpointer, peaq->channels);
+    peaq->test_fb_ear_state = g_new (gpointer, peaq->channels);
+    for (c = 0; c < peaq->channels; c++) {
+      peaq->ref_fb_ear_state[c] = peaq_earmodel_state_alloc (peaq->fb_ear_model);
+      peaq->test_fb_ear_state[c] = peaq_earmodel_state_alloc (peaq->fb_ear_model);
+      peaq_leveladapter_set_ear_model (peaq->level_adapter[c], peaq->fb_ear_model);
+      peaq_modulationprocessor_set_ear_model (peaq->ref_modulation_processor[c],
+                                              peaq->fb_ear_model);
+      peaq_modulationprocessor_set_ear_model (peaq->test_modulation_processor[c],
+                                              peaq->fb_ear_model);
+    }
+  }
 }
 
 static void
@@ -478,7 +548,7 @@ set_property (GObject *obj, guint id, const GValue *value, GParamSpec *pspec)
     case PROP_MODE_ADVANCED:
       {
         guint band_count;
-        PeaqEarModel *model;
+        free_per_channel_data (peaq);
         peaq->advanced = g_value_get_boolean (value);
         if (peaq->advanced) {
           band_count = 55;
@@ -499,7 +569,6 @@ set_property (GObject *obj, guint id, const GValue *value, GParamSpec *pspec)
                                   MODE_AVG);
           peaq_movaccum_set_mode (peaq->mov_accum[MOVADV_RMS_NOISE_LOUD_ASYM],
                                   MODE_RMS_ASYM);
-          model = peaq->fb_ear_model;
         } else {
           if (peaq->fb_ear_model) {
             g_object_unref (peaq->fb_ear_model);
@@ -525,18 +594,8 @@ set_property (GObject *obj, guint id, const GValue *value, GParamSpec *pspec)
                                   MODE_FILTERED_MAX);
           peaq_movaccum_set_mode (peaq->mov_accum[MOVBASIC_REL_DIST_FRAMES],
                                   MODE_AVG);
-          model = peaq->fft_ear_model;
         }
-        peaq_leveladapter_set_ear_model (peaq->level_adapter[0], model);
-        peaq_leveladapter_set_ear_model (peaq->level_adapter[1], model);
-        peaq_modulationprocessor_set_ear_model (peaq->ref_modulation_processor[0],
-                                                model);
-        peaq_modulationprocessor_set_ear_model (peaq->ref_modulation_processor[1],
-                                                model);
-        peaq_modulationprocessor_set_ear_model (peaq->test_modulation_processor[0],
-                                                model);
-        peaq_modulationprocessor_set_ear_model (peaq->test_modulation_processor[1],
-                                                model);
+        alloc_per_channel_data (peaq);
       }
       break;
     case PROP_CONSOLE_OUTPUT:
@@ -574,9 +633,26 @@ static gboolean
 set_caps (GstPad *pad, GstCaps *caps)
 {
   GstPeaq *peaq = GST_PEAQ (gst_pad_get_parent_element (pad));
+
+  GST_OBJECT_LOCK (peaq);
+
+  free_per_channel_data (peaq);
+
+  guint i;
   gst_structure_get_int (gst_caps_get_structure (caps, 0),
                          "channels", &(peaq->channels));
+  for (i = 0; i < COUNT_MOV_BASIC; i++)
+    if (i == MOVBASIC_ADB || i == MOVBASIC_MFPD)
+      peaq_movaccum_set_channels (peaq->mov_accum[i], 1);
+    else
+      peaq_movaccum_set_channels (peaq->mov_accum[i], peaq->channels);
+
+  alloc_per_channel_data (peaq);
+
+  GST_OBJECT_UNLOCK (peaq);
+
   gst_object_unref (peaq);
+
   return TRUE;
 }
 
@@ -598,16 +674,8 @@ pad_chain (GstPad *pad, GstBuffer *buffer)
   GST_OBJECT_LOCK (peaq);
 
   if (element->pending_state != GST_STATE_VOID_PENDING) {
-    guint i;
-
     element->current_state = element->pending_state;
     element->pending_state = GST_STATE_VOID_PENDING;
-
-    for (i = 0; i < COUNT_MOV_BASIC; i++)
-      if (i == MOVBASIC_ADB || i == MOVBASIC_MFPD)
-        peaq_movaccum_set_channels (peaq->mov_accum[i], 1);
-      else
-        peaq_movaccum_set_channels (peaq->mov_accum[i], peaq->channels);
   }
 
   if (pad == peaq->refpad) {
@@ -717,16 +785,6 @@ change_state (GstElement * element, GstStateChange transition)
     case GST_STATE_CHANGE_NULL_TO_READY:
       break;
     case GST_STATE_CHANGE_READY_TO_PAUSED:
-      peaq->ref_fft_ear_state[0] = peaq_earmodel_state_alloc (peaq->fft_ear_model);
-      peaq->ref_fft_ear_state[1] = peaq_earmodel_state_alloc (peaq->fft_ear_model);
-      peaq->test_fft_ear_state[0] = peaq_earmodel_state_alloc (peaq->fft_ear_model);
-      peaq->test_fft_ear_state[1] = peaq_earmodel_state_alloc (peaq->fft_ear_model);
-      if (peaq->advanced) {
-        peaq->ref_fb_ear_state[0] = peaq_earmodel_state_alloc (peaq->fb_ear_model);
-        peaq->ref_fb_ear_state[1] = peaq_earmodel_state_alloc (peaq->fb_ear_model);
-        peaq->test_fb_ear_state[0] = peaq_earmodel_state_alloc (peaq->fb_ear_model);
-        peaq->test_fb_ear_state[1] = peaq_earmodel_state_alloc (peaq->fb_ear_model);
-      }
       break;
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
       break;
@@ -803,16 +861,6 @@ change_state (GstElement * element, GstStateChange transition)
 
       calculate_odg (peaq);
 
-      peaq_earmodel_state_free (peaq->fft_ear_model, peaq->ref_fft_ear_state[0]);
-      peaq_earmodel_state_free (peaq->fft_ear_model, peaq->ref_fft_ear_state[1]);
-      peaq_earmodel_state_free (peaq->fft_ear_model, peaq->test_fft_ear_state[0]);
-      peaq_earmodel_state_free (peaq->fft_ear_model, peaq->test_fft_ear_state[1]);
-      if (peaq->advanced) {
-        peaq_earmodel_state_free (peaq->fb_ear_model, peaq->ref_fb_ear_state[0]);
-        peaq_earmodel_state_free (peaq->fb_ear_model, peaq->ref_fb_ear_state[1]);
-        peaq_earmodel_state_free (peaq->fb_ear_model, peaq->test_fb_ear_state[0]);
-        peaq_earmodel_state_free (peaq->fb_ear_model, peaq->test_fb_ear_state[1]);
-      }
       break;
     default:
       break;
