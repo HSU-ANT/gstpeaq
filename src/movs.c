@@ -31,6 +31,7 @@
 #include <math.h>
 
 #define FIVE_DB_POWER_FACTOR 3.16227766016838
+#define ONE_POINT_FIVE_DB_POWER_FACTOR 1.41253754462275
 
 static gdouble calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0,
                                     gdouble NLmin,
@@ -485,6 +486,192 @@ peaq_mov_bandwidth (const gpointer *ref_state, const gpointer *test_state,
   }
 }
 
+/**
+ * peaq_mov_nmr:
+ * @ear_model: The underlying FFT based ear model to which @ref_state and
+ * @test_state belong.
+ * @ref_state: Ear model states for the reference signal.
+ * @test_state: Ear model states for the test signal.
+ * @mov_accum_nmr: Accumulator for the Total NMRB or Segmental NMRB MOVs.
+ * @mov_accum_rel_dist_frames: Accumulator for the Relative Disturbed FramesB
+ * MOV or NULL.
+ *
+ * Calculates the noise-to-mask ratio based model output variables as described
+ * in sections 4.5 and 4.6 of <xref linkend="BS1387" />. From the weighted power
+ * spectra
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msup>
+ *     <mfenced open="|" close="|">
+ *       <mrow>
+ *         <msub><mi>F</mi><mrow><mi>e</mi><mo>,</mo><mi>Ref</mi></mrow></msub>
+ *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       </mrow>
+ *     </mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ * </math></inlineequation>
+ * and
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msup>
+ *     <mfenced open="|" close="|">
+ *       <mrow>
+ *         <msub><mi>F</mi><mrow><mi>e</mi><mo>,</mo><mi>Test</mi></mrow></msub>
+ *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       </mrow>
+ *     </mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ * </math></inlineequation>
+ * obtained with
+ * peaq_fftearmodel_get_weighted_power_spectrum() from @ref_state and
+ * @test_state, respectively, the noise power spectrum
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msup>
+ *     <mfenced open="|" close="|">
+ *       <mrow>
+ *         <msub><mi>F</mi><mi>noise</mi></msub>
+ *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       </mrow>
+ *     </mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ *   <mo>=</mo>
+ *   <msup>
+ *     <mfenced open="|" close="|">
+ *       <mrow>
+ *         <mfenced open="|" close="|">
+ *           <msub><mi>F</mi><mrow><mi>e</mi><mo>,</mo><mi>Test</mi></mrow></msub>
+ *           <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *         </mfenced>
+ *         <mo>-</mo>
+ *         <mfenced open="|" close="|">
+ *           <msub><mi>F</mi><mrow><mi>e</mi><mo>,</mo><mi>Ref</mi></mrow></msub>
+ *           <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *         </mfenced>
+ *       </mrow>
+ *     </mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ * </math></inlineequation>
+ * is calculated as
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msup>
+ *     <mfenced open="|" close="|">
+ *       <mrow>
+ *         <msub><mi>F</mi><mi>noise</mi></msub>
+ *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       </mrow>
+ *     </mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ *   <mo>=</mo>
+ *   <msup>
+ *     <mfenced open="|" close="|">
+ *       <mrow>
+ *         <msub><mi>F</mi><mrow><mi>e</mi><mo>,</mo><mi>Ref</mi></mrow></msub>
+ *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       </mrow>
+ *     </mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ *   <mo>-</mo>
+ *   <mn>2</mn>
+ *   <mo>&InvisibleTimes;</mo>
+ *   <msqrt>
+ *     <msup>
+ *       <mfenced open="|" close="|">
+ *         <mrow>
+ *           <msub><mi>F</mi><mrow><mi>e</mi><mo>,</mo><mi>Ref</mi></mrow></msub>
+ *           <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *         </mrow>
+ *       </mfenced>
+ *       <mn>2</mn>
+ *     </msup>
+ *     <mo>&InvisibleTimes;</mo>
+ *     <msup>
+ *       <mfenced open="|" close="|">
+ *         <mrow>
+ *           <msub><mi>F</mi><mrow><mi>e</mi><mo>,</mo><mi>Ref</mi></mrow></msub>
+ *           <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *         </mrow>
+ *       </mfenced>
+ *       <mn>2</mn>
+ *     </msup>
+ *   </msqrt>
+ *   <mo>+</mo>
+ *   <msup>
+ *     <mfenced open="|" close="|">
+ *       <mrow>
+ *         <msub><mi>F</mi><mrow><mi>e</mi><mo>,</mo><mi>Ref</mi></mrow></msub>
+ *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       </mrow>
+ *     </mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ * </math></inlineequation>
+ * and grouped into bands using peaq_fftearmodel_group_into_bands() to obtain
+ * the noise patterns
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mi>P</mi><mi>noise</mi></msub>
+ *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>.
+ * The mask pattern
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>M</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>
+ * is calculated from the excitation pattern of the reference signal as
+ * obtained by peaq_earmodel_get_excitation() from @ref_state by dividing it by
+ * the masking difference as returned by
+ * peaq_fftearmodel_get_masking_difference(). From these, the noise-to-mask
+ * ratio is calculated as
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>NMR</mi>
+ *   <mo>=</mo>
+ *   <mfrac><mn>1</mn><mi>Z</mi></mfrac>
+ *   <mo>&InvisibleTimes;</mo>
+ *   <munderover>
+ *     <mo>&sum;</mo>
+ *     <mrow><mi>k</mi><mo>=</mo><mn>0</mn></mrow>
+ *     <mrow><mi>Z</mi><mo>-</mo><mn>1</mn></mrow>
+ *   </munderover>
+ *   <mfrac>
+ *     <mrow>
+ *       <msub><mi>P</mi><mi>noise</mi></msub>
+ *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *     </mrow>
+ *     <mrow>
+ *       <mi>M</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *     </mrow>
+ *   </mfrac>
+ * </math></inlineequation>
+ * where
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>Z</mi>
+ * </math></inlineequation>
+ * denotes the number of bands. If @mov_accum_nmr is set to #MODE_AVG_LOG, the
+ * NMR is directly accumulated (used for Total NMRB), otherwise, it is
+ * converted to dB-scale first (used for Segmental NMRB).
+ *
+ * If @mov_accum_rel_dist_frames is not NULL, in addition, the frames where
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <munder>
+ *     <mi>max</mi>
+ *     <mrow><mi>k</mi><mo>&lt;</mo><mi>Z</mi></mrow>
+ *   </munder>
+ *   <mfrac>
+ *     <mrow>
+ *       <msub><mi>P</mi><mi>noise</mi></msub>
+ *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *     </mrow>
+ *     <mrow>
+ *       <mi>M</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *     </mrow>
+ *   </mfrac>
+ * </math></inlineequation>
+ * exceeds 1.41253754462275 (corresponding to 1.5 dB) are counted by
+ * accumlating one for frames that do exceed the threshold, a zero for those
+ * that do not.
+ */
 void
 peaq_mov_nmr (PeaqFFTEarModel const *ear_model, const gpointer *ref_state,
               const gpointer *test_state, PeaqMovAccum *mov_accum_nmr,
@@ -536,7 +723,7 @@ peaq_mov_nmr (PeaqFFTEarModel const *ear_model, const gpointer *ref_state,
       peaq_movaccum_accumulate (mov_accum_nmr, c, 10. * log10 (nmr), 1.);
     if (mov_accum_rel_dist_frames)
       peaq_movaccum_accumulate (mov_accum_rel_dist_frames, c,
-                                nmr_max > 1.41253754462275 ? 1. : 0., 1.);
+                                nmr_max > ONE_POINT_FIVE_DB_POWER_FACTOR ? 1. : 0., 1.);
   }
 }
 
