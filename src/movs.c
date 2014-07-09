@@ -28,10 +28,13 @@
 #include "movs.h"
 #include "settings.h"
 
+#include <gst/fft/gstfftf64.h>
 #include <math.h>
+#include <string.h>
 
 #define FIVE_DB_POWER_FACTOR 3.16227766016838
 #define ONE_POINT_FIVE_DB_POWER_FACTOR 1.41253754462275
+#define MAXLAG 256
 
 static gdouble calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0,
                                     gdouble NLmin,
@@ -65,7 +68,7 @@ static gdouble calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0
  * modulation difference is calculated according to
  * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
  *   <mi>ModDiff</mi><mo>=</mo>
- *   <mfrac><mn>100</mn><mi>Z</mi></mfrac>
+ *   <mfrac><mn>100</mn><mover accent="true"><mi>Z</mi><mi>^</mi></mover></mfrac>
  *   <mo>&InvisibleTimes;</mo>
  *   <munderover>
  *     <mo>&sum;</mo>
@@ -156,6 +159,21 @@ static gdouble calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0
  *     </tr>
  *   </tbody>
  * </table>
+ * If the accumulation mode of @mov_accum1 is #MODE_RMS, then
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mover accent="true"><mi>Z</mi><mi>^</mi></mover>
+ *   <mo>=</mo>
+ *   <msqrt><mi>Z</mi></msqrt>
+ * </math></inlineequation> 
+ * to handle the special weighting with
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msqrt><mi>Z</mi></msqrt>
+ * </math></inlineequation> 
+ * introduced in (92) of <xref linkend="BS1387" />, otherwise
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mover accent="true"><mi>Z</mi><mi>^</mi></mover><mo>=</mo><mi>Z</mi>
+ * </math></inlineequation>.
+ *
  * Accumulation of @mov_accum1 and @mov_accum2 (if provided) is weighted with
  * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
  *   <mi>TempWt</mi><mo>=</mo>
@@ -246,7 +264,10 @@ peaq_mov_modulation_difference (PeaqModulationProcessor* const *ref_mod_proc,
         (average_loudness_ref[i] +
          levWt * pow (peaq_earmodel_get_internal_noise (ear_model, i), 0.3));
     }
-    mod_diff_1b *= 100. / band_count;
+    if (peaq_movaccum_get_mode(mov_accum1) == MODE_RMS)
+      mod_diff_1b *= 100. / sqrt (band_count);
+    else
+      mod_diff_1b *= 100. / band_count;
     mod_diff_2b *= 100. / band_count;
     peaq_movaccum_accumulate (mov_accum1, c, mod_diff_1b, temp_wt);
     if (mov_accum2)
@@ -775,5 +796,148 @@ peaq_mov_prob_detect (PeaqEarModel const *ear_model, const gpointer *ref_state,
   }
   peaq_movaccum_accumulate (mov_accum_mfpd, 0,
                             binaural_detection_probability, 1.);
+}
+
+static void
+do_xcorr(gdouble const* d, gdouble * c)
+{
+  static GstFFTF64 *correlator_fft = NULL;
+  static GstFFTF64 *correlator_inverse_fft = NULL;
+  if (correlator_fft == NULL)
+    correlator_fft = gst_fft_f64_new (2 * MAXLAG, FALSE);
+  if (correlator_inverse_fft == NULL)
+    correlator_inverse_fft = gst_fft_f64_new (2 * MAXLAG, TRUE);
+  /*
+   * the follwing uses an equivalent computation in the frequency domain to
+   * determine the correlation like function:
+   * for (i = 0; i < MAXLAG; i++) {
+   *   c[i] = 0;
+   *   for (k = 0; k < MAXLAG; k++)
+   *     c[i] += d[k] * d[k + i];
+   * }
+  */
+  guint k;
+  gdouble timedata[2 * MAXLAG];
+  GstFFTF64Complex freqdata1[MAXLAG + 1];
+  GstFFTF64Complex freqdata2[MAXLAG + 1];
+  memcpy (timedata, d, 2 * MAXLAG * sizeof(gdouble));
+  gst_fft_f64_fft (correlator_fft, timedata, freqdata1);
+  memset (timedata + MAXLAG, 0, MAXLAG * sizeof(gdouble));
+  gst_fft_f64_fft (correlator_fft, timedata, freqdata2);
+  for (k = 0; k < MAXLAG + 1; k++) {
+    /* multiply freqdata1 with the conjugate of freqdata2 */
+    gdouble r = (freqdata1[k].r * freqdata2[k].r
+                 + freqdata1[k].i * freqdata2[k].i) / (2 * MAXLAG);
+    gdouble i = (freqdata2[k].r * freqdata1[k].i
+                 - freqdata1[k].r * freqdata2[k].i) / (2 * MAXLAG);
+    freqdata1[k].r = r;
+    freqdata1[k].i = i;
+  }
+  gst_fft_f64_inverse_fft (correlator_inverse_fft, freqdata1, timedata);
+  memcpy (c, timedata, MAXLAG * sizeof(gdouble));
+}
+
+void
+peaq_mov_ehs (PeaqEarModel const *ear_model, gpointer *ref_state,
+              gpointer *test_state, PeaqMovAccum *mov_accum)
+{
+  guint i;
+  guint chan;
+
+  static GstFFTF64 *correlation_fft = NULL;
+  static gdouble *correlation_window = NULL;
+  if (correlation_fft == NULL)
+    correlation_fft = gst_fft_f64_new (MAXLAG, FALSE);
+  if (correlation_window == NULL) {
+    /* centering the window of the correlation in the EHS computation at lag
+     * zero (as considered in [Kabal03] to be more reasonable) degrades
+     * conformance */
+    correlation_window = g_new (gdouble, MAXLAG);
+    for (i = 0; i < MAXLAG; i++)
+#if defined(CENTER_EHS_CORRELATION_WINDOW) && CENTER_EHS_CORRELATION_WINDOW
+      correlation_window[i] = 0.81649658092773 *
+        (1 + cos (2 * M_PI * i / (2 * MAXLAG - 1))) / MAXLAG;
+#else
+    correlation_window[i] = 0.81649658092773 *
+      (1 - cos (2 * M_PI * i / (MAXLAG - 1))) / MAXLAG;
+#endif
+  }
+
+  gint channels = peaq_movaccum_get_channels(mov_accum);
+
+  guint frame_size = peaq_earmodel_get_frame_size (ear_model);
+  gdouble ehs_valid = FALSE;
+  for (chan = 0; chan < channels; chan++) {
+    if (peaq_fftearmodel_is_energy_threshold_reached (ref_state[chan]) ||
+        peaq_fftearmodel_is_energy_threshold_reached (test_state[chan]))
+    ehs_valid = TRUE;
+  }
+  if (!ehs_valid)
+    return;
+
+  for (chan = 0; chan < channels; chan++) {
+    gdouble const *ref_power_spectrum =
+      peaq_fftearmodel_get_weighted_power_spectrum (ref_state[chan]);
+    gdouble const *test_power_spectrum =
+      peaq_fftearmodel_get_weighted_power_spectrum (test_state[chan]);
+
+    gdouble *d = g_newa (gdouble, frame_size / 2 + 1);
+    gdouble c[MAXLAG];
+    gdouble d0;
+    gdouble dk;
+    gdouble cavg;
+    gdouble ehs = 0.;
+    GstFFTF64Complex c_fft[MAXLAG / 2 + 1];
+    gdouble s;
+    for (i = 0; i < 2 * MAXLAG; i++) {
+      gdouble fref = ref_power_spectrum[i];
+      gdouble ftest = test_power_spectrum[i];
+      if (fref == 0. && ftest == 0.)
+        d[i] = 0.;
+      else
+        d[i] = log (ftest / fref);
+    }
+
+    do_xcorr(d, c);
+
+    /* in the following, the mean is subtracted before the window is applied as
+     * suggested by [Kabal03], although this contradicts [BS1387]; however, the
+     * results thus obtained are closer to the reference */
+    d0 = c[0];
+    dk = d0;
+    cavg = 0;
+#if defined(EHS_SUBTRACT_DC_BEFORE_WINDOW) && EHS_SUBTRACT_DC_BEFORE_WINDOW
+    for (i = 0; i < MAXLAG; i++) {
+      c[i] /= sqrt (d0 * dk);
+      cavg += c[i];
+      dk += d[i + MAXLAG] * d[i + MAXLAG] - d[i] * d[i];
+    }
+    cavg /= MAXLAG;
+    for (i = 0; i < MAXLAG; i++)
+      c[i] = (c[i] - cavg) * correlation_window[i];
+#else
+    for (i = 0; i < MAXLAG; i++) {
+      c[i] *= correlation_window[i] / sqrt(d0 * dk);
+      cavg += c[i];
+      dk += d[i + MAXLAG] * d[i + MAXLAG] - d[i] * d[i];
+    }
+    for (i = 0; i < MAXLAG; i++)
+      cavg += c[i];
+    cavg /= MAXLAG;
+#endif
+    gst_fft_f64_fft (correlation_fft, c, c_fft);
+#if !defined(EHS_SUBTRACT_DC_BEFORE_WINDOW) || !EHS_SUBTRACT_DC_BEFORE_WINDOW
+    /* subtract average from DC component in frequency domain */
+    c_fft[0].r -= cavg;
+#endif
+    s = c_fft[0].r * c_fft[0].r + c_fft[0].i * c_fft[0].i;
+    for (i = 1; i < MAXLAG / 2 + 1; i++) {
+      gdouble new_s = c_fft[i].r * c_fft[i].r + c_fft[i].i * c_fft[i].i;
+      if (new_s > s && new_s > ehs)
+        ehs = new_s;
+      s = new_s;
+    }
+    peaq_movaccum_accumulate (mov_accum, chan, 1000. * ehs, 1.);
+  }
 }
 

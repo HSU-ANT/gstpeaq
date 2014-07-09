@@ -41,6 +41,25 @@
 #define SWAP_MOD_PATTS_FOR_NOISE_LOUDNESS_MOVS 1
 
 /**
+ * CENTER_EHS_CORRELATION_WINDOW:
+ *
+ * Controls whether the Hann window applied to the correlation when computing
+ * the error harmonic structure in peaq_mov_ehs() is centered at bin zero as
+ * proposed in <xref linkend="Kabal03" />.
+ */
+#define CENTER_EHS_CORRELATION_WINDOW 0
+
+/**
+ * EHS_SUBTRACT_DC_BEFORE_WINDOW:
+ *
+ * Controls whether the DC component is removed from the correlation before (as
+ * proposed by <xref linkend="Kabal03" />) or after (as described in <xref
+ * linkend="Kabal03" />) applying the Hann window to the correlation when
+ * computing the error harmonic structure in peaq_mov_ehs().
+ */
+#define EHS_SUBTRACT_DC_BEFORE_WINDOW 1
+
+/**
  * CLAMP_MOVS:
  *
  * Controls whether the model output variables are clamped to the range [amin,

@@ -26,7 +26,6 @@
 
 #include <glib/gprintf.h>
 #include <gst/base/gstadapter.h>
-#include <gst/fft/gstfftf64.h>
 #include <gst/gst.h>
 #include <math.h>
 #include <string.h>
@@ -39,10 +38,6 @@
 #include "movaccum.h"
 #include "movs.h"
 #include "nn.h"
-
-//#define EHS_ENERGY_THRESHOLD 7.442401884276241e-6
-#define EHS_ENERGY_THRESHOLD 7.45058059692383e-06
-#define MAXLAG 256
 
 enum
 {
@@ -90,9 +85,6 @@ struct _GstPeaq
   GstAdapter *test_adapter_fft;
   GstAdapter *ref_adapter_fb;
   GstAdapter *test_adapter_fb;
-  GstFFTF64 *correlation_fft;
-  GstFFTF64 *correlator_fft;
-  GstFFTF64 *correlator_inverse_fft;
   gboolean console_output;
   gboolean advanced;
   gint channels;
@@ -116,7 +108,6 @@ struct _GstPeaq
 struct _GstPeaqClass
 {
   GstElementClass parent_class;
-  gdouble *correlation_window;
 };
 
 #define STATIC_CAPS \
@@ -163,8 +154,6 @@ static void process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
 static void process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
                                         gfloat *testdata);
 static void process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata);
-static void calc_ehs (GstPeaq const *peaq, gpointer *ref_state,
-                      gpointer *test_state, PeaqMovAccum *mov_accum);
 static double calculate_di (GstPeaq * peaq);
 static double calculate_di_advanced (GstPeaq *peaq);
 static double calculate_odg (GstPeaq * peaq);
@@ -238,21 +227,7 @@ base_init (gpointer g_class)
 static void
 class_init (gpointer g_class, gpointer class_data)
 {
-  guint i;
   GObjectClass *object_class = G_OBJECT_CLASS (g_class);
-  GstPeaqClass *peaq_class = GST_PEAQ_CLASS (g_class);
-
-  /* centering the window of the correlation in the EHS computation at lag zero
-   * (as considered in [Kabal03] to be more reasonable) degrades conformance */
-  peaq_class->correlation_window = g_new (gdouble, MAXLAG);
-  for (i = 0; i < MAXLAG; i++)
-#if 0
-    peaq_class->correlation_window[i] = 0.81649658092773 *
-      (1 + cos (2 * M_PI * i / (2 * MAXLAG - 1))) / MAXLAG;
-#else
-    peaq_class->correlation_window[i] = 0.81649658092773 *
-      (1 - cos (2 * M_PI * i / (MAXLAG - 1))) / MAXLAG;
-#endif
 
   object_class->get_property = get_property;
   object_class->set_property = set_property;
@@ -316,10 +291,6 @@ init (GTypeInstance *obj, gpointer g_class)
   peaq->ref_adapter_fb = gst_adapter_new ();
   peaq->test_adapter_fb = gst_adapter_new ();
 
-  peaq->correlation_fft = gst_fft_f64_new (MAXLAG, FALSE);
-  peaq->correlator_fft = gst_fft_f64_new (2 * MAXLAG, FALSE);
-  peaq->correlator_inverse_fft = gst_fft_f64_new (2 * MAXLAG, TRUE);
-
   template = gst_static_pad_template_get (&gst_peaq_ref_template);
   peaq->refpad = gst_pad_new_from_template (template, "ref");
   gst_object_unref (template);
@@ -375,9 +346,6 @@ finalize (GObject * object)
   g_object_unref (peaq->ref_adapter_fb);
   g_object_unref (peaq->test_adapter_fb);
   g_object_unref (peaq->fft_ear_model);
-  gst_fft_f64_free (peaq->correlation_fft);
-  gst_fft_f64_free (peaq->correlator_fft);
-  gst_fft_f64_free (peaq->correlator_inverse_fft);
   for (i = 0; i < COUNT_MOV_BASIC; i++)
     g_object_unref (peaq->mov_accum[i]);
   G_OBJECT_CLASS (parent_class)->finalize (object);
@@ -967,8 +935,8 @@ process_fft_block_basic (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
                        peaq->mov_accum[MOVBASIC_MFPD]);
 
   /* error harmonic structure */
-  calc_ehs (peaq, peaq->ref_fft_ear_state, peaq->test_fft_ear_state,
-            peaq->mov_accum[MOVBASIC_EHS]);
+  peaq_mov_ehs (peaq->fft_ear_model, peaq->ref_fft_ear_state,
+                peaq->test_fft_ear_state, peaq->mov_accum[MOVBASIC_EHS]);
 
   for (i = 0; i < channels * frame_size / 2; i++) {
     peaq->total_signal_energy
@@ -1009,8 +977,8 @@ process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
                 NULL);
 
   /* error harmonic structure */
-  calc_ehs (peaq, peaq->ref_fft_ear_state, peaq->test_fft_ear_state,
-            peaq->mov_accum[MOVADV_EHS]);
+  peaq_mov_ehs (peaq->fft_ear_model, peaq->ref_fft_ear_state,
+                peaq->test_fft_ear_state, peaq->mov_accum[MOVADV_EHS]);
 
   for (i = 0; i < channels * frame_size / 2; i++) {
     peaq->total_signal_energy += refdata[i] * refdata[i];
@@ -1069,110 +1037,6 @@ process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
   peaq->frame_counter_fb++;
 }
 
-static void
-do_xcorr(GstPeaq const * peaq, gdouble const* d, gdouble * c)
-{
-  /*
-   * the follwing uses an equivalent computation in the frequency domain to
-   * determine the correlation like function:
-   * for (i = 0; i < MAXLAG; i++) {
-   *   c[i] = 0;
-   *   for (k = 0; k < MAXLAG; k++)
-   *     c[i] += d[k] * d[k + i];
-   * }
-  */
-  guint k;
-  gdouble timedata[2 * MAXLAG];
-  GstFFTF64Complex freqdata1[MAXLAG + 1];
-  GstFFTF64Complex freqdata2[MAXLAG + 1];
-  memcpy (timedata, d, 2 * MAXLAG * sizeof(gdouble));
-  gst_fft_f64_fft (peaq->correlator_fft, timedata, freqdata1);
-  memset (timedata + MAXLAG, 0, MAXLAG * sizeof(gdouble));
-  gst_fft_f64_fft (peaq->correlator_fft, timedata, freqdata2);
-  for (k = 0; k < MAXLAG + 1; k++) {
-    /* multiply freqdata1 with the conjugate of freqdata2 */
-    gdouble r = (freqdata1[k].r * freqdata2[k].r
-                 + freqdata1[k].i * freqdata2[k].i) / (2 * MAXLAG);
-    gdouble i = (freqdata2[k].r * freqdata1[k].i
-                 - freqdata1[k].r * freqdata2[k].i) / (2 * MAXLAG);
-    freqdata1[k].r = r;
-    freqdata1[k].i = i;
-  }
-  gst_fft_f64_inverse_fft (peaq->correlator_inverse_fft, freqdata1, timedata);
-  memcpy (c, timedata, MAXLAG * sizeof(gdouble));
-}
-
-static void
-calc_ehs (GstPeaq const *peaq, gpointer *ref_state, gpointer *test_state,
-          PeaqMovAccum *mov_accum)
-{
-  guint i;
-  guint chan;
-
-  gint channels = peaq->channels;
-
-  GstPeaqClass *peaq_class = GST_PEAQ_GET_CLASS (peaq);
-  guint frame_size = peaq_earmodel_get_frame_size (peaq->fft_ear_model);
-  gdouble ehs_valid = FALSE;
-  for (chan = 0; chan < channels; chan++) {
-    if (peaq_fftearmodel_is_energy_threshold_reached (ref_state[chan]) ||
-        peaq_fftearmodel_is_energy_threshold_reached (test_state[chan]))
-    ehs_valid = TRUE;
-  }
-  if (!ehs_valid)
-    return;
-
-  for (chan = 0; chan < channels; chan++) {
-    gdouble const *ref_power_spectrum =
-      peaq_fftearmodel_get_weighted_power_spectrum (ref_state[chan]);
-    gdouble const *test_power_spectrum =
-      peaq_fftearmodel_get_weighted_power_spectrum (test_state[chan]);
-
-    gdouble *d = g_newa (gdouble, frame_size / 2 + 1);
-    gdouble c[MAXLAG];
-    gdouble d0;
-    gdouble dk;
-    gdouble cavg;
-    gdouble ehs = 0.;
-    GstFFTF64Complex c_fft[MAXLAG / 2 + 1];
-    gdouble s;
-    for (i = 0; i < 2 * MAXLAG; i++) {
-      gdouble fref = ref_power_spectrum[i];
-      gdouble ftest = test_power_spectrum[i];
-      if (fref == 0. && ftest == 0.)
-        d[i] = 0.;
-      else
-        d[i] = log (ftest / fref);
-    }
-
-    do_xcorr(peaq, d, c);
-
-    /* in the following, the mean is subtracted before the window is applied as
-     * suggested by [Kabal03], although this contradicts [BS1387]; however, the
-     * results thus obtained are closer to the reference */
-    d0 = c[0];
-    dk = d0;
-    cavg = 0;
-    for (i = 0; i < MAXLAG; i++) {
-      c[i] /= sqrt (d0 * dk);
-      cavg += c[i];
-      dk += d[i + MAXLAG] * d[i + MAXLAG] - d[i] * d[i];
-    }
-    cavg /= MAXLAG;
-    for (i = 0; i < MAXLAG; i++)
-      c[i] = (c[i] - cavg) * peaq_class->correlation_window[i];
-    gst_fft_f64_fft (peaq->correlation_fft, c, c_fft);
-    s = c_fft[0].r * c_fft[0].r + c_fft[0].i * c_fft[0].i;
-    for (i = 1; i < MAXLAG / 2 + 1; i++) {
-      gdouble new_s = c_fft[i].r * c_fft[i].r + c_fft[i].i * c_fft[i].i;
-      if (new_s > s && new_s > ehs)
-        ehs = new_s;
-      s = new_s;
-    }
-    peaq_movaccum_accumulate (mov_accum, chan, ehs, 1.);
-  }
-}
-
 static double
 calculate_di (GstPeaq * peaq)
 {
@@ -1180,7 +1044,6 @@ calculate_di (GstPeaq * peaq)
   gdouble movs[11];
   for (i = 0; i < COUNT_MOV_BASIC; i++)
     movs[i] = peaq_movaccum_get_value (peaq->mov_accum[i]);
-  movs[MOVBASIC_EHS] *= 1000.;
 
   gdouble distortion_index = peaq_calculate_di_basic (movs);
 
@@ -1205,17 +1068,10 @@ calculate_di (GstPeaq * peaq)
 static double
 calculate_di_advanced (GstPeaq *peaq)
 {
+  guint i;
   gdouble movs[5];
-
-  guint band_count
-    = peaq_earmodel_get_band_count (peaq->fb_ear_model);
-  movs[0] = sqrt (band_count) *
-    peaq_movaccum_get_value (peaq->mov_accum[MOVADV_RMS_MOD_DIFF]);
-  movs[1] =
-    peaq_movaccum_get_value (peaq->mov_accum[MOVADV_RMS_NOISE_LOUD_ASYM]);
-  movs[2] = peaq_movaccum_get_value (peaq->mov_accum[MOVADV_SEGMENTAL_NMR]);
-  movs[3] = 1000. * peaq_movaccum_get_value (peaq->mov_accum[MOVADV_EHS]);
-  movs[4] = peaq_movaccum_get_value (peaq->mov_accum[MOVADV_AVG_LIN_DIST]);
+  for (i = 0; i < COUNT_MOV_ADVANCED; i++)
+    movs[i] = peaq_movaccum_get_value (peaq->mov_accum[i]);
 
   gdouble distortion_index = peaq_calculate_di_advanced (movs);
 

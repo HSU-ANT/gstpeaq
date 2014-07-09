@@ -132,6 +132,16 @@ typedef struct _PeaqMovAccum PeaqMovAccum;
  *     </mrow>
  *   </mfrac></msqrt>
  * </math></informalequation>
+ * Note that the factor
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msqrt><mi>Z</mi></msqrt>
+ * </math></inlineequation> 
+ * introduced in <xref linkend="BS1387" /> for the weighted case only is not
+ * included here but has be included in the calculation of
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mi>x</mi><mi>i</mi></msub>
+ * </math></inlineequation> 
+ * or when using the output of the accumulator for further calculations.
  * @MODE_RMS_ASYM: A variant of root-mean-square averaging used for the
  * Asymmetric Noise Loudness model output variable, see section 4.3.3 of <xref
  * linkend="BS1387" />:

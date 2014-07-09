@@ -53,4 +53,6 @@ void peaq_mov_nmr (PeaqFFTEarModel const *ear_model, const gpointer *ref_state,
 void peaq_mov_prob_detect (PeaqEarModel const *ear_model, const gpointer *ref_state,
                            const gpointer *test_state, PeaqMovAccum *mov_accum_adb,
                            PeaqMovAccum *mov_accum_mfpd);
+void peaq_mov_ehs (PeaqEarModel const *ear_model, gpointer *ref_state,
+                   gpointer *test_state, PeaqMovAccum *mov_accum);
 #endif
