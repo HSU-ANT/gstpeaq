@@ -38,6 +38,7 @@
 #include "modpatt.h"
 #include "movaccum.h"
 #include "movs.h"
+#include "nn.h"
 
 //#define EHS_ENERGY_THRESHOLD 7.442401884276241e-6
 #define EHS_ENERGY_THRESHOLD 7.45058059692383e-06
@@ -138,53 +139,6 @@ GST_STATIC_PAD_TEMPLATE ("test",
 			 GST_PAD_SINK,
 			 GST_PAD_ALWAYS,
 			 STATIC_CAPS);
-
-static const gdouble amin_advanced[5] = {
-  13.298751, 0.041073, -25.018791, 0.061560, 0.02452
-};
-
-static const gdouble amax_advanced[5] = {
-  2166.5, 13.24326, 13.46708, 10.226771, 14.224874
-};
-
-static const gdouble wx_advanced[5][5] = {
-  {21.211773, -39.013052, -1.382553, -14.545348, -0.320899},
-  {-8.981803, 19.956049, 0.935389, -1.686586, -3.238586},
-  {1.633830, -2.877505, -7.442935, 5.606502, -1.783120},
-  {6.103821, 19.587435, -0.240284, 1.088213, -0.511314},
-  {11.556344, 3.892028, 9.720441, -3.287205, -11.031250},
-};
-
-static const double wxb_advanced[5] = { 1.330890, 2.686103, 2.096598, -1.327851, 3.087055 };
-
-static const double wy_advanced[5] = { -4.696996, -3.289959, 7.004782, 6.651897, 4.009144 };
-
-static const gdouble amin[] = {
-  393.916656, 361.965332, -24.045116, 1.110661, -0.206623, 0.074318, 1.113683,
-  0.950345, 0.029985, 0.000101, 0
-};
-
-static const gdouble amax[] = {
-  921, 881.131226, 16.212030, 107.137772, 2.886017, 13.933351, 63.257874,
-  1145.018555, 14.819740, 1, 1
-};
-
-static const gdouble wx[11][3] = {
-  {-0.502657, 0.436333, 1.219602},
-  {4.307481, 3.246017, 1.123743},
-  {4.984241, -2.211189, -0.192096},
-  {0.051056, -1.762424, 4.331315},
-  {2.321580, 1.789971, -0.754560},
-  {-5.303901, -3.452257, -10.814982},
-  {2.730991, -6.111805, 1.519223},
-  {0.624950, -1.331523, -5.955151},
-  {3.102889, 0.871260, -5.922878},
-  {-1.051468, -0.939882, -0.142913},
-  {-1.804679, -0.503610, -0.620456}
-};
-
-static const double wxb[] = { -2.518254, 0.654841, -2.207228 };
-static const double wy[] = { -3.817048, 4.107138, 4.629582, -0.307594 };
 
 static void base_init (gpointer g_class);
 static void class_init (gpointer g_class, gpointer class_data);
@@ -1224,33 +1178,11 @@ calculate_di (GstPeaq * peaq)
 {
   guint i;
   gdouble movs[11];
-  gdouble x[3];
-  gdouble distortion_index;
   for (i = 0; i < COUNT_MOV_BASIC; i++)
     movs[i] = peaq_movaccum_get_value (peaq->mov_accum[i]);
   movs[MOVBASIC_EHS] *= 1000.;
 
-  for (i = 0; i < 3; i++)
-    x[i] = 0;
-  for (i = 0; i <= 10; i++) {
-    guint j;
-    gdouble m = (movs[i] - amin[i]) / (amax[i] - amin[i]);
-    /* according to [Kabal03], it is unclear whether the MOVs should be
-     * clipped to within [amin, amax], although [BS1387] does not mention
-     * clipping at all; doing so slightly improves the results of the
-     * conformance test */
-#if 1
-    if (m < 0.)
-      m = 0.;
-    if (m > 1.)
-      m = 1.;
-#endif
-    for (j = 0; j < 3; j++)
-      x[j] += wx[i][j] * m;
-  }
-  distortion_index = -0.307594;
-  for (i = 0; i < 3; i++)
-    distortion_index += wy[i] / (1 + exp (-(wxb[i] + x[i])));
+  gdouble distortion_index = peaq_calculate_di_basic (movs);
 
   if (peaq->console_output) {
     g_printf ("   BandwidthRefB: %f\n"
@@ -1273,13 +1205,10 @@ calculate_di (GstPeaq * peaq)
 static double
 calculate_di_advanced (GstPeaq *peaq)
 {
-  guint i;
-  gdouble x[5];
   gdouble movs[5];
 
   guint band_count
     = peaq_earmodel_get_band_count (peaq->fb_ear_model);
-  gdouble distortion_index;
   movs[0] = sqrt (band_count) *
     peaq_movaccum_get_value (peaq->mov_accum[MOVADV_RMS_MOD_DIFF]);
   movs[1] =
@@ -1287,29 +1216,8 @@ calculate_di_advanced (GstPeaq *peaq)
   movs[2] = peaq_movaccum_get_value (peaq->mov_accum[MOVADV_SEGMENTAL_NMR]);
   movs[3] = 1000. * peaq_movaccum_get_value (peaq->mov_accum[MOVADV_EHS]);
   movs[4] = peaq_movaccum_get_value (peaq->mov_accum[MOVADV_AVG_LIN_DIST]);
-  for (i = 0; i < 5; i++)
-    x[i] = 0;
-  for (i = 0; i <= 4; i++) {
-    guint j;
-    gdouble m =
-      (movs[i] - amin_advanced[i]) / (amax_advanced[i] - amin_advanced[i]);
-    /* according to [Kabal03], it is unclear whether the MOVs should be
-     * clipped to within [amin, amax], although [BS1387] does not mention
-     * clipping at all; doing so slightly improves the results of the
-     * conformance test */
-#if 1
-    if (m < 0.)
-      m = 0.;
-    if (m > 1.)
-      m = 1.;
-#endif
-    for (j = 0; j < 5; j++)
-      x[j] += wx_advanced[i][j] * m;
-  }
-  distortion_index = -1.360308;
-  for (i = 0; i < 5; i++)
-    distortion_index +=
-      wy_advanced[i] / (1 + exp (-(wxb_advanced[i] + x[i])));
+
+  gdouble distortion_index = peaq_calculate_di_advanced (movs);
 
   if (peaq->console_output) {
     g_printf("RmsModDiffA = %f\n"
@@ -1334,7 +1242,7 @@ calculate_odg (GstPeaq * peaq)
     distortion_index = calculate_di_advanced (peaq);
   else
     distortion_index = calculate_di (peaq);
-  gdouble odg = -3.98 + 4.2 / (1 + exp (-distortion_index));
+  gdouble odg = peaq_calculate_odg (distortion_index);
   if (peaq->console_output) {
     g_printf ("Objective Difference Grade: %.3f\n", odg);
   }

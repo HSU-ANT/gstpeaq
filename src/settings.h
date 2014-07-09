@@ -39,3 +39,13 @@
  * value to use the interpretation from <xref linkend="Kabal03" />.
  */
 #define SWAP_MOD_PATTS_FOR_NOISE_LOUDNESS_MOVS 1
+
+/**
+ * CLAMP_MOVS:
+ *
+ * Controls whether the model output variables are clamped to the range [amin,
+ * amax] before calulating the distortion index in peaq_calculate_di_basic() or
+ * peaq_calculate_di_advanced(). This is proposed in <xref linkend="Kabal03" />
+ * but not mentioned at all in <xref linkend="BS1387" />.
+ */
+#define CLAMP_MOVS 1
