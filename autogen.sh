@@ -1,4 +1,3 @@
-mkdir -p aux
 ./makeChangeLog.sh
 libtoolize
 gtkdocize
