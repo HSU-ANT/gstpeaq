@@ -20,7 +20,7 @@ AC_CHECK_LIB(m, main)
 
 AC_FUNC_MALLOC
 
-PKG_CHECK_MODULES(PKGCONF, [gstreamer-0.10 gstreamer-base-0.10 gstreamer-fft-0.10])
+PKG_CHECK_MODULES(PKGCONF, [gstreamer-0.10 >= 0.10.14 gstreamer-base-0.10 >= 0.10.11 gstreamer-fft-0.10 >= 0.10.15])
 PKG_CHECK_MODULES(PKGCONF_BIN, [gstreamer-0.10])
 
 GST_SET_PLUGINDIR
