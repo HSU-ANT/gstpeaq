@@ -619,7 +619,9 @@ assertArrayEqualsSq (const gdouble * dut, const gdouble * ref, guint len,
 int
 main (int argc, char *argv[])
 {
+#if !GLIB_CHECK_VERSION(2, 36, 0)
   g_type_init ();
+#endif
 
   test_ear ();
   test_leveladapt ();
