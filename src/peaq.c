@@ -91,8 +91,10 @@ main(int argc, char *argv[])
   gchar *reffilename;
   gchar *testfilename;
 
+#if !GLIB_CHECK_VERSION(2, 32, 0)
   if (!g_thread_supported ())
     g_thread_init (NULL);
+#endif
 
   /* parse command-line options and initialize */
   context = g_option_context_new (NULL);
