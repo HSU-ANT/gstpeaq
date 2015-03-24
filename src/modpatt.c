@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2006, 2013 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2006, 2013, 2015 Martin Holters <martin.holters@hsuhh.de>
  *
  * modpatt.c: Modulation pattern processor.
  *
@@ -205,14 +205,9 @@ peaq_modulationprocessor_get_ear_model (PeaqModulationProcessor const *modproc)
  * peaq_modulationprocessor_process:
  * @modproc: The #PeaqModulationProcessor.
  * @unsmeared_excitation: The unsmeared excitation patterns
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>E</mi><mn>2</mn></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mn>2</mn></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
- * in <xref linkend="BS1387" />,
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>E</mi><mi>s</mi></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * in <xref linkend="BS1387" />, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mi>s</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
  *
@@ -258,17 +253,11 @@ peaq_modulationprocessor_process (PeaqModulationProcessor *modproc,
  * peaq_modulationprocessor_get_average_loudness:
  * @modproc: The #PeaqModulationProcessor to get the current average loudness from.
  *
- * Returns the average loudness
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mover accent="true"><mi>E</mi><mi>-</mi></mover>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * Returns the average loudness <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mover accent="true"><mi>E</mi><mi>-</mi></mover><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
  * as computed during the last call to peaq_modulationprocessor_process().
  *
- * Returns: The average loudness
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mover accent="true"><mi>E</mi><mi>-</mi></mover>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * Returns: The average loudness <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mover accent="true"><mi>E</mi><mi>-</mi></mover><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>.
  * The pointer points to internal data of the #PeaqModulationProcessor and must
  * not be freed.
@@ -283,15 +272,11 @@ peaq_modulationprocessor_get_average_loudness (PeaqModulationProcessor const *mo
  * peaq_modulationprocessor_get_modulation:
  * @modproc: The #PeaqModulationProcessor to get the current modulation from.
  *
- * Returns the modulation
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>Mod</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * Returns the modulation <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>Mod</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
  * as computed during the last call to peaq_modulationprocessor_process().
  *
- * Returns: The modulation
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>Mod</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * Returns: The modulation <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>Mod</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>.
  * The pointer points to internal data of the #PeaqModulationProcessor and must
  * not be freed.

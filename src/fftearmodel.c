@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2006, 2007, 2011, 2012, 2013
+ * Copyright (C) 2006, 2007, 2011, 2012, 2013, 2015
  * Martin Holters <martin.holters@hsuhh.de>
  *
  * fftearmodel.c: FFT-based peripheral ear model part.
@@ -523,24 +523,9 @@ get_unsmeared_excitation (PeaqEarModel const *model, gpointer state)
  * peaq_earmodel_process_block() with the given @state.
  *
  * Returns: The power spectrum, up to half the sampling rate
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msup>
- *     <mfenced open="|" close="|"><mrow>
- *       <mi>F</mi>
- *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *     </mrow></mfenced>
- *     <mn>2</mn>
- *   </msup>
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msup><mfenced open="|" close="|"><mrow><mi>F</mi><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced><mn>2</mn></msup>
  * </math></inlineequation>
- * in <xref linkend="BS1387" />,<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- * <msubsup><mi>G</mi><mi>L</mi><mn>2</mn></msubsup>
- * <mo>&InvisibleTimes;</mo>
- * <msup>
- *   <mfenced open="|" close="|"><mrow>
- *     <mi>X</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
- *   </mrow></mfenced>
- *   <mn>2</mn>
- * </msup>
+ * in <xref linkend="BS1387" />, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msubsup><mi>G</mi><mi>L</mi><mn>2</mn></msubsup><mo>&InvisibleTimes;</mo><msup><mfenced open="|" close="|"><mrow><mi>X</mi><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced><mn>2</mn></msup>
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
  */
@@ -560,25 +545,9 @@ peaq_fftearmodel_get_power_spectrum (gpointer state)
  * given @state.
  *
  * Returns: The weighted power spectrum, up to half the sampling rate
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msup>
- *     <mfenced open="(" close=")">
- *       <mrow>
- *         <msub> <mi>F</mi> <mi>e</mi> </msub>
- *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *       </mrow>
- *     </mfenced>
- *     <mn>2</mn>
- *   </msup>
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msup><mfenced open="(" close=")"><mrow><msub> <mi>F</mi> <mi>e</mi> </msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced><mn>2</mn></msup>
  * </math></inlineequation>
- * in <xref linkend="BS1387" />,<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- * <msup>
- *   <mfenced open="|" close="|"><mrow>
- *     <msub><mi>X</mi><mi>w</mi></msub>
- *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *   </mrow></mfenced>
- *   <mn>2</mn>
- * </msup>
+ * in <xref linkend="BS1387" />, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msup><mfenced open="|" close="|"><mrow><msub><mi>X</mi><mi>w</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced><mn>2</mn></msup>
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
  */
@@ -810,18 +779,7 @@ set_property (GObject *obj, guint id, const GValue *value, GParamSpec *pspec)
  * peaq_fftearmodel_get_masking_difference:
  * @model: The #PeaqFFTEarModel instance structure.
  *
- * Returns the masking weighting function
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msup>
- *     <mn>10</mn>
- *     <mfrac>
- *       <mrow>
- *         <mi>m</mi>
- *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *       </mrow>
- *       <mn>10</mn>
- *     </mfrac>
- *   </msup>
+ * Returns the masking weighting function <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msup><mn>10</mn><mfrac><mrow><mi>m</mi><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow><mn>10</mn></mfrac></msup>
  * </math></inlineequation>
  * with
  * <informalequation><math display="block" xmlns="http://www.w3.org/1998/Math/MathML">
@@ -849,23 +807,10 @@ set_property (GObject *obj, guint id, const GValue *value, GParamSpec *pspec)
  *     </mtable>
  *   </mfenced>
  * </math></informalequation>
- * for all bands
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>k</mi>
+ * for all bands <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>k</mi>
  * </math></inlineequation>.
  *
- * Returns: The masking weighting function
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msup>
- *     <mn>10</mn>
- *     <mfrac>
- *       <mrow>
- *         <mi>m</mi>
- *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *       </mrow>
- *       <mn>10</mn>
- *     </mfrac>
- *   </msup>
+ * Returns: The masking weighting function <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msup><mn>10</mn><mfrac><mrow><mi>m</mi><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow><mn>10</mn></mfrac></msup>
  * </math></inlineequation>.
  * The pointer points to internal data of the PeaqFFTEarModel and must not be
  * freed.

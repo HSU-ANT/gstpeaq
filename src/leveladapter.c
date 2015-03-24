@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2006, 2013 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2006, 2013, 2015 Martin Holters <martin.holters@hsuhh.de>
  *
  * level.c: Level and pattern adaptation.
  *
@@ -219,25 +219,15 @@ peaq_leveladapter_set_ear_model (PeaqLevelAdapter *level,
  * peaq_leveladapter_process:
  * @level: The #PeaqLevelAdapter.
  * @ref_exciation: The excitation patterns of the reference signal
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>E</mi><mi>Ref</mi></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mi>Ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
- * in <xref linkend="BS1387" />,
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mover accent="true"><mi>E</mi><mo>~</mo></mover><mi>sR</mi></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * in <xref linkend="BS1387" />, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mover accent="true"><mi>E</mi><mo>~</mo></mover><mi>sR</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
  * @test_exciation: The excitation patterns of the test signal
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>E</mi><mi>Test</mi></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mi>Test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
- * in <xref linkend="BS1387" />,
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mover accent="true"><mi>E</mi><mo>~</mo></mover><mi>sT</mi></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * in <xref linkend="BS1387" />, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mover accent="true"><mi>E</mi><mo>~</mo></mover><mi>sT</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
  *
@@ -359,14 +349,9 @@ peaq_leveladapter_process (PeaqLevelAdapter *level,
  * during the last call to peaq_leveladapter_process().
  *
  * Returns: The spectrally adapted patterns of the reference signal
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
- * in <xref linkend="BS1387" />,
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mover accent="true"><mi>E</mi><mo>~</mo></mover><mi>PR</mi></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * in <xref linkend="BS1387" />, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mover accent="true"><mi>E</mi><mo>~</mo></mover><mi>PR</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
  * The pointer points to internal data of the #PeaqLevelAdapter and must not be
@@ -387,14 +372,9 @@ peaq_leveladapter_get_adapted_ref (PeaqLevelAdapter const* level)
  * during the last call to peaq_leveladapter_process().
  *
  * Returns: The spectrally adapted patterns of the test signal
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Test</mi></mrow></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Test</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
- * in <xref linkend="BS1387" />,
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mover accent="true"><mi>E</mi><mo>~</mo></mover><mi>PT</mi></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * in <xref linkend="BS1387" />, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mover accent="true"><mi>E</mi><mo>~</mo></mover><mi>PT</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
  * The pointer points to internal data of the #PeaqLevelAdapter and must not be

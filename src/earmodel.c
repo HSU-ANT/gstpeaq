@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2006, 2007, 2011, 2012, 2013
+ * Copyright (C) 2006, 2007, 2011, 2012, 2013, 2015
  * Martin Holters <martin.holters@hsuhh.de>
  *
  * earmodel.c: Peripheral ear model part.
@@ -211,10 +211,7 @@ peaq_earmodel_process_block (PeaqEarModel const *model, gpointer state,
  *
  * Returns the current excitation patterns after frequency and time-domain
  * spreading
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mover><mi>E</mi><mo>~</mo></mover><mi>s</mi></msub>
- *   <mfenced open="[" close="]"><mi>i</mi></mfenced>
- * </math></inlineequation>
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mover><mi>E</mi><mo>~</mo></mover><mi>s</mi></msub><mfenced open="[" close="]"><mi>i</mi></mfenced></math></inlineequation>
  * in <xref linkend="Kabal03" />)
  * as computed during the last call to peaq_earmodel_process_block().
  *
@@ -233,9 +230,7 @@ peaq_earmodel_get_excitation (PeaqEarModel const *model, gpointer state)
  *
  * Returns the current unsmeared excitation patterns after frequency, but
  * before time-domain spreading
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>E</mi><mi>s</mi></msub>
- *   <mfenced open="[" close="]"><mi>i</mi></mfenced>
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mi>s</mi></msub><mfenced open="[" close="]"><mi>i</mi></mfenced>
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />)
  * as computed during the last call to peaq_earmodel_process_block().
@@ -407,12 +402,8 @@ peaq_earmodel_get_band_center_frequency (PeaqEarModel const *model, guint band)
  *   </mrow>
  * </math></inlineequation>
  * (see sections 2.1.6 and 2.2.10 in <xref linkend="BS1387" /> and sections 2.7
- * and 3.6 in <xref linkend="Kabal03" />), where <inlineequation>
- * <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>k</mi></math>
- * </inlineequation> is the band number given by @band and <inlineequation>
- * <math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>f</mi><mi>c</mi></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * and 3.6 in <xref linkend="Kabal03" />), where <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>k</mi></math>
+ * </inlineequation> is the band number given by @band and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>f</mi><mi>c</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation> the center frequency of that band.
  *
  * Note that the actual computation is performed upon setting the
@@ -478,10 +469,9 @@ peaq_earmodel_get_internal_noise (PeaqEarModel const *model, guint band)
  *   </mfenced>
  * </math></inlineequation>
  * (see sections 2.1.8 and 2.2.11 in <xref linkend="BS1387" /> and sections 2.9.1
- * and 3.7 in <xref linkend="Kabal03" />), where <inlineequation>
- * <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>k</mi></math>
- * </inlineequation> is the band number given by @band and <inlineequation>
- * <math xmlns="http://www.w3.org/1998/Math/MathML">
+ * and 3.7 in <xref linkend="Kabal03" />), where <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>k</mi></math>
+ * </inlineequation> is the band number given by @band and
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
  *   <msub><mi>f</mi><mi>c</mi></msub>
  *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation> the center frequency of that band and
@@ -576,18 +566,12 @@ set_property (GObject *obj, guint id,
 /**
  * peaq_earmodel_calc_time_constant:
  * @model: The #PeaqEarModel to use.
- * @band: The frequency band 
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>k</mi>
+ * @band: The frequency band <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>k</mi>
  * </math></inlineequation>
  * for which to calculate the time constant.
- * @tau_min: The value of
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>&tau;</mi><mi>min</mi></msub>
+ * @tau_min: The value of <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>&tau;</mi><mi>min</mi></msub>
  * </math></inlineequation>.
- * @tau_100: The value of
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>&tau;</mi><mn>100</mn></msub>
+ * @tau_100: The value of <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>&tau;</mi><mn>100</mn></msub>
  * </math></inlineequation>.
  *
  * Calculates the time constant
@@ -626,20 +610,11 @@ set_property (GObject *obj, guint id,
  *     <msub><mi>&tau;</mi><mi>min</mi></msub>
  *   </mrow></mfenced>
  * </math></inlineequation>
- * where 
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>StepSize</mi>
+ * where <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>StepSize</mi>
  * </math></inlineequation>
- * and the center frequency
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>f</mi><mi>c</mi></msub>
- *   <mfenced open="[" close="]">
- *     <mi>k</mi>
- *   </mfenced>
+ * and the center frequency <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>f</mi><mi>c</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
- * of the
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>k</mi>
+ * of the <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>k</mi>
  * </math></inlineequation>-th band are taken from the given #PeaqEarModel
  * @model.
  *
@@ -661,9 +636,7 @@ peaq_earmodel_calc_time_constant (PeaqEarModel const *model, guint band,
 
 /**
  * peaq_earmodel_calc_ear_weight:
- * @frequency: The frequency
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>f</mi>
+ * @frequency: The frequency <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>f</mi>
  * </math></inlineequation>
  * to calculate the outer and middle ear weight for.
  *
@@ -720,8 +693,8 @@ peaq_earmodel_calc_time_constant (PeaqEarModel const *model, guint band,
  *     </mrow>
  *   </msup>
  * </math></informalequation>
- * for the given frequency (see sections 2.1.4 and 2.2.6 in
- * <xref linkend="BS1387" /> and section 2.5 in <xref linkend="Kabal03" />).
+ * for the given frequency (see sections 2.1.4 and 2.2.6 in <xref linkend="BS1387" />
+ * and section 2.5 in <xref linkend="Kabal03" />).
  *
  * Returns: The middle and outer ear weight at the given frequency.
  */
@@ -785,10 +758,8 @@ peaq_earmodel_calc_ear_weight (gdouble frequency)
  *   </mfenced>
  * </math></informalequation>
  * of the current frame
- * (see section 3.3 in <xref linkend="BS1387" /> and section 4.3 in
- * <xref linkend="Kabal03" />), where
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>E</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * (see section 3.3 in <xref linkend="BS1387" /> and section 4.3 in <xref linkend="Kabal03" />),
+ * where <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>E</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
  * are the excitation patterns provided by @excitation and the following
  * precomputed constants are used:

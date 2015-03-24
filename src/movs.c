@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2013, 2014 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2013, 2014, 2015 Martin Holters <martin.holters@hsuhh.de>
  *
  * movs.h: Model Output Variables.
  *
@@ -53,15 +53,9 @@ static gdouble calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0
  * @mov_accum_win: Accumulator for the WinModDiff1B MOV or NULL.
  *
  * Calculates the modulation difference based MOVs as described in section 4.2
- * of <xref linkend="BS1387" />. Given the modulation patterns 
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>Mod</mi><mi>Ref</mi></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * of <xref linkend="BS1387" />. Given the modulation patterns <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>Mod</mi><mi>Ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation> 
- * and
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>Mod</mi><mi>Test</mi></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>Mod</mi><mi>Test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation> 
  * of reference and test signal, as obtained from @ref_mod_proc and
  * @test_mod_proc with peaq_modulationprocessor_get_modulation(), the
@@ -116,17 +110,11 @@ static gdouble calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0
  *     </mtable>
  *   </mfenced>
  * </math></informalequation> 
- * and
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>Z</mi>
+ * and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>Z</mi>
  * </math></inlineequation> 
- * denotes the number of bands. The parameters
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>offset</mi>
+ * denotes the number of bands. The parameters <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>offset</mi>
  * </math></inlineequation> 
- * and
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>negWt</mi>
+ * and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>negWt</mi>
  * </math></inlineequation> 
  * are chosen as:
  * <table>
@@ -159,19 +147,11 @@ static gdouble calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0
  *     </tr>
  *   </tbody>
  * </table>
- * If the accumulation mode of @mov_accum1 is #MODE_RMS, then
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mover accent="true"><mi>Z</mi><mi>^</mi></mover>
- *   <mo>=</mo>
- *   <msqrt><mi>Z</mi></msqrt>
+ * If the accumulation mode of @mov_accum1 is #MODE_RMS, then <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mover accent="true"><mi>Z</mi><mi>^</mi></mover><mo>=</mo><msqrt><mi>Z</mi></msqrt>
  * </math></inlineequation> 
- * to handle the special weighting with
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msqrt><mi>Z</mi></msqrt>
+ * to handle the special weighting with <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msqrt><mi>Z</mi></msqrt>
  * </math></inlineequation> 
- * introduced in (92) of <xref linkend="BS1387" />, otherwise
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mover accent="true"><mi>Z</mi><mi>^</mi></mover><mo>=</mo><mi>Z</mi>
+ * introduced in (92) of <xref linkend="BS1387" />, otherwise <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mover accent="true"><mi>Z</mi><mi>^</mi></mover><mo>=</mo><mi>Z</mi>
  * </math></inlineequation>.
  *
  * Accumulation of @mov_accum1 and @mov_accum2 (if provided) is weighted with
@@ -203,25 +183,15 @@ static gdouble calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0
  *     </mrow>
  *   </mfrac>
  * </math></informalequation> 
- * where 
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mover accent="true"><mi>E</mi><mi>-</mi></mover><mi>Ref</mi></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * where <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mover accent="true"><mi>E</mi><mi>-</mi></mover><mi>Ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation> 
  * is the average loudness obtained form @ref_mod_proc with
- * peaq_modulationprocessor_get_average_loudness(),
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>E</mi><mi>Thres</mi></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * peaq_modulationprocessor_get_average_loudness(), <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mi>Thres</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation> 
  * is the internal ear noise as returned by peaq_earmodel_get_internal_noise(),
- * and
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>levWt</mi><mo>=</mo><mn>1</mn>
+ * and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>levWt</mi><mo>=</mo><mn>1</mn>
  * </math></inlineequation> 
- * if @mov_accum2 is NULL and
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>levWt</mi><mo>=</mo><mn>100</mn>
+ * if @mov_accum2 is NULL and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>levWt</mi><mo>=</mo><mn>100</mn>
  * </math></inlineequation> 
  * otherwise.
  */
@@ -401,70 +371,22 @@ calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0,
  * @mov_accum_test: Accumulator for the BandwidthTestB MOV.
  *
  * Calculates the bandwidth based MOVs as described in section 4.4
- * of <xref linkend="BS1387" />. The power spectra
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msup>
- *     <mfenced open="|" close="|"><mrow>
- *       <msub><mi>F</mi><mi>Ref</mi></msub>
- *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *     </mrow></mfenced>
- *     <mn>2</mn>
- *   </msup>
+ * of <xref linkend="BS1387" />. The power spectra <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msup><mfenced open="|" close="|"><mrow><msub><mi>F</mi><mi>Ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced><mn>2</mn></msup>
  * </math></inlineequation>
- * and
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msup>
- *     <mfenced open="|" close="|"><mrow>
- *       <msub><mi>F</mi><mi>Test</mi></msub>
- *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *     </mrow></mfenced>
- *     <mn>2</mn>
- *   </msup>
+ * and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msup><mfenced open="|" close="|"><mrow><msub><mi>F</mi><mi>Test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced><mn>2</mn></msup>
  * </math></inlineequation>
  * are obtained from @ref_state and @test_state, respectively, using
  * peaq_fftearmodel_get_power_spectrum().The first step is to determine the
- * zero threshold
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <munder>
- *     <mi>max</mi>
- *     <mrow><mn>921</mn><mo>&le;</mo><mi>k</mi><mo>&le;</mo><mn>1023</mn></mrow>
- *   </munder>
- *   <msup>
- *     <mfenced open="|" close="|"><mrow>
- *       <msub><mi>F</mi><mi>Ref</mi></msub>
- *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *     </mrow></mfenced>
- *     <mn>2</mn>
- *   </msup>
+ * zero threshold <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><munder><mi>max</mi><mrow><mn>921</mn><mo>&le;</mo><mi>k</mi><mo>&le;</mo><mn>1023</mn></mrow></munder><msup><mfenced open="|" close="|"><mrow><msub><mi>F</mi><mi>Ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced><mn>2</mn></msup>
  * </math></inlineequation>.
- * The reference signal bandwidth is then determined as the largest 
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>k</mi>
+ * The reference signal bandwidth is then determined as the largest <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>k</mi>
  * </math></inlineequation>
- * such that
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msup>
- *     <mfenced open="|" close="|"><mrow>
- *       <msub><mi>F</mi><mi>Ref</mi></msub>
- *       <mfenced open="[" close="]"><mrow><mi>k</mi><mo>-</mo><mn>1</mn></mrow></mfenced>
- *     </mrow></mfenced>
- *     <mn>2</mn>
- *   </msup>
+ * such that <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msup><mfenced open="|" close="|"><mrow><msub><mi>F</mi><mi>Ref</mi></msub><mfenced open="[" close="]"><mrow><mi>k</mi><mo>-</mo><mn>1</mn></mrow></mfenced></mrow></mfenced><mn>2</mn></msup>
  * </math></inlineequation>
  * is 10 dB above the zero threshold. Likewise, the test signal bandwidth is
- * then determined as the largest 
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>k</mi>
+ * then determined as the largest <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>k</mi>
  * </math></inlineequation>
- * smaller than the reference signal bandwidth such that
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msup>
- *     <mfenced open="|" close="|"><mrow>
- *       <msub><mi>F</mi><mi>Test</mi></msub>
- *       <mfenced open="[" close="]"><mrow><mi>k</mi><mo>-</mo><mn>1</mn></mrow></mfenced>
- *     </mrow></mfenced>
- *     <mn>2</mn>
- *   </msup>
+ * smaller than the reference signal bandwidth such that <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msup><mfenced open="|" close="|"><mrow><msub><mi>F</mi><mi>Test</mi></msub><mfenced open="[" close="]"><mrow><mi>k</mi><mo>-</mo><mn>1</mn></mrow></mfenced></mrow></mfenced><mn>2</mn></msup>
  * </math></inlineequation>
  * is 5 dB above the zero threshold. If no frequency bin is above the zero
  * threshold, the respective bandwidth is set to zero. The resulting bandwidths
@@ -519,29 +441,9 @@ peaq_mov_bandwidth (const gpointer *ref_state, const gpointer *test_state,
  *
  * Calculates the noise-to-mask ratio based model output variables as described
  * in sections 4.5 and 4.6 of <xref linkend="BS1387" />. From the weighted power
- * spectra
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msup>
- *     <mfenced open="|" close="|">
- *       <mrow>
- *         <msub><mi>F</mi><mrow><mi>e</mi><mo>,</mo><mi>Ref</mi></mrow></msub>
- *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *       </mrow>
- *     </mfenced>
- *     <mn>2</mn>
- *   </msup>
+ * spectra <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msup><mfenced open="|" close="|"><mrow><msub><mi>F</mi><mrow><mi>e</mi><mo>,</mo><mi>Ref</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced><mn>2</mn></msup>
  * </math></inlineequation>
- * and
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msup>
- *     <mfenced open="|" close="|">
- *       <mrow>
- *         <msub><mi>F</mi><mrow><mi>e</mi><mo>,</mo><mi>Test</mi></mrow></msub>
- *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *       </mrow>
- *     </mfenced>
- *     <mn>2</mn>
- *   </msup>
+ * and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msup><mfenced open="|" close="|"><mrow><msub><mi>F</mi><mrow><mi>e</mi><mo>,</mo><mi>Test</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced><mn>2</mn></msup>
  * </math></inlineequation>
  * obtained with
  * peaq_fftearmodel_get_weighted_power_spectrum() from @ref_state and
@@ -631,14 +533,9 @@ peaq_mov_bandwidth (const gpointer *ref_state, const gpointer *test_state,
  *   </msup>
  * </math></inlineequation>
  * and grouped into bands using peaq_fftearmodel_group_into_bands() to obtain
- * the noise patterns
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>P</mi><mi>noise</mi></msub>
- *   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * the noise patterns <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>P</mi><mi>noise</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>.
- * The mask pattern
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>M</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * The mask pattern <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>M</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
  * is calculated from the excitation pattern of the reference signal as
  * obtained by peaq_earmodel_get_excitation() from @ref_state by dividing it by
@@ -665,9 +562,7 @@ peaq_mov_bandwidth (const gpointer *ref_state, const gpointer *test_state,
  *     </mrow>
  *   </mfrac>
  * </math></inlineequation>
- * where
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>Z</mi>
+ * where <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>Z</mi>
  * </math></inlineequation>
  * denotes the number of bands. If @mov_accum_nmr is set to #MODE_AVG_LOG, the
  * NMR is directly accumulated (used for Total NMRB), otherwise, it is

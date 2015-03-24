@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2006, 2011, 2013 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2006, 2011, 2013, 2015 Martin Holters <martin.holters@hsuhh.de>
  *
  * earmodel.h: Peripheral ear model part.
  *
@@ -44,128 +44,36 @@ typedef struct _PeaqEarModel PeaqEarModel;
  * @parent: The parent #GObject.
  * @band_count: Number of frequency bands.
  * @fc: Center frequencies of the frequency bands
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mrow>
- *     <msub>
- *       <mi>f</mi>
- *       <mi>c</mi>
- *     </msub>
- *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *   </mrow>
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>f</mi><mi>c</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow>
  * </math></inlineequation>
  * in <xref linkend="BS1387" /> and <xref linkend="Kabal03" />).
  * @internal_noise: The ear internal noise per band
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mrow>
- *     <msub>
- *       <mi>P</mi>
- *       <mi>Thres</mi>
- *     </msub>
- *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *   </mrow>
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>P</mi><mi>Thres</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow>
  * </math></inlineequation>
- * in <xref linkend="BS1387" />,
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mrow>
- *     <msub>
- *       <mi>E</mi>
- *       <mtext>IN</mtext>
- *     </msub>
- *     <mfenced open="[" close="]"><mi>i</mi></mfenced>
- *   </mrow>
+ * in <xref linkend="BS1387" />, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>E</mi><mtext>IN</mtext></msub><mfenced open="[" close="]"><mi>i</mi></mfenced></mrow>
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
  * @ear_time_constants: The time constants for time domain spreading / forward
  * masking
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>a</mi>
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>a</mi>
  * </math></inlineequation>
- * in <xref linkend="BS1387" />,
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mrow>
- *     <mi>&alpha;</mi>
- *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *   </mrow>
+ * in <xref linkend="BS1387" />, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>&alpha;</mi><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow>
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
  * @excitation_threshold: The excitation threshold per band
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mrow>
- *     <msub>
- *       <mi>E</mi>
- *       <mi>Thres</mi>
- *     </msub>
- *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *   </mrow>
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>E</mi><mi>Thres</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow>
  * </math></inlineequation>
- * in <xref linkend="BS1387" />,
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mrow>
- *     <msub>
- *       <mi>E</mi>
- *       <mi>t</mi>
- *     </msub>
- *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *   </mrow>
+ * in <xref linkend="BS1387" />, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>E</mi><mi>t</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow>
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
  * @threshold: The threshold index per band
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mrow>
- *     <mi>s</mi>
- *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *   </mrow>
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>s</mi><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow>
  * </math></inlineequation>
  * in <xref linkend="BS1387" /> and <xref linkend="Kabal03" />).
  * @loudness_factor: The loudness scaling factor per band
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mrow>
- *     <mi>const</mi>
- *     <mo>&sdot;</mo>
- *     <msup>
- *       <mfenced><mrow>
- *         <mfrac>
- *           <mn>1</mn>
- *           <mrow>
- *             <mi>s</mi>
- *             <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *           </mrow>
- *         </mfrac>
- *         <mo>&sdot;</mo>
- *         <mfrac>
- *           <mrow>
- *             <msub><mi>E</mi><mi>Thres</mi></msub>
- *             <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *           </mrow>
- *           <msup><mn>10</mn><mn>4</mn></msup>
- *         </mfrac>
- *       </mrow></mfenced>
- *       <mn>0.23</mn>
- *     </msup>
- *   </mrow>
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>const</mi><mo>&sdot;</mo><msup><mfenced><mrow><mfrac><mn>1</mn><mrow><mi>s</mi><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfrac><mo>&sdot;</mo><mfrac><mrow><msub><mi>E</mi><mi>Thres</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow><msup><mn>10</mn><mn>4</mn></msup></mfrac></mrow></mfenced><mn>0.23</mn></msup></mrow>
  * </math></inlineequation>
- * in <xref linkend="BS1387" />,
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mrow>
- *     <mi>c</mi>
- *     <mo>&sdot;</mo>
- *     <msup>
- *       <mfenced>
- *         <mfrac>
- *           <mrow>
- *             <msub><mi>E</mi><mi>t</mi></msub>
- *             <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *           </mrow>
- *           <mrow>
- *             <mi>s</mi>
- *             <mfenced open="[" close="]"><mi>k</mi></mfenced>
- *             <msub><mi>E</mi><mn>0</mn></msub>
- *           </mrow>
- *         </mfrac>
- *       </mfenced>
- *       <mn>0.23</mn>
- *     </msup>
- *   </mrow>
+ * in <xref linkend="BS1387" />, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>c</mi><mo>&sdot;</mo><msup><mfenced><mfrac><mrow><msub><mi>E</mi><mi>t</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow><mrow><mi>s</mi><mfenced open="[" close="]"><mi>k</mi></mfenced><msub><mi>E</mi><mn>0</mn></msub></mrow></mfrac></mfenced><mn>0.23</mn></msup></mrow>
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
  *
@@ -195,28 +103,15 @@ struct _PeaqEarModel
  * @step_size: The step size in samples to progress between successive
  * invocations of peaq_earmodel_process_block()/@process_block.
  * @loudness_scale: The frequency independent loudness scaling
- * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>const</mi>
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>const</mi>
  * </math></inlineequation>
- * in <xref linkend="BS1387" />,
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <mi>c</mi>
+ * in <xref linkend="BS1387" />, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>c</mi>
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
- * @tau_min: Parameter
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub>
- *     <mi>&tau;</mi>
- *     <mi>min</mi>
- *   </msub>
+ * @tau_min: Parameter <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>&tau;</mi><mi>min</mi></msub>
  * </math></inlineequation>
  * of the time domain spreading filter.
- * @tau_100: Parameter
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub>
- *     <mi>&tau;</mi>
- *     <mn>100</mn>
- *   </msub>
+ * @tau_100: Parameter <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>&tau;</mi><mn>100</mn></msub>
  * </math></inlineequation>
  * of the time domain spreading filter.
  * @get_playback_level: Function to call when the

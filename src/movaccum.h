@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2013 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2013, 2015 Martin Holters <martin.holters@hsuhh.de>
  *
  * movaccum.h: Model out variable (MOV) accumulation.
  *
@@ -132,14 +132,10 @@ typedef struct _PeaqMovAccum PeaqMovAccum;
  *     </mrow>
  *   </mfrac></msqrt>
  * </math></informalequation>
- * Note that the factor
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msqrt><mi>Z</mi></msqrt>
+ * Note that the factor <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msqrt><mi>Z</mi></msqrt>
  * </math></inlineequation> 
  * introduced in <xref linkend="BS1387" /> for the weighted case only is not
- * included here but has be included in the calculation of
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- *   <msub><mi>x</mi><mi>i</mi></msub>
+ * included here but has be included in the calculation of <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>x</mi><mi>i</mi></msub>
  * </math></inlineequation> 
  * or when using the output of the accumulator for further calculations.
  * @MODE_RMS_ASYM: A variant of root-mean-square averaging used for the
@@ -239,8 +235,7 @@ typedef struct _PeaqMovAccum PeaqMovAccum;
  * </math></informalequation>
  * @MODE_ADB: Special accumulation mode for the Average Distorted Block model
  * output variable, see section 4.7.2 in <xref linkend="BS1387" /> and note
- * that <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- * <msub><mi>w</mi><mi>i</mi></msub></math></inlineequation> should always be
+ * that <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>w</mi><mi>i</mi></msub></math></inlineequation> should always be
  * set to one:
  * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
  *   <mrow>
@@ -318,19 +313,11 @@ typedef struct _PeaqMovAccum PeaqMovAccum;
  *   </mrow>
  * </math></informalequation>
  *
- * Accumulation mode of the model output variable. For all channels 
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>c</mi>
- * </math></inlineequation>, the accumulation over time steps 
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>i</mi>
+ * Accumulation mode of the model output variable. For all channels <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>c</mi>
+ * </math></inlineequation>, the accumulation over time steps <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>i</mi>
  * </math></inlineequation> is performed independently according to the
- * formulas below, where
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- * <msub><mi>x</mi><mi>i</mi></msub></math></inlineequation> and
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- * <msub><mi>w</mi><mi>i</mi></msub></math></inlineequation> denote the inputs
- * to peaq_movaccum_accumulate(). The resulting per-channel values
- * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
- * <msub><mi>X</mi><mi>c</mi></msub></math></inlineequation> are averaged to
+ * formulas below, where <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>x</mi><mi>i</mi></msub></math></inlineequation> and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>w</mi><mi>i</mi></msub></math></inlineequation> denote the inputs
+ * to peaq_movaccum_accumulate(). The resulting per-channel values <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>X</mi><mi>c</mi></msub></math></inlineequation> are averaged to
  * obtain the final result as returned by peaq_movaccum_get_value().
  */
 typedef enum
