@@ -675,7 +675,11 @@ peaq_mov_prob_detect (PeaqEarModel const *ear_model, const gpointer *ref_state,
       /* (76) and (77) in [BS1387] simplify to this */
       gdouble pc = 1. - pow (0.5, pow (e / s, b));
       /* (78) in [BS1387] */
+#if defined(USE_FLOOR_FOR_STEPS_ABOVE_THRESHOLD) && USE_FLOOR_FOR_STEPS_ABOVE_THRESHOLD
+      gdouble qc = fabs (floor(e)) / s;
+#else
       gdouble qc = fabs (trunc(e)) / s;
+#endif
       if (pc > detection_probability)
         detection_probability = pc;
       if (c == 0 || qc > detection_steps)

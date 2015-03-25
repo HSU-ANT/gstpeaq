@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2014 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2014, 2015 Martin Holters <martin.holters@hsuhh.de>
  *
  * settings.h: Settings controlling behaviour not sufficiently specified in the
  * standard.
@@ -58,6 +58,16 @@
  * computing the error harmonic structure in peaq_mov_ehs().
  */
 #define EHS_SUBTRACT_DC_BEFORE_WINDOW 1
+
+/**
+ * USE_FLOOR_FOR_STEPS_ABOVE_THRESHOLD:
+ *
+ * Controls whether the INT operation used in the calculation of the steps
+ * above threshold in peaq_mov_prob_detect() is implemented as trunc() (which
+ * is the usual meaning) or as floor() (which according to <xref
+ * linkend="Kabal03" /> makes more sense).
+ */
+#define USE_FLOOR_FOR_STEPS_ABOVE_THRESHOLD 0
 
 /**
  * CLAMP_MOVS:
