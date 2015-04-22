@@ -643,6 +643,203 @@ peaq_mov_nmr (PeaqFFTEarModel const *ear_model, const gpointer *ref_state,
   }
 }
 
+/**
+ * peaq_mov_prob_detect:
+ * @ear_model: The underlying ear model to which @ref_state and
+ * @test_state belong.
+ * @ref_state: Ear model states for the reference signal.
+ * @test_state: Ear model states for the test signal.
+ * @mov_accum_adb: Accumulator for the ADBB MOV.
+ * @mov_accum_mfpd: Accumulator for the MFPDB MOV.
+ *
+ * Calculates the detection probability based model output variables as described in 
+ * in section 4.7 of <xref linkend="BS1387" />. The excitation patterns <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>E</mi><mi>Ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow>
+ * </math></inlineequation>
+ * and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>E</mi><mi>Test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow> 
+ * </math></inlineequation>
+ * are converted to dB as <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mover><mi>E</mi><mo>~</mo></mover><mi>Ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>=</mo><mn>10</mn><mo>&InvisibleTimes;</mo><msub><mi>log</mi><mn>10</mn></msub><mfenced><mrow><msub><mi>E</mi><mi>Ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced></mrow>
+ * </math></inlineequation>
+ * and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mover><mi>E</mi><mo>~</mo></mover><mi>Test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>=</mo><mn>10</mn><mo>&InvisibleTimes;</mo><msub><mi>log</mi><mn>10</mn></msub><mfenced><mrow><msub><mi>E</mi><mi>Test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced></mrow>
+ * </math></inlineequation> 
+ * from which the asymmetric average exciation <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>L</mi><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>=</mo><mn>0.3</mn><mo>&InvisibleTimes;</mo><mi>max</mi><mfenced><mrow><msub><mover><mi>E</mi><mo>~</mo></mover><mi>Ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow><mrow><msub><mover><mi>E</mi><mo>~</mo></mover><mi>Test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced><mo>+</mo><mn>0.7</mn><mo>&InvisibleTimes;</mo><msub><mover><mi>E</mi><mo>~</mo></mover><mi>Test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow>
+ * </math></inlineequation> 
+ * is computed. This is then used to determine the effective detection step size
+ * <informalequation>
+ *   <math xmlns="http://www.w3.org/1998/Math/MathML">
+ *     <mrow>
+ *       <mi>s</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       <mo>=</mo>
+ *       <mn>5.95072</mn><mo>&sdot;</mo>
+ *       <msup>
+ *         <mfenced>
+ *           <mrow>
+ *             <mn>6.39468</mn>
+ *             <mo>/</mo>
+ *             <mi>L</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *           </mrow>
+ *         </mfenced>
+ *         <mn>1.71332</mn>
+ *       </msup>
+ *       <mo>+</mo>
+ *       <mn>9.01033</mn><mo>&times;</mo><msup><mn>10</mn><mn>-11</mn></msup>
+ *       <mo>&sdot;</mo>
+ *       <msup>
+ *         <mrow><mi>L</mi><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow>
+ *         <mn>4</mn>
+ *       </msup>
+ *       <mo>+</mo>
+ *       <mn>5.05622</mn><mo>&times;</mo><msup><mn>10</mn><mn>-6</mn></msup>
+ *       <mo>&sdot;</mo>
+ *       <msup>
+ *         <mrow><mi>L</mi><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow>
+ *         <mn>3</mn>
+ *       </msup>
+ *       <mo>-</mo>
+ *       <mn>0.00102438</mn>
+ *       <mo>&sdot;</mo>
+ *       <msup>
+ *         <mrow><mi>L</mi><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow>
+ *         <mn>2</mn>
+ *       </msup>
+ *       <mo>+</mo>
+ *       <mn>0.0550197</mn>
+ *       <mo>&sdot;</mo>
+ *       <mi>L</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       <mo>-</mo>
+ *       <mn>0.198719</mn>
+ *     </mrow>
+ *   </math>
+ * </informalequation> 
+ * if <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>L</mi><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>&gt;</mo><mn>0</mn></mrow>
+ * </math></inlineequation>, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>s</mi><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>=</mo><msup><mn>10</mn><mn>30</mn></msup></mrow>
+ * </math></inlineequation>
+ * otherwise. For every channel <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>c</mi>
+ * </math></inlineequation>, the probability of detection is then given by
+ * <informalequation>
+ *   <math xmlns="http://www.w3.org/1998/Math/MathML">
+ *     <mrow>
+ *       <msub><mi>p</mi><mi>c</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       <mo>=</mo>
+ *       <mn>1</mn>
+ *       <mo>-</mo>
+ *       <msup>
+ *         <mn>0.5</mn>
+ *         <msup>
+ *           <mfenced>
+ *             <mrow>
+ *               <mfenced>
+ *                 <mrow>
+ *                   <msub><mover><mi>E</mi><mo>~</mo></mover><mi>Ref</mi></msub>
+ *                   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                   <mo>-</mo>
+ *                   <msub><mover><mi>E</mi><mo>~</mo></mover><mi>Test</mi></msub>
+ *                   <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                 </mrow>
+ *               </mfenced>
+ *               <mo>/</mo> 
+ *               <mi>s</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *             </mrow>
+ *           </mfenced>
+ *           <mi>b</mi>
+ *         </msup>
+ *       </msup>
+ *     </mrow>
+ *    <mspace width="2em" />
+ *    <mtext> where </mtext>
+ *    <mspace width="2em" />
+ *    <mi>b</mi>
+ *    <mo>=</mo>
+ *    <mfenced open="{" close="">
+ *      <mtable>
+ *        <mtr>
+ *          <mtd><mn>4</mn></mtd>
+ *          <mtd>
+ *            <mtext>if </mtext>
+ *            <msub><mover><mi>E</mi><mo>~</mo></mover><mi>Ref</mi></msub>
+ *            <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *            <mo>&gt;</mo>
+ *            <msub><mover><mi>E</mi><mo>~</mo></mover><mi>Test</mi></msub>
+ *            <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *          </mtd>
+ *        </mtr>
+ *        <mtr><mtd><mn>6</mn></mtd><mtd><mtext>else</mtext></mtd></mtr>
+ *      </mtable>
+ *    </mfenced>
+ *   </math>
+ * </informalequation> 
+ * and the total number of steps above the threshold as
+ * <informalequation>
+ *   <math xmlns="http://www.w3.org/1998/Math/MathML">
+ *     <mrow>
+ *       <msub><mi>q</mi><mi>c</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       <mo>=</mo>
+ *       <mfrac>
+ *         <mfenced open="|" close="|">
+ *           <mrow>
+ *             <mi>INT</mi>
+ *             <mfenced>
+ *               <mrow>
+ *                 <msub><mover><mi>E</mi><mo>~</mo></mover><mi>Ref</mi></msub>
+ *                 <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                 <mo>-</mo>
+ *                 <msub><mover><mi>E</mi><mo>~</mo></mover><mi>Test</mi></msub>
+ *                 <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *               </mrow>
+ *             </mfenced>
+ *           </mrow>
+ *         </mfenced>
+ *         <mrow><mi>s</mi><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow>
+ *       </mfrac>
+ *     </mrow>
+ *   </math>.
+ * </informalequation>
+ * The binaural values are then given as the respective maxima over all channels <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>p</mi><mi>bin</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>=</mo><munder><mi>max</mi><mi>c</mi></munder><mfenced><mrow><msub><mi>p</mi><mi>c</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced>
+ * </math></inlineequation> and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>q</mi><mi>bin</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>=</mo><munder><mi>max</mi><mi>c</mi></munder><mfenced><mrow><msub><mi>q</mi><mi>c</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced>
+ * </math></inlineequation>, from which the total probability of detection is computed as
+ * <informalequation>
+ *   <math xmlns="http://www.w3.org/1998/Math/MathML">
+ *     <mrow>
+ *       <msub><mi>P</mi><mi>bin</mi></msub>
+ *       <mo>=</mo>
+ *       <mn>1</mn>
+ *       <mo>-</mo>
+ *       <munderover>
+ *         <mo>&prod;</mo>
+ *         <mrow><mi>k</mi><mo>=</mo><mn>0</mn></mrow>
+ *         <mrow><mi>Z</mi><mo>-</mo><mn>1</mn></mrow>
+ *       </munderover>
+ *       <mfenced>
+ *         <mrow>
+ *           <mn>1</mn>
+ *           <mo>-</mo>
+ *           <msub><mi>p</mi><mi>bin</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *         </mrow>
+ *       </mfenced>
+ *     </mrow>
+ *   </math>
+ * </informalequation>
+ * and the total number of steps above the threshold as
+ * <informalequation>
+ *   <math xmlns="http://www.w3.org/1998/Math/MathML">
+ *     <mrow>
+ *       <msub><mi>Q</mi><mi>bin</mi></msub>
+ *       <mo>=</mo>
+ *       <munderover>
+ *         <mo>&sum;</mo>
+ *         <mrow><mi>k</mi><mo>=</mo><mn>0</mn></mrow>
+ *         <mrow><mi>Z</mi><mo>-</mo><mn>1</mn></mrow>
+ *       </munderover>
+ *       <msub><mi>q</mi><mi>bin</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *     </mrow>
+ *   </math>
+ * </informalequation>
+ * where <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>Z</mi>
+ * </math></inlineequation> denotes the number of bands. The total probaility of
+ * detection is accumulated in @mov_accum_mfpd, which should be set to
+ * #MODE_FILTERED_MAX, and for frames with <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>P</mi><mi>bin</mi></msub><mo>&gt;</mo><mn>0.5</mn>
+ * </math></inlineequation>, the total number of steps above the threshold is
+ * accumulated in @mov_accum_adb, which should be set to #MODE_ADB.
+ */
 void
 peaq_mov_prob_detect (PeaqEarModel const *ear_model, const gpointer *ref_state,
                       const gpointer *test_state, PeaqMovAccum *mov_accum_adb,
