@@ -21,6 +21,7 @@
     <xi:include href="xml/modpatt.xml"/>
     <xi:include href="xml/movaccum.xml"/>
     <xi:include href="xml/movs.xml"/>
+    <xi:include href="xml/nn.xml"/>
     <xi:include href="xml/settings.xml"/>
   </chapter>
   <xi:include href="references.xml"/>

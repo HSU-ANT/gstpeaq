@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2014 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2014, 2015 Martin Holters <martin.holters@hsuhh.de>
  *
  * nn.h: Evaluate neural network to compute DI and ODG
  *
@@ -24,8 +24,8 @@
 
 #include <glib.h>
 
-gdouble peaq_calculate_di_basic (gdouble *movs);
-gdouble peaq_calculate_di_advanced (gdouble *movs);
+gdouble peaq_calculate_di_basic (gdouble const *movs);
+gdouble peaq_calculate_di_advanced (gdouble const *movs);
 gdouble peaq_calculate_odg (gdouble distortion_index);
 
 #endif /* __NN_H__ */

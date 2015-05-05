@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2014 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2014, 2015 Martin Holters <martin.holters@hsuhh.de>
  *
  * nn.c: Evaluate neural network to compute DI and ODG
  *
@@ -17,6 +17,19 @@
  * License along with this library; if not, write to the
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
  * Boston, MA 02111-1307, USA.
+ */
+
+/**
+ * SECTION:nn
+ * @short_description: Neural network for DI and ODG calculation.
+ * @title: Neural network
+ *
+ * These functions encapsulate the neural-network-based computations described
+ * in chapter 6 of <xref linkend="BS1387" />. They calculate the distortion
+ * index from the model output variables or the objective difference grade from
+ * the distortion index. While the calculation of the distortion index differs
+ * between basic and advanced version, calculation of the objective difference
+ * grade is the same.
  */
 
 #include <math.h>
@@ -79,15 +92,106 @@ static const double wyb_advanced = -1.360308;
 static const gdouble bmin = -3.98;
 static const gdouble bmax = 0.22;
 
+/**
+ * peaq_calculate_di_basic:
+ * @movs: Array of model output variables to calculate the distortion index
+ * from.
+ *
+ * Calculates the distorion index
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>DI</mi><mo>=</mo>
+ *   <msub><mi>w</mi><mrow><mi>y</mi><mn>0</mn></mrow></msub>
+ *   <mo>+</mo>
+ *   <munderover>
+ *     <mo>&sum;</mo>
+ *     <mrow><mi>j</mi><mo>=</mo><mn>0</mn></mrow>
+ *     <mrow><mn>2</mn></mrow>
+ *   </munderover>
+ *   <msub><mi>w</mi><mi>y</mi></msub>
+ *   <mfenced open="[" close="]"><mi>i</mi><mi>j</mi></mfenced>
+ *   <mo>&sdot;</mo>
+ *   <mi>sig</mi>
+ *   <mfenced>
+ *     <mrow>
+ *       <msub><mi>w</mi><mrow><mi>x</mi><mn>0</mn></mrow></msub>
+ *       <mfenced open="[" close="]"><mi>j</mi></mfenced>
+ *       <mo>+</mo>
+ *       <munderover>
+ *         <mo>&sum;</mo>
+ *         <mrow><mi>i</mi><mo>=</mo><mn>0</mn></mrow>
+ *         <mrow><mn>10</mn></mrow>
+ *       </munderover>
+ *       <msub><mi>w</mi><mi>x</mi></msub>
+ *       <mfenced open="[" close="]"><mi>i</mi><mi>j</mi></mfenced>
+ *       <mo>&sdot;</mo>
+ *       <mfrac>
+ *         <mrow>
+ *           <mi>x</mi><mfenced open="[" close="]"><mi>i</mi></mfenced>
+ *           <mo>-</mo>
+ *           <msub><mi>a</mi><mi>min</mi></msub>
+ *           <mfenced open="[" close="]"><mi>i</mi></mfenced>
+ *         </mrow>
+ *         <mrow>
+ *           <msub><mi>a</mi><mi>max</mi></msub>
+ *           <mfenced open="[" close="]"><mi>i</mi></mfenced>
+ *           <mo>-</mo>
+ *           <msub><mi>a</mi><mi>min</mi></msub>
+ *           <mfenced open="[" close="]"><mi>i</mi></mfenced>
+ *         </mrow>
+ *       </mfrac>
+ *     </mrow>
+ *   </mfenced>
+ * </math></informalequation> 
+ * for the basic version from the model output variables <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi><mfenced open="[" close="]"><mi>i</mi></mfenced>
+ * </math></inlineequation> passed as @movs as described in chapter 6 of <xref
+ * linkend="BS1387" />, where
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>sig</mi>
+ *   <mfenced><mi>x</mi></mfenced>
+ *   <mo>=</mo>
+ *   <mfrac>
+ *     <mn>1</mn>
+ *     <mrow>
+ *       <mn>1</mn>
+ *       <mo>+</mo>
+ *       <msup>
+ *         <mi>e</mi>
+ *         <mrow><mo>-</mo><mi>x</mi></mrow>
+ *       </msup>
+ *     </mrow>
+ *   </mfrac>
+ * </math></informalequation>
+ * and the various constants are given in section 6.2 of <xref linkend="BS1387"
+ * />.  The model output variables must be stored in the order
+ * * BandwidthRef
+ * * BandwidthTest
+ * * TotalNMR
+ * * WinModDiff1
+ * * ADB
+ * * EHS
+ * * AvgModDiff1
+ * * AvgModDiff2
+ * * RmsNoiseLoud
+ * * MFPD
+ * * RelDistFrames
+ *
+ * in the array @movs.
+ *
+ * If #CLAMP_MOVS is set to true, the values of the model variables are clamped
+ * to the range <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mfenced open="[" close="]"><msub><mi>a</mi><mi>min</mi></msub><msub><mi>a</mi><mi>max</mi></msub></mfenced>
+ * </math></inlineequation> prior to the computation.
+ *
+ * Returns: The calculated distortion index.
+ */
 gdouble
-peaq_calculate_di_basic (gdouble *movs)
+peaq_calculate_di_basic (gdouble const *movs)
 {
   guint i;
   gdouble x[3];
   gdouble distortion_index;
 
   for (i = 0; i < 3; i++)
-    x[i] = 0;
+    x[i] = wxb_basic[i];
   for (i = 0; i <= 10; i++) {
     guint j;
     gdouble m = (movs[i] - amin_basic[i]) / (amax_basic[i] - amin_basic[i]);
@@ -95,7 +199,7 @@ peaq_calculate_di_basic (gdouble *movs)
      * clipped to within [amin, amax], although [BS1387] does not mention
      * clipping at all; doing so slightly improves the results of the
      * conformance test */
-#if CLAMP_MOVS
+#if defined(CLAMP_MOVS) && CLAMP_MOVS
     if (m < 0.)
       m = 0.;
     if (m > 1.)
@@ -106,20 +210,105 @@ peaq_calculate_di_basic (gdouble *movs)
   }
   distortion_index = wyb_basic;
   for (i = 0; i < 3; i++)
-    distortion_index += wy_basic[i] / (1 + exp (-(wxb_basic[i] + x[i])));
+    distortion_index += wy_basic[i] / (1 + exp (-x[i]));
 
   return distortion_index;
 }
 
+/**
+ * peaq_calculate_di_advanced:
+ * @movs: Array of model output variables to calculate the distortion index
+ * from.
+ *
+ * Calculates the distorion index
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>DI</mi><mo>=</mo>
+ *   <msub><mi>w</mi><mrow><mi>y</mi><mn>0</mn></mrow></msub>
+ *   <mo>+</mo>
+ *   <munderover>
+ *     <mo>&sum;</mo>
+ *     <mrow><mi>j</mi><mo>=</mo><mn>0</mn></mrow>
+ *     <mrow><mn>4</mn></mrow>
+ *   </munderover>
+ *   <msub><mi>w</mi><mi>y</mi></msub>
+ *   <mfenced open="[" close="]"><mi>i</mi><mi>j</mi></mfenced>
+ *   <mo>&sdot;</mo>
+ *   <mi>sig</mi>
+ *   <mfenced>
+ *     <mrow>
+ *       <msub><mi>w</mi><mrow><mi>x</mi><mn>0</mn></mrow></msub>
+ *       <mfenced open="[" close="]"><mi>j</mi></mfenced>
+ *       <mo>+</mo>
+ *       <munderover>
+ *         <mo>&sum;</mo>
+ *         <mrow><mi>i</mi><mo>=</mo><mn>0</mn></mrow>
+ *         <mrow><mn>4</mn></mrow>
+ *       </munderover>
+ *       <msub><mi>w</mi><mi>x</mi></msub>
+ *       <mfenced open="[" close="]"><mi>i</mi><mi>j</mi></mfenced>
+ *       <mo>&sdot;</mo>
+ *       <mfrac>
+ *         <mrow>
+ *           <mi>x</mi><mfenced open="[" close="]"><mi>i</mi></mfenced>
+ *           <mo>-</mo>
+ *           <msub><mi>a</mi><mi>min</mi></msub>
+ *           <mfenced open="[" close="]"><mi>i</mi></mfenced>
+ *         </mrow>
+ *         <mrow>
+ *           <msub><mi>a</mi><mi>max</mi></msub>
+ *           <mfenced open="[" close="]"><mi>i</mi></mfenced>
+ *           <mo>-</mo>
+ *           <msub><mi>a</mi><mi>min</mi></msub>
+ *           <mfenced open="[" close="]"><mi>i</mi></mfenced>
+ *         </mrow>
+ *       </mfrac>
+ *     </mrow>
+ *   </mfenced>
+ * </math></informalequation> 
+ * for the advanced version from the model output variables <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi><mfenced open="[" close="]"><mi>i</mi></mfenced>
+ * </math></inlineequation> passed as @movs as described in chapter 6 of <xref
+ * linkend="BS1387" />, where
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>sig</mi>
+ *   <mfenced><mi>x</mi></mfenced>
+ *   <mo>=</mo>
+ *   <mfrac>
+ *     <mn>1</mn>
+ *     <mrow>
+ *       <mn>1</mn>
+ *       <mo>+</mo>
+ *       <msup>
+ *         <mi>e</mi>
+ *         <mrow><mo>-</mo><mi>x</mi></mrow>
+ *       </msup>
+ *     </mrow>
+ *   </mfrac>
+ * </math></informalequation>
+ * and the various constants are given in section 6.3 of <xref linkend="BS1387"
+ * />.  The model output variables must be stored in the order
+ * * RmsModDiff1
+ * * RmsNoiseLoudAsym
+ * * SegmentalNMR
+ * * EHS
+ * * AvgLinDist
+ *
+ * in the array @movs.
+ *
+ * If #CLAMP_MOVS is set to true, the values of the model variables are clamped
+ * to the range <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mfenced open="[" close="]"><msub><mi>a</mi><mi>min</mi></msub><msub><mi>a</mi><mi>max</mi></msub></mfenced>
+ * </math></inlineequation> prior to the computation.
+ *
+ * Returns: The calculated distortion index.
+ */
 gdouble
-peaq_calculate_di_advanced (gdouble *movs)
+peaq_calculate_di_advanced (gdouble const *movs)
 {
   guint i;
   gdouble x[5];
   gdouble distortion_index;
 
   for (i = 0; i < 5; i++)
-    x[i] = 0;
+    x[i] = wxb_advanced[i];
   for (i = 0; i <= 4; i++) {
     guint j;
     gdouble m =
@@ -140,11 +329,45 @@ peaq_calculate_di_advanced (gdouble *movs)
   distortion_index = wyb_advanced;
   for (i = 0; i < 5; i++)
     distortion_index +=
-      wy_advanced[i] / (1 + exp (-(wxb_advanced[i] + x[i])));
+      wy_advanced[i] / (1 + exp (-x[i]));
 
   return distortion_index;
 }
 
+/**
+ * peaq_calculate_odg:
+ * @distortion_index: The distortion index to calculate the objective
+ * difference grade from.
+ *
+ * Calculates the objective difference grade
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>ODG</mi><mo>=</mo>
+ *   <mn>-3.98</mn>
+ *   <mo>+</mo>
+ *   <mn>4.2</mn>
+ *   <mo>&sdot;</mo>
+ *   <mi>sig</mi><mfenced><mi>DI</mi></mfenced>
+ * </math></informalequation> 
+ * from the disstorion index chapter 6 of <xref linkend="BS1387" />, where
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>sig</mi>
+ *   <mfenced><mi>x</mi></mfenced>
+ *   <mo>=</mo>
+ *   <mfrac>
+ *     <mn>1</mn>
+ *     <mrow>
+ *       <mn>1</mn>
+ *       <mo>+</mo>
+ *       <msup>
+ *         <mi>e</mi>
+ *         <mrow><mo>-</mo><mi>x</mi></mrow>
+ *       </msup>
+ *     </mrow>
+ *   </mfrac>
+ * </math></informalequation>.
+ *
+ * Returns: The calculated objective difference grade.
+ */
 gdouble
 peaq_calculate_odg (gdouble distortion_index)
 {
