@@ -981,7 +981,6 @@ peaq_mov_ehs (PeaqEarModel const *ear_model, gpointer *ref_state,
     gdouble c[MAXLAG];
     gdouble d0;
     gdouble dk;
-    gdouble cavg;
     gdouble ehs = 0.;
     GstFFTF64Complex c_fft[MAXLAG / 2 + 1];
     gdouble s;
@@ -998,11 +997,11 @@ peaq_mov_ehs (PeaqEarModel const *ear_model, gpointer *ref_state,
 
     d0 = c[0];
     dk = d0;
-    cavg = 0;
 #if defined(EHS_SUBTRACT_DC_BEFORE_WINDOW) && EHS_SUBTRACT_DC_BEFORE_WINDOW
     /* in the following, the mean is subtracted before the window is applied as
      * suggested by [Kabal03], although this contradicts [BS1387]; however, the
      * results thus obtained are closer to the reference */
+    gdouble cavg = 0;
     for (i = 0; i < MAXLAG; i++) {
       c[i] /= sqrt (d0 * dk);
       cavg += c[i];
@@ -1014,15 +1013,13 @@ peaq_mov_ehs (PeaqEarModel const *ear_model, gpointer *ref_state,
 #else
     for (i = 0; i < MAXLAG; i++) {
       c[i] *= correlation_window[i] / sqrt(d0 * dk);
-      cavg += c[i];
       dk += d[i + MAXLAG] * d[i + MAXLAG] - d[i] * d[i];
     }
-    cavg /= MAXLAG;
 #endif
     gst_fft_f64_fft (correlation_fft, c, c_fft);
 #if !defined(EHS_SUBTRACT_DC_BEFORE_WINDOW) || !EHS_SUBTRACT_DC_BEFORE_WINDOW
-    /* subtract average from DC component in frequency domain */
-    c_fft[0].r -= cavg;
+    /* subtract average is equivalent to setting the DC component to zero */
+    c_fft[0].r = 0;
 #endif
     s = c_fft[0].r * c_fft[0].r + c_fft[0].i * c_fft[0].i;
     for (i = 1; i < MAXLAG / 2 + 1; i++) {
