@@ -933,6 +933,34 @@ do_xcorr(gdouble const* d, gdouble * c)
   memcpy (c, timedata, MAXLAG * sizeof(gdouble));
 }
 
+/**
+ * peaq_mov_ehs:
+ * @ear_model: The underlying ear model to which @ref_state and
+ * @test_state belong.
+ * @ref_state: Ear model states for the reference signal.
+ * @test_state: Ear model states for the test signal.
+ * @mov_accum: Accumulator for the EHSB MOV.
+ *
+ * Calculates the error harmonic structure based model output variable as
+ * described in section 4.8 of <xref linkend="BS1387" /> with the
+ * interpretations of <xref linkend="Kabal03" />. The error harmonic structure
+ * is computed based on the difference of the logarithms of the weighted power
+ * spectra <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>F</mi><mi>e</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow>
+ * </math></inlineequation>
+ * for test and reference signal. The autocorrelation of this difference is
+ * then windowed and Fourier-transformed. In the resulting cepstrum-like data,
+ * the height of the maximum peak after the first valley is the EHSB model
+ * output variable which is accumulated in @mov_accum.
+ *
+ * Two aspects in which <xref linkend="Kabal03" /> suggests to not strictly
+ * follow <xref linkend="BS1387" /> can be controlled by compile-time switches:
+ * * #CENTER_EHS_CORRELATION_WINDOW controls whether the window to apply is
+ *   centered around lag 0 of the correlation as suggested in <xref
+ *   linkend="Kabal03" /> (if unset or set to false) or centered around the
+ *   middle of the correlation (if set to true).
+ * * #EHS_SUBTRACT_DC_BEFORE_WINDOW controls whether the average is subtracted
+ *   before windowing as suggested in <xref linkend="Kabal03" /> or afterwards.
+ */
 void
 peaq_mov_ehs (PeaqEarModel const *ear_model, gpointer *ref_state,
               gpointer *test_state, PeaqMovAccum *mov_accum)
@@ -1018,7 +1046,8 @@ peaq_mov_ehs (PeaqEarModel const *ear_model, gpointer *ref_state,
 #endif
     gst_fft_f64_fft (correlation_fft, c, c_fft);
 #if !defined(EHS_SUBTRACT_DC_BEFORE_WINDOW) || !EHS_SUBTRACT_DC_BEFORE_WINDOW
-    /* subtract average is equivalent to setting the DC component to zero */
+    /* subtracting the average is equivalent to setting the DC component to
+     * zero */
     c_fft[0].r = 0;
 #endif
     s = c_fft[0].r * c_fft[0].r + c_fft[0].i * c_fft[0].i;
