@@ -996,13 +996,13 @@ peaq_mov_ehs (PeaqEarModel const *ear_model, gpointer *ref_state,
 
     do_xcorr(d, c);
 
-    /* in the following, the mean is subtracted before the window is applied as
-     * suggested by [Kabal03], although this contradicts [BS1387]; however, the
-     * results thus obtained are closer to the reference */
     d0 = c[0];
     dk = d0;
     cavg = 0;
 #if defined(EHS_SUBTRACT_DC_BEFORE_WINDOW) && EHS_SUBTRACT_DC_BEFORE_WINDOW
+    /* in the following, the mean is subtracted before the window is applied as
+     * suggested by [Kabal03], although this contradicts [BS1387]; however, the
+     * results thus obtained are closer to the reference */
     for (i = 0; i < MAXLAG; i++) {
       c[i] /= sqrt (d0 * dk);
       cavg += c[i];
@@ -1017,8 +1017,6 @@ peaq_mov_ehs (PeaqEarModel const *ear_model, gpointer *ref_state,
       cavg += c[i];
       dk += d[i + MAXLAG] * d[i + MAXLAG] - d[i] * d[i];
     }
-    for (i = 0; i < MAXLAG; i++)
-      cavg += c[i];
     cavg /= MAXLAG;
 #endif
     gst_fft_f64_fft (correlation_fft, c, c_fft);
