@@ -20,6 +20,39 @@
  * Boston, MA 02111-1307, USA.
  */
 
+/**
+ * SECTION:gstpeaq
+ * @short_description: The peaq GStreamer Element.
+ * @title: GstPeaq
+ *
+ * The GstPeaq element is accessed as "peaq" and acts as a sink, providing a
+ * "ref" and a "test" pad. If these are fed with the reference and test signal,
+ * respectively, the element computes the objective difference grade according
+ * to <xref linkend="BS1387" />. (Note, however, that GstPeaq does not fulfill
+ * the requirements of conformance specified therein.) Both pads require the
+ * input to be "audio/x-raw-float" sampled at 48 kHz. Both mono and stereo
+ * signals are supported.
+ *
+ * GstPeaq supports both the basic and the advanced version of <xref
+ * linkend="BS1387" />, as controlled with #GstPeaq:advanced.
+ *
+ * The resulting objective difference grade can be acquired at any time using
+ * the #GstPeaq:odg property. If #GstPeaq:console-output is set to TRUE, the
+ * final objective difference grade (and some additional data) is also printed
+ * to stdout when the playback is stopped.
+ *
+ * Assuming the reference and test signal are stored in "ref.wav" and
+ * "test.wav", the following will calculate the basic version objective
+ * difference grade and print the result to the console:
+ * |[
+ * gst-launch-0.10 \
+ *   filesrc location="ref.wav" \! wavparse \! audioconvert name=refsrc \
+ *   filesrc location="test.wav" \! wavparse \! audioconvert name=testsrc \
+ *   peaq name=peaq \
+ *   refsrc.src\!peaq.ref testsrc.src\!peaq.test
+ * ]|
+ */
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -154,7 +187,7 @@ static void process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
 static void process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
                                         gfloat *testdata);
 static void process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata);
-static double calculate_di (GstPeaq * peaq);
+static double calculate_di_basic (GstPeaq * peaq);
 static double calculate_di_advanced (GstPeaq *peaq);
 static double calculate_odg (GstPeaq * peaq);
 static gboolean is_frame_above_threshold (gfloat *framedata, guint framesize,
@@ -441,7 +474,7 @@ get_property (GObject *obj, guint id, GValue *value, GParamSpec *pspec)
       if (peaq->advanced)
         g_value_set_double (value, calculate_di_advanced (peaq));
       else
-        g_value_set_double (value, calculate_di (peaq));
+        g_value_set_double (value, calculate_di_basic (peaq));
       break;
     case PROP_ODG:
       g_value_set_double (value, calculate_odg (peaq));
@@ -527,6 +560,7 @@ get_caps (GstPad *pad)
   GstCaps *caps;
   GstCaps *mycaps;
   GstCaps *peercaps;
+  /* TODO: What if ref and test have different number of channels? */
   if (pad == peaq->refpad) {
     mycaps = gst_static_pad_template_get_caps (&gst_peaq_ref_template);
     peercaps = gst_pad_peer_get_caps_reffed (peaq->testpad);
@@ -995,7 +1029,7 @@ process_fb_block (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
 }
 
 static double
-calculate_di (GstPeaq * peaq)
+calculate_di_basic (GstPeaq * peaq)
 {
   guint i;
   gdouble movs[11];
@@ -1054,7 +1088,7 @@ calculate_odg (GstPeaq * peaq)
   if (peaq->advanced)
     distortion_index = calculate_di_advanced (peaq);
   else
-    distortion_index = calculate_di (peaq);
+    distortion_index = calculate_di_basic (peaq);
   gdouble odg = peaq_calculate_odg (distortion_index);
   if (peaq->console_output) {
     g_printf ("Objective Difference Grade: %.3f\n", odg);
