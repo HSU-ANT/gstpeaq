@@ -1,0 +1,144 @@
+<refentry>
+<refentryinfo>
+	<date>2013-01-31</date>
+	<productname>GstPEAQ</productname>
+	<author>
+		<firstname>Martin</firstname>
+		<surname>Holters</surname>
+		<email>martin.holters@hsu-hh.de</email>
+		<contrib />
+	</author>
+</refentryinfo>
+<refmeta>
+	<refentrytitle><application>peaq</application></refentrytitle>
+	<manvolnum>1</manvolnum>
+	<refmiscinfo class="manual">GstPEAQ User Manual</refmiscinfo>
+</refmeta>
+<refnamediv>
+	<refname><application>peaq</application></refname>
+	<refpurpose>
+	Perceptual Evaluation of Audio Quality
+	</refpurpose>
+</refnamediv>
+<refsynopsisdiv>
+	<cmdsynopsis>
+	<command>peaq</command>
+<arg><option>--basic</option></arg>
+<arg><option>--advanced</option></arg>
+<arg><replaceable>GSTREAMER OPTIONS</replaceable></arg>
+<arg choice="req"><replaceable>REFFILE</replaceable></arg>
+<arg choice="req"><replaceable>TESTFILE</replaceable></arg>
+	</cmdsynopsis>
+</refsynopsisdiv>
+<refsect1>
+	<title>Description</title>
+	<para>
+	<command>peaq</command> evaluates the audio quality of an impaired
+	<replaceable>TESTFILE</replaceable> with reference to the original
+	<replaceable>REFFILE</replaceable>.  The output consists of the
+	Objective Difference Grade (ODG) and the Distortion Index (DI).
+	The ODG approximates the result of a listening test with a five-grade
+	impairment scale, where the possible values are anchored according to:
+	<informaltable frame="none">
+		<tgroup cols='2' align='left' colsep='1' rowsep='1'>
+			<thead>
+				<row>
+					<entry>ODG</entry>
+					<entry>judgement of impairment</entry>
+				</row>
+			</thead>
+			<tbody>
+				<row>
+					<entry>0</entry>
+					<entry>imperceptible</entry>
+				</row>
+				<row>
+					<entry>-1</entry>
+					<entry>perceptible but not annoying</entry>
+				</row>
+				<row>
+					<entry>-2</entry>
+					<entry>slightly annoying</entry>
+				</row>
+				<row>
+					<entry>-3</entry>
+					<entry>annoying</entry>
+				</row>
+				<row>
+					<entry>-4</entry>
+					<entry>very annoying</entry>
+				</row>
+			</tbody>
+		</tgroup>
+	</informaltable>
+	The calculation of the ODG is performed as described in ITU-R BS.1387-1
+	and interpreted by Peter Kabal in "An Examination and Interpretation of
+	ITU-R BS.1387: Perceptual Evaluation of Audio Quality". Both the basic
+	and the advanced version of the PEAQ algorithm are available.
+	</para>
+</refsect1>
+<refsect1>
+	<title>Options</title>
+	<variablelist>
+	<varlistentry>
+		<term><option>--basic</option></term>
+		<listitem>
+			<para>
+				Use basic version of the PEAQ algorithm. This is the default.
+			</para>
+		</listitem>
+	</varlistentry>
+	<varlistentry>
+		<term><option>--advanced</option></term>
+		<listitem>
+			<para>
+				Use advanced version of the PEAQ algorithm.
+			</para>
+		</listitem>
+	</varlistentry>
+	</variablelist>
+	<para>
+		In  addition  to  these  application specific options,
+		<command>peaq</command> supports the common GStreamer options
+		as described e.g. in
+		<citerefentry><refentrytitle>gst-launch</refentrytitle><manvolnum>1</manvolnum></citerefentry>.
+	</para>
+</refsect1>
+<refsect1>
+	<title>Exit Status</title>
+	<variablelist>
+	<varlistentry>
+		<term>0</term>
+		<listitem>
+			<para>
+				Command completed successfully.
+			</para>
+		</listitem>
+	</varlistentry>
+	<varlistentry>
+		<term>1</term>
+		<listitem>
+			<para>
+				Usage or syntax error.
+			</para>
+		</listitem>
+	</varlistentry>
+	</variablelist>
+</refsect1>
+<refsect1>
+	<title>Environment</title>
+	<para>
+		See
+		<citerefentry><refentrytitle>gst-launch</refentrytitle><manvolnum>1</manvolnum></citerefentry>
+		for a list of environment variables affecting all GStreamer
+		applications.
+	</para>
+</refsect1>
+<refsect1>
+	<title>Conforming to</title>
+	<para>
+		Although peaq is implemented based on ITU-R BS.1387-1, it does
+		not fulfill the conformance criteria therein.
+	</para>
+</refsect1>
+</refentry>

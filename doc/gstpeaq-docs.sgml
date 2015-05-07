@@ -13,6 +13,7 @@
 
   <chapter>
     <title>User Manual</title>
+    <xi:include href="man/peaq.xml"/>
     <xi:include href="xml/gstpeaq.xml"/>
   </chapter>
   <chapter>

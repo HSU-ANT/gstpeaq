@@ -5,6 +5,12 @@ AC_CONFIG_AUX_DIR([misc])
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([1.9 gnu])
 
+AC_ARG_ENABLE(man, [AC_HELP_STRING([--enable-man],
+	                           [regenerate man pages from Docbook [default=no]])],
+              enable_man=yes,
+              enable_man=no)
+AM_CONDITIONAL(ENABLE_MAN, test x$enable_man != xno)
+
 AC_SUBST(ACLOCAL_AMFLAGS, "-I m4")
 GST_MAJORMINOR=0.10
 AC_SUBST(GST_MAJORMINOR)
@@ -12,7 +18,7 @@ AC_SUBST(GST_MAJORMINOR)
 AM_PROG_CC_C_O
 AC_DISABLE_STATIC
 AC_PROG_LIBTOOL
-
+AM_COND_IF([ENABLE_MAN], [AC_PATH_PROG([XSLTPROC], [xsltproc])])
 
 AC_HEADER_STDC
 
