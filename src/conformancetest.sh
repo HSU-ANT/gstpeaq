@@ -11,6 +11,9 @@ runpeaq() {
 	ODG=`echo "$OUTPUT" | grep "Objective Difference Grade:" | cut -d " " -f4`
 	ODG_DELTA=`echo $ODG - $4 | bc`
 	echo `basename $CODFILE` "DI: " $DI "(should be $3, diff: $DI_DELTA)" "ODG: " $ODG "(should be $4, diff: $ODG_DELTA)"
+	ODG_DELTA_SUM=`echo $ODG_DELTA_SUM + $ODG_DELTA | bc`
+	ODG_DELTA_SQUARED_SUM=`echo "scale=6; $ODG_DELTA_SQUARED_SUM + $ODG_DELTA^2" | bc`
+	let FILE_COUNT++
 }
 
 DATADIR="../BS.1387-ConformanceDatabase"
@@ -19,6 +22,9 @@ if [ ! -d $DATADIR ]; then
 	exit 0
 fi
 
+ODG_DELTA_SUM=0
+ODG_DELTA_SQUARED_SUM=0
+FILE_COUNT=0
 runpeaq --basic "${DATADIR}/acodsna.wav" 1.304  -0.676
 runpeaq --basic "${DATADIR}/bcodtri.wav" 1.949  -0.304
 runpeaq --basic "${DATADIR}/ccodsax.wav" 0.048  -1.829
@@ -35,7 +41,12 @@ runpeaq --basic "${DATADIR}/lcodpip.wav" 1.973  -0.293
 runpeaq --basic "${DATADIR}/mcodcla.wav" -0.436 -2.331
 runpeaq --basic "${DATADIR}/ncodsfe.wav" 3.135  0.045
 runpeaq --basic "${DATADIR}/scodclv.wav" 1.689  -0.435
+echo "Mean error (bias):" `echo "scale=3; $ODG_DELTA_SUM / $FILE_COUNT" | bc`
+echo "Mean square error:" `echo "scale=6; $ODG_DELTA_SQUARED_SUM / $FILE_COUNT" | bc`
 
+ODG_DELTA_SUM=0
+ODG_DELTA_SQUARED_SUM=0
+FILE_COUNT=0
 runpeaq --advanced "${DATADIR}/acodsna.wav" 1.632 -0.467
 runpeaq --advanced "${DATADIR}/bcodtri.wav" 2.000 -0.281
 runpeaq --advanced "${DATADIR}/ccodsax.wav" 0.567 -1.300
@@ -52,3 +63,5 @@ runpeaq --advanced "${DATADIR}/lcodpip.wav" 2.149 -0.219
 runpeaq --advanced "${DATADIR}/mcodcla.wav" 0.430 -1.435
 runpeaq --advanced "${DATADIR}/ncodsfe.wav" 3.163 0.050
 runpeaq --advanced "${DATADIR}/scodclv.wav" 1.972 -0.293
+echo "Mean error (bias):" `echo "scale=3; $ODG_DELTA_SUM / $FILE_COUNT" | bc`
+echo "Mean square error:" `echo "scale=6; $ODG_DELTA_SQUARED_SUM / $FILE_COUNT" | bc`
