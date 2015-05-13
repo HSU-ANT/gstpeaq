@@ -78,3 +78,14 @@
  * but not mentioned at all in <xref linkend="BS1387" />.
  */
 #define CLAMP_MOVS 1
+    
+/** 
+ * SWAP_SLOPE_FILTER_COEFFICIENTS:
+ *
+ * Controls whether the coefficients of time smoothing filter for the frequency
+ * domain spreading slopes in the filterbank-based ear model are swapped
+ * compared to the pseudo code of <xref linkend="BS1387" />. As remarked
+ * in <xref linkend="Kabal03" />, the pseudo code is incosistent with the
+ * textual description and results in an extremely short time constant.
+ */ 
+#define SWAP_SLOPE_FILTER_COEFFICIENTS 0

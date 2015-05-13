@@ -38,6 +38,7 @@
 #include "config.h"
 #endif
 
+#include "settings.h"
 #include "fbearmodel.h"
 #include "gstpeaq.h"
 
@@ -327,8 +328,11 @@ process_block (PeaqEarModel const *model, gpointer state,
         gdouble s = MAX (4, 24 + 230 / fc - 0.2 * L);
         gdouble dist_s = pow (DIST, s);
         /* a and b=1-a are probably swapped in the standard's pseudo code */
+#if defined(SWAP_SLOPE_FILTER_COEFFICIENTS) && SWAP_SLOPE_FILTER_COEFFICIENTS
         fb_state->cu[band] = dist_s + SLOPE_FILTER_A * (fb_state->cu[band] - dist_s);
-        //fb_state->cu[band] = fb_state->cu[band] + SLOPE_FILTER_A * (dist_s - fb_state->cu[band]);
+#else
+        fb_state->cu[band] = fb_state->cu[band] + SLOPE_FILTER_A * (dist_s - fb_state->cu[band]);
+#endif
         gdouble d1 = fb_out_re[band];
         gdouble d2 = fb_out_im[band];
         guint j;
