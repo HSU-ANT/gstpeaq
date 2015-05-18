@@ -77,7 +77,7 @@
  * peaq_calculate_di_advanced(). This is proposed in <xref linkend="Kabal03" />
  * but not mentioned at all in <xref linkend="BS1387" />.
  */
-#define CLAMP_MOVS 1
+#define CLAMP_MOVS 0
     
 /** 
  * SWAP_SLOPE_FILTER_COEFFICIENTS:

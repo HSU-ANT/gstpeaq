@@ -852,7 +852,7 @@ peaq_mov_prob_detect (PeaqEarModel const *ear_model, const gpointer *ref_state,
   gdouble binaural_detection_steps = 0.;
   for (i = 0; i < band_count; i++) {
     gdouble detection_probability = 0.;
-    gdouble detection_steps;
+    gdouble detection_steps = 0.;
     for (c = 0; c < peaq_movaccum_get_channels (mov_accum_adb); c++) {
       gdouble const *ref_excitation =
         peaq_earmodel_get_excitation (ear_model, ref_state[c]);
