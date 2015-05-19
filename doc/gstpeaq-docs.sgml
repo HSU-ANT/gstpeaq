@@ -15,6 +15,7 @@
     <title>User Manual</title>
     <xi:include href="man/peaq.xml"/>
     <xi:include href="xml/gstpeaq.xml"/>
+    <xi:include href="conformance.xml"/>
   </chapter>
   <chapter>
     <title>Internal reference documentation</title>

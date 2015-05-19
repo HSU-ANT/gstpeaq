@@ -4,13 +4,22 @@ runpeaq() {
 	MODE=$1
 	CODFILE=$2
 	REFFILE=${CODFILE/cod/ref}
-	OUTPUT=`LANG=LC_ALL ./peaq --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=.libs/libgstpeaq.so \
+	OUTPUT=`LANG=LC_ALL ${BASEDIR}/peaq --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=${BASEDIR}/.libs/libgstpeaq.so \
 		${MODE} "${REFFILE}" "$CODFILE"`
 	DI=`echo "$OUTPUT" | grep "Distortion Index:" | cut -d " " -f3`
 	DI_DELTA=`echo $DI - $3 | bc`
 	ODG=`echo "$OUTPUT" | grep "Objective Difference Grade:" | cut -d " " -f4`
 	ODG_DELTA=`echo $ODG - $4 | bc`
-	echo `basename $CODFILE` "DI: " $DI "(should be $3, diff: $DI_DELTA)" "ODG: " $ODG "(should be $4, diff: $ODG_DELTA)"
+	ITEM=`basename ${CODFILE} .wav`
+	echo $ITEM "DI: " $DI "(should be $3, diff: $DI_DELTA)" "ODG: " $ODG "(should be $4, diff: $ODG_DELTA)"
+	cat >>${XML_FILE} <<EOF
+			<row>
+				<entry>${ITEM}</entry>
+				<entry>${3}</entry>
+				<entry>${DI}</entry>
+				<entry>${DI_DELTA}</entry>
+			</row>
+EOF
 	ODG_DELTA_SUM=`echo $ODG_DELTA_SUM + $ODG_DELTA | bc`
 	ODG_DELTA_SQUARED_SUM=`echo "scale=6; $ODG_DELTA_SQUARED_SUM + $ODG_DELTA^2" | bc`
 	DI_DELTA_SUM=`echo $DI_DELTA_SUM + $DI_DELTA | bc`
@@ -18,11 +27,31 @@ runpeaq() {
 	let FILE_COUNT++
 }
 
-DATADIR="../BS.1387-ConformanceDatabase"
+BASEDIR=`dirname $0`
+
+DATADIR="${BASEDIR}/../BS.1387-ConformanceDatabase"
 if [ ! -d $DATADIR ]; then
 	echo "Reference data not found, conformance test NOT run."
 	exit 0
 fi
+
+
+XML_FILE="${BASEDIR}/../doc/conformance_basic_table.xml"
+cat >${XML_FILE} <<EOF
+<table frame="none" id="conformance_basic_table">
+	<title>Conformance test results for the basic version.</title>
+	<tgroup cols='4' align='right' colsep='1' rowsep='1'>
+		<colspec align='left' />
+		<thead>
+			<row>
+				<entry>Item</entry>
+				<entry>Reference DI</entry>
+				<entry>Actual DI</entry>
+				<entry>Difference</entry>
+			</row>
+		</thead>
+		<tbody>
+EOF
 
 ODG_DELTA_SUM=0
 ODG_DELTA_SQUARED_SUM=0
@@ -49,6 +78,28 @@ echo "ODG mean error (bias):" `echo "scale=3; $ODG_DELTA_SUM / $FILE_COUNT" | bc
 echo "ODG mean square error:" `echo "scale=6; $ODG_DELTA_SQUARED_SUM / $FILE_COUNT" | bc`
 echo "DI mean error (bias):" `echo "scale=3; $DI_DELTA_SUM / $FILE_COUNT" | bc`
 echo "DI mean square error:" `echo "scale=6; $DI_DELTA_SQUARED_SUM / $FILE_COUNT" | bc`
+cat >>${XML_FILE} <<EOF
+		</tbody>
+	</tgroup>
+</table>
+EOF
+
+XML_FILE="${BASEDIR}/../doc/conformance_advanced_table.xml"
+cat >${XML_FILE} <<EOF
+<table frame="none" id="conformance_advanced_table">
+	<title>Conformance test results for the advanced version.</title>
+	<tgroup cols='4' align='right' colsep='1' rowsep='1'>
+		<colspec align='left' />
+		<thead>
+			<row>
+				<entry>Item</entry>
+				<entry>Reference DI</entry>
+				<entry>Actual DI</entry>
+				<entry>Difference</entry>
+			</row>
+		</thead>
+		<tbody>
+EOF
 
 ODG_DELTA_SUM=0
 ODG_DELTA_SQUARED_SUM=0
@@ -75,3 +126,9 @@ echo "ODG mean error (bias):" `echo "scale=3; $ODG_DELTA_SUM / $FILE_COUNT" | bc
 echo "ODG mean square error:" `echo "scale=6; $ODG_DELTA_SQUARED_SUM / $FILE_COUNT" | bc`
 echo "DI mean error (bias):" `echo "scale=3; $DI_DELTA_SUM / $FILE_COUNT" | bc`
 echo "DI mean square error:" `echo "scale=6; $DI_DELTA_SQUARED_SUM / $FILE_COUNT" | bc`
+
+cat >>${XML_FILE} <<EOF
+		</tbody>
+	</tgroup>
+</table>
+EOF

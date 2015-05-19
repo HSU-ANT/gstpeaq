@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN" 
+               "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd"
+[
+<!ENTITY % mathml PUBLIC "-//W3C//DTD MathML 2.0//EN"
+           "http://www.w3.org/Math/DTD/mathml2/mathml2.dtd">
+%mathml;
+]>
+<refentry xmlns:xi="http://www.w3.org/2003/XInclude">
+	<refmeta>
+<refentrytitle role="top_of_page" id="Conformance.top_of_page">Conformance</refentrytitle>
+<manvolnum>3</manvolnum>
+<refmiscinfo>
+  GSTPEAQ Library
+</refmiscinfo>
+</refmeta>
+<refnamediv>
+<refname>Conformance</refname>
+<refpurpose>Conformance test results.</refpurpose>
+</refnamediv>
+<para>In order to conform to <xref linkend="BS1387" />, implementations have to
+	compute DI values within &pm;0.02 of a reference value for 16 given test
+	items. The reference and test values are given in <xref
+		linkend="conformance_basic_table" /> for the basic version and
+	<xref linkend="conformance_advanced_table" /> for the advanced version.
+	As can be seen, neither the basic nor the advanced version meet the
+	conformance requirements of <xref linkend="BS1387" />.
+	<xi:include href="conformance_basic_table.xml" />
+	<xi:include href="conformance_advanced_table.xml" />
+</para>
+</refentry>
