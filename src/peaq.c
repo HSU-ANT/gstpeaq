@@ -74,12 +74,6 @@ new_pad (GstElement * element, GstPad * pad, gpointer data)
   gst_pad_link (pad, sinkpad);
 }
 
-void
-usage()
-{
-  exit(1);
-}
-
 int
 main(int argc, char *argv[])
 {
@@ -110,14 +104,19 @@ main(int argc, char *argv[])
   if (!g_option_context_parse (context, &argc, &argv, &error)) {
     g_print ("Failed to initialize: %s\n", error->message);
     g_error_free (error);
+    g_option_context_free (context);
     return 1;
   }
-  g_option_context_free (context);
 
   if (filenames == NULL || filenames[0] == NULL || filenames[1] == NULL
       || filenames[2] != NULL) {
-    usage ();
+    gchar *help = g_option_context_get_help (context, TRUE, NULL);
+    puts (help);
+    g_free (help);
+    g_option_context_free (context);
+    return 1;
   }
+  g_option_context_free (context);
   reffilename = filenames[0];
   testfilename = filenames[1];
 
