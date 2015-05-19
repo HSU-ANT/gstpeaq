@@ -499,7 +499,8 @@ set_property (GObject *obj, guint id, const GValue *value, GParamSpec *pspec)
     case PROP_PLAYBACK_LEVEL:
       g_object_set_property (G_OBJECT (peaq->fft_ear_model),
 			     "playback-level", value);
-      // TODO: also set playback level for filterbank ears
+      g_object_set_property (G_OBJECT (peaq->fb_ear_model),
+			     "playback-level", value);
       break;
     case PROP_MODE_ADVANCED:
       {
