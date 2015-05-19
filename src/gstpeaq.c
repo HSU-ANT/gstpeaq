@@ -561,7 +561,6 @@ get_caps (GstPad *pad)
   GstCaps *caps;
   GstCaps *mycaps;
   GstCaps *peercaps;
-  /* TODO: What if ref and test have different number of channels? */
   if (pad == peaq->refpad) {
     mycaps = gst_static_pad_template_get_caps (&gst_peaq_ref_template);
     peercaps = gst_pad_peer_get_caps_reffed (peaq->testpad);
