@@ -104,6 +104,8 @@ struct _PeaqFFTEarModelState {
   gboolean energy_threshold_reached;
 };
 
+static void base_init (gpointer klass);
+static void base_finalize (gpointer klass);
 static void class_init (gpointer klass, gpointer class_data);
 static void init (GTypeInstance *obj, gpointer klass);
 static void finalize (GObject *obj);
@@ -131,9 +133,6 @@ static void set_property (GObject *obj, guint id, const GValue *value,
  * returns the respective #GType.
  *
  * Returns: the type for GstPeaqFFTEarModel.
- *
- * TODO: add a class_finalize function to free all the memory allocated in 
- * class_init. Or should all this be done by base_init/base_finalize?
  */
 GType
 peaq_fftearmodel_get_type ()
@@ -142,8 +141,8 @@ peaq_fftearmodel_get_type ()
   if (type == 0) {
     static const GTypeInfo info = {
       sizeof (PeaqFFTEarModelClass),      /* class_size */
-      NULL,                               /* base_init */
-      NULL,                               /* base_finalize */
+      base_init,                          /* base_init */
+      base_finalize,                      /* base_finalize */
       class_init,                         /* class_init */
       NULL,                               /* class_finalize */
       NULL,                               /* class_data */
@@ -157,6 +156,30 @@ peaq_fftearmodel_get_type ()
   return type;
 }
 
+static void
+base_init (gpointer klass)
+{
+  guint k;
+  guint N = FFT_FRAMESIZE;
+  PeaqFFTEarModelClass *fft_model_class =
+    PEAQ_FFTEARMODEL_CLASS (klass);
+
+  /* pre-compute Hann window; (2) in [BS1387], (1) and (3) in [Kabal03] */
+  fft_model_class->hann_window = g_new (gdouble, N);
+  for (k = 0; k < N; k++) {
+    fft_model_class->hann_window[k] =
+      sqrt(8./3.) * 0.5 * (1. - cos (2 * M_PI * k / (N - 1)));
+  }
+}
+
+static void
+base_finalize (gpointer klass)
+{
+  PeaqFFTEarModelClass *fft_model_class =
+    PEAQ_FFTEARMODEL_CLASS (klass);
+  g_free (fft_model_class->hann_window);
+}
+
 /*
  * class_init:
  * @klass: pointer to the uninitialized class structure.
@@ -167,13 +190,9 @@ peaq_fftearmodel_get_type ()
 static void
 class_init (gpointer klass, gpointer class_data)
 {
-  guint k;
-  guint N = FFT_FRAMESIZE;
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
   PeaqEarModelClass *ear_model_class =
     PEAQ_EARMODEL_CLASS (klass);
-  PeaqFFTEarModelClass *fft_model_class =
-    PEAQ_FFTEARMODEL_CLASS (klass);
 
   /* override finalize method */
   object_class->finalize = finalize;
@@ -207,13 +226,6 @@ class_init (gpointer klass, gpointer class_data)
   ear_model_class->step_size = FFT_FRAMESIZE / 2;
   ear_model_class->tau_min = 0.008;
   ear_model_class->tau_100 = 0.030;
-
-  /* pre-compute Hann window; (2) in [BS1387], (1) and (3) in [Kabal03] */
-  fft_model_class->hann_window = g_new (gdouble, N);
-  for (k = 0; k < N; k++) {
-    fft_model_class->hann_window[k] =
-      sqrt(8./3.) * 0.5 * (1. - cos (2 * M_PI * k / (N - 1)));
-  }
 }
 
 /*
