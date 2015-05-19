@@ -24,10 +24,17 @@
 #include <glib/gprintf.h>
 #include <stdlib.h>
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 static gchar **filenames;
 static gboolean advanced = FALSE;
+static gboolean print_version = FALSE;
 
 static GOptionEntry option_entries[] = {
+  {"version", 0, 0, G_OPTION_ARG_NONE, &print_version, "print version information",
+    NULL},
   {"advanced", 0, 0, G_OPTION_ARG_NONE, &advanced, "use advanced version",
     NULL},
   {"basic", 0, G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &advanced,
@@ -101,11 +108,26 @@ main(int argc, char *argv[])
 
   g_option_context_set_main_group (context, option_group);
   g_option_context_add_group (context, gst_init_get_option_group ());
+  g_option_context_set_summary (context,
+                                "peaq computes the Objective Difference Grade based on ITU-R BS.1367-1 (but it\n"
+                                "does not meet its conformance requirements).");
+  g_option_context_set_description (context,
+                                    "Report bugs to: <" PACKAGE_BUGREPORT ">\n"
+                                    "GstPEAQ home page: <http://ant.hsu-hh.de/gstpeaq>");
   if (!g_option_context_parse (context, &argc, &argv, &error)) {
     g_print ("Failed to initialize: %s\n", error->message);
     g_error_free (error);
     g_option_context_free (context);
     return 1;
+  }
+
+  if (print_version) {
+    puts (PACKAGE_STRING "\n"
+          "Copyright 2015 Martin Holters\n"
+          "License LGPLv2+: GNU Library General Public License version2 or later.\n"
+          "There is NO WARRANTY, to the extent permitted by law.");
+    g_option_context_free (context);
+    return 0;
   }
 
   if (filenames == NULL || filenames[0] == NULL || filenames[1] == NULL
