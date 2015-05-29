@@ -5,7 +5,7 @@
   <PropertyGroup />
   <ItemDefinitionGroup>
     <ClCompile>
-      <PreprocessorDefinitions>PACKAGE="gstpeaq";PACKAGE_BUGREPORT="martin.holters@hsu-hh.de";PACKAGE_NAME="gstpeaq";PACKAGE_STRING="gstpeaq 0.4.1";VERSION_VERSION="0.4.1";VERSION="0.4.1";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PACKAGE="gstpeaq";PACKAGE_BUGREPORT="martin.holters@hsu-hh.de";PACKAGE_NAME="GstPEAQ";PACKAGE_STRING="GstPEAQ 0.4.1";PACKAGE_URL="http://ant.hsu-hh.de/gstpeaq";PACKAGE_VERSION="0.4.1";VERSION="0.4.1";%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>

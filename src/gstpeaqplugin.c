@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2006 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2006, 2015 Martin Holters <martin.holters@hsuhh.de>
  *
  * gstpeaqplugin.c: stubs for the peaq plugin
  *
@@ -37,5 +37,5 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
 		   GST_VERSION_MINOR,
 		   "peaq",
 		   "Perceptual evaluation of audio quality",
-		   plugin_init, VERSION, "LGPL",
-		   "GstPeaq", "www.hsuhh.de/ant")
+		   plugin_init, PACKAGE_VERSION, "LGPL",
+		   PACKAGE_NAME, PACKAGE_URL)

@@ -113,7 +113,7 @@ main(int argc, char *argv[])
                                 "does not meet its conformance requirements).");
   g_option_context_set_description (context,
                                     "Report bugs to: <" PACKAGE_BUGREPORT ">\n"
-                                    "GstPEAQ home page: <http://ant.hsu-hh.de/gstpeaq>");
+                                    PACKAGE_NAME " home page: <http://ant.hsu-hh.de/gstpeaq>");
   if (!g_option_context_parse (context, &argc, &argv, &error)) {
     g_print ("Failed to initialize: %s\n", error->message);
     g_error_free (error);
