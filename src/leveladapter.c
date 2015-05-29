@@ -1,5 +1,6 @@
 /* GstPEAQ
- * Copyright (C) 2006, 2013, 2015 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2006, 2007, 2012, 2013, 2015
+ * Martin Holters <martin.holters@hsu-hh.de>
  *
  * level.c: Level and pattern adaptation.
  *

@@ -1,6 +1,6 @@
 /* GstPEAQ
- * Copyright (C) 2006, 2007, 2011, 2012, 2013, 2015
- * Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2006, 2007, 2011, 2012, 2013, 2014, 2015
+ * Martin Holters <martin.holters@hsu-hh.de>
  *
  * earmodel.c: Peripheral ear model part.
  *

@@ -1,6 +1,6 @@
 /* GstPEAQ
- * Copyright (C) 2006, 2007, 2010, 2011, 2012, 2013, 2014
- * Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2006, 2007, 2010, 2011, 2012, 2013, 2014, 2015
+ * Martin Holters <martin.holters@hsu-hh.de>
  *
  * gstpeaq.c: Compute objective audio quality measures
  *
@@ -248,7 +248,7 @@ base_init (gpointer g_class)
                                         "Perceptual evaluation of audio quality",
                                         "Sink/Audio",
                                         "Compute objective audio quality measures",
-                                        "Martin Holters <martin.holters@hsuhh.de>");
+                                        "Martin Holters <" PACKAGE_BUGREPORT ">");
 
   element_class->query = query;
   element_class->change_state = change_state;

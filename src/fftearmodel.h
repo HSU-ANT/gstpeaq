@@ -1,5 +1,6 @@
 /* GstPEAQ
- * Copyright (C) 2006, 2011, 2013 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2006, 2011, 2013, 2014, 2015
+ * Martin Holters <martin.holters@hsu-hh.de>
  *
  * fftearmodel.h: FFT-based peripheral ear model part.
  *

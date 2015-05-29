@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2013 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2013, 2015 Martin Holters <martin.holters@hsu-hh.de>
  *
  * fbearmodel.h: Filer bank-based peripheral ear model part.
  *

@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2006, 2015 Martin Holters <martin.holters@hsuhh.de>
+ * Copyright (C) 2006, 2014, 2015 Martin Holters <martin.holters@hsu-hh.de>
  *
  * gstpeaqplugin.c: stubs for the peaq plugin
  *
