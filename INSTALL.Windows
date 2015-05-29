@@ -1,0 +1,26 @@
+GstPEAQ - Installation instructions for Windows platform
+--------------------------------------------------------
+
+Prerequisites:
+* A C compiler that supports C99. For Microsoft Visual Studio, this means
+  version 2013 or newer.
+* GStreamer 0.10 and its dependencies. This is best obtained as the GStreamer
+  SDK from http://docs.gstreamer.com/display/GstSDK/Installing+on+Windows where
+  it is available as an installable MSI package.
+
+Compilation:
+If using Microsoft Visual Studio 2013 (or newer), the easiest way to compile
+GstPEAQ is to use the solution/projects in the vs directory. Provided the
+GStreamer SDK development files have been properly installed, compilation
+should work out of the box.
+
+Installation:
+The created gstpeaq.dll has to be placed in one of the directories where
+GStreamer looks for plugins. For the GStreamer SDK, these are
+* %HOMEDRIVE%%HOMEFOLDER%/.gstreamer-0.10/plugins
+* C:\gstreamer-sdk\0.10\x86\lib\gstreamer-0.10
+* <location of libgstreamer-0.10-0.dll>\..\lib\gstreamer-0.10
+* %GST_PLUGIN_PATH%
+Alternatively, the --gst--plugin-load option may be used to explicitly specify
+the location of the gstpeaq.dll.
+Note that the location of the GStreamer DLLs has to be contained in the %PATH%.
