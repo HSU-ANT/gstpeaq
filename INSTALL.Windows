@@ -21,6 +21,6 @@ GStreamer looks for plugins. For the GStreamer SDK, these are
 * C:\gstreamer-sdk\0.10\x86\lib\gstreamer-0.10
 * <location of libgstreamer-0.10-0.dll>\..\lib\gstreamer-0.10
 * %GST_PLUGIN_PATH%
-Alternatively, the --gst--plugin-load option may be used to explicitly specify
+Alternatively, the --gst-plugin-load option may be used to explicitly specify
 the location of the gstpeaq.dll.
 Note that the location of the GStreamer DLLs has to be contained in the %PATH%.
