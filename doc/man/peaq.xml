@@ -29,6 +29,14 @@
 <arg choice="req"><replaceable>REFFILE</replaceable></arg>
 <arg choice="req"><replaceable>TESTFILE</replaceable></arg>
 	</cmdsynopsis>
+	<cmdsynopsis>
+	<command>peaq</command>
+<arg><option>--version</option></arg>
+	</cmdsynopsis>
+	<cmdsynopsis>
+	<command>peaq</command>
+<arg><option>--help</option></arg>
+	</cmdsynopsis>
 </refsynopsisdiv>
 <refsect1>
 	<title>Description</title>
@@ -93,6 +101,22 @@
 		<listitem>
 			<para>
 				Use advanced version of the PEAQ algorithm.
+			</para>
+		</listitem>
+	</varlistentry>
+	<varlistentry>
+		<term><option>--version</option></term>
+		<listitem>
+			<para>
+				Print version information and exit.
+			</para>
+		</listitem>
+	</varlistentry>
+	<varlistentry>
+		<term><option>--help</option></term>
+		<listitem>
+			<para>
+				Print usage summary and exit.
 			</para>
 		</listitem>
 	</varlistentry>
