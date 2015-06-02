@@ -152,20 +152,56 @@ main(int argc, char *argv[])
   gst_object_unref (bus);
 
   peaq = gst_element_factory_make ("peaq", "peaq");
+  if (!peaq) {
+    puts ("Error: peaq element could not be instantiated - is the plugin installed correctly?");
+    exit (2);
+  }
   gst_object_ref (peaq);
   gst_object_sink (peaq);
   g_object_set (G_OBJECT (peaq), "advanced", advanced,
                 "console_output", FALSE, NULL);
   ref_source = gst_element_factory_make ("filesrc", "ref_file-source");
+  if (!ref_source) {
+    puts ("Error: filesrc element could not be instantiated");
+    exit (2);
+  }
   ref_parser = gst_element_factory_make ("wavparse", "ref_wav-parser");
+  if (!ref_parser) {
+    puts ("Error: wavparse element could not be instantiated");
+    exit (2);
+  }
   g_object_set (G_OBJECT (ref_source), "location", reffilename, NULL);
   ref_converter = gst_element_factory_make ("audioconvert", "ref-converter");
+  if (!ref_converter) {
+    puts ("Error: audioconvert element could not be instantiated");
+    exit (2);
+  }
   ref_resample = gst_element_factory_make ("audioresample", "ref-resampler");
+  if (!ref_resample) {
+    puts ("Error: audioresample element could not be instantiated");
+    exit (2);
+  }
   test_source = gst_element_factory_make ("filesrc", "test_file-source");
+  if (!test_source) {
+    puts ("Error: filesrc element could not be instantiated");
+    exit (2);
+  }
   test_parser = gst_element_factory_make ("wavparse", "test_wav-parser");
+  if (!test_parser) {
+    puts ("Error: wavparse element could not be instantiated");
+    exit (2);
+  }
   g_object_set (G_OBJECT (test_source), "location", testfilename, NULL);
   test_converter = gst_element_factory_make ("audioconvert", "test-converter");
+  if (!test_converter) {
+    puts ("Error: audioconvert element could not be instantiated");
+    exit (2);
+  }
   test_resample = gst_element_factory_make ("audioresample", "test-resampler");
+  if (!test_resample) {
+    puts ("Error: audioresample element could not be instantiated");
+    exit (2);
+  }
 
   g_signal_connect (ref_parser, "pad-added", G_CALLBACK (new_pad),
                     gst_element_get_static_pad (ref_converter, "sink"));
