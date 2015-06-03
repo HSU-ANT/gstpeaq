@@ -23,6 +23,12 @@
  * SECTION:movs
  * @short_description: Model output variable calculation.
  * @title: MOVs
+ *
+ * The functions herein are used to calculate the model output variables
+ * (MOVs). They have to be called once per frame and use one or more given
+ * #PeaqMovAccum instances to accumulate the MOV. Note that the #PeaqMovAccum
+ * instances have to be set up correctly to perform the correct type of
+ * accumulation.
  */
 
 #include "movs.h"
@@ -247,6 +253,103 @@ peaq_mov_modulation_difference (PeaqModulationProcessor* const *ref_mod_proc,
   }
 }
 
+/**
+ * peaq_mov_noise_loudness:
+ * @ref_mod_proc: Modulation processors of the reference signal (one per
+ * channel).
+ * @test_mod_proc: Modulation processors of the test signal (one per channel).
+ * @level: Level adapters (one per channel).
+ * @mov_accum: Accumulator for the RmsNoiseLoudB MOV.
+ *
+ * Calculates the RmsNoiseLoudB model output variable as
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>NL</mi><mo>=</mo>
+ *   <mfrac><mn>24</mn><mi>Z</mi></mfrac>
+ *   <mo>&InvisibleTimes;</mo>
+ *   <munderover>
+ *     <mo>&sum;</mo>
+ *     <mrow><mi>k</mi><mo>=</mo><mn>0</mn></mrow>
+ *     <mrow><mi>Z</mi><mo>-</mo><mn>1</mn></mrow>
+ *   </munderover>
+ *   <msup>
+ *     <mfenced>
+ *       <mfrac>
+ *         <mrow>
+ *           <msub><mi>E</mi><mi>Thres</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *         </mrow>
+ *         <mrow>
+ *           <msub><mi>s</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *         </mrow>
+ *       </mfrac>
+ *     </mfenced>
+ *     <mn>0.23</mn>
+ *   </msup>
+ *   <mfenced>
+ *     <mrow>
+ *       <msup>
+ *         <mfenced>
+ *           <mrow>
+ *             <mn>1</mn>
+ *             <mo>+</mo>
+ *             <mfrac>
+ *               <mrow>
+ *                 <mi>max</mi>
+ *                 <mfenced>
+ *                   <mrow>
+ *                     <msub><mi>s</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                     <mo>&sdot;</mo>
+ *                     <msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Test</mi></mrow></msub>
+ *                     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                     <mo>-</mo>
+ *                     <msub><mi>s</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                     <mo>&sdot;</mo>
+ *                     <msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub>
+ *                     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                   </mrow>
+ *                   <mn>0</mn>
+ *                 </mfenced>
+ *               </mrow>
+ *               <mrow>
+ *                 <msub><mi>E</mi><mi>Thres</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                 <mo>+</mo>
+ *                 <msub><mi>s</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                 <mo>&sdot;</mo>
+ *                 <msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub>
+ *                 <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                 <mo>&sdot;</mo>
+ *                 <mi>&beta;</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *               </mrow>
+ *             </mfrac>
+ *           </mrow>
+ *         </mfenced>
+ *         <mn>0.23</mn>
+ *       </msup>
+ *       <mo>-</mo>
+ *       <mn>1</mn>
+ *     </mrow>
+ *   </mfenced>
+ * </math></informalequation> 
+ * where <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mi>Thres</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation> 
+ * is the internal ear noise as returned by peaq_earmodel_get_internal_noise(), <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>
+ * and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Test</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>
+ * are the spectrally adapted patterns of the reference and test signal as
+ * returned by peaq_leveladapter_get_adapted_ref() and
+ * peaq_leveladapter_get_adapted_test(), respectively, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>s</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>=</mo><mn>0.15</mn><mo>&sdot;</mo><msub><mi>Mod</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>+</mo><mn>0.5</mn>
+ * </math></inlineequation> 
+ * and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>s</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>=</mo><mn>0.15</mn><mo>&sdot;</mo><msub><mi>Mod</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>+</mo><mn>0.5</mn>
+ * </math></inlineequation> 
+ * are computed from the modulation <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>Mod</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>
+ * and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>Mod</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>
+ * of the test and reference signal, respectively, as obtained with
+ * peaq_modulationprocessor_get_modulation() and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>&beta;</mi><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>=</mo><mi>exp</mi><mfenced><mrow><mn>-1.5</mn><mo>&sdot;</mo><mfenced><mrow><msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Test</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>-</mo><msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced><mo>/</mo><msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced>
+ * </math></inlineequation>.
+ * If the resulting noise loudness is negative, it is set to zero.
+ */
 void
 peaq_mov_noise_loudness (PeaqModulationProcessor * const *ref_mod_proc,
                          PeaqModulationProcessor * const *test_mod_proc,
@@ -267,6 +370,183 @@ peaq_mov_noise_loudness (PeaqModulationProcessor * const *ref_mod_proc,
   }
 }
 
+/**
+ * peaq_mov_noise_loud_asym:
+ * @ref_mod_proc: Modulation processors of the reference signal (one per
+ * channel).
+ * @test_mod_proc: Modulation processors of the test signal (one per channel).
+ * @level: Level adapters (one per channel).
+ * @mov_accum: Accumulator for the RmsNoiseLoudAsymA MOV.
+ *
+ * Calculates the RmsNoiseLoudAsymA model output variable as <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>NL</mi><mi>Asym</mi></msub><mo>=</mo><mi>NL</mi><mo>+</mo><mn>0.5</mn><mo>&sdot;</mo><mi>MC</mi>
+ * </math></inlineequation> 
+ * where
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>NL</mi><mo>=</mo>
+ *   <mfrac><mn>24</mn><mi>Z</mi></mfrac>
+ *   <mo>&InvisibleTimes;</mo>
+ *   <munderover>
+ *     <mo>&sum;</mo>
+ *     <mrow><mi>k</mi><mo>=</mo><mn>0</mn></mrow>
+ *     <mrow><mi>Z</mi><mo>-</mo><mn>1</mn></mrow>
+ *   </munderover>
+ *   <msup>
+ *     <mfenced>
+ *       <mfrac>
+ *         <mrow>
+ *           <msub><mi>E</mi><mi>Thres</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *         </mrow>
+ *         <mrow>
+ *           <msub><mi>s</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *         </mrow>
+ *       </mfrac>
+ *     </mfenced>
+ *     <mn>0.23</mn>
+ *   </msup>
+ *   <mfenced>
+ *     <mrow>
+ *       <msup>
+ *         <mfenced>
+ *           <mrow>
+ *             <mn>1</mn>
+ *             <mo>+</mo>
+ *             <mfrac>
+ *               <mrow>
+ *                 <mi>max</mi>
+ *                 <mfenced>
+ *                   <mrow>
+ *                     <msub><mi>s</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                     <mo>&sdot;</mo>
+ *                     <msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Test</mi></mrow></msub>
+ *                     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                     <mo>-</mo>
+ *                     <msub><mi>s</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                     <mo>&sdot;</mo>
+ *                     <msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub>
+ *                     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                   </mrow>
+ *                   <mn>0</mn>
+ *                 </mfenced>
+ *               </mrow>
+ *               <mrow>
+ *                 <msub><mi>E</mi><mi>Thres</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                 <mo>+</mo>
+ *                 <msub><mi>s</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                 <mo>&sdot;</mo>
+ *                 <msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub>
+ *                 <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                 <mo>&sdot;</mo>
+ *                 <mi>&beta;</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *               </mrow>
+ *             </mfrac>
+ *           </mrow>
+ *         </mfenced>
+ *         <mn>0.23</mn>
+ *       </msup>
+ *       <mo>-</mo>
+ *       <mn>1</mn>
+ *     </mrow>
+ *   </mfenced>
+ * </math></informalequation> 
+ * with <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>s</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>=</mo><mn>0.3</mn><mo>&sdot;</mo><msub><mi>Mod</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>+</mo><mn>1</mn>
+ * </math></inlineequation>, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>s</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>=</mo><mn>0.3</mn><mo>&sdot;</mo><msub><mi>Mod</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>+</mo><mn>1</mn>
+ * </math></inlineequation>,
+ * and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>&beta;</mi><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>=</mo><mi>exp</mi><mfenced><mrow><mn>-2.5</mn><mo>&sdot;</mo><mfenced><mrow><msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Test</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>-</mo><msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced><mo>/</mo><msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced>
+ * </math></inlineequation> and
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>MC</mi><mo>=</mo>
+ *   <mfrac><mn>24</mn><mi>Z</mi></mfrac>
+ *   <mo>&InvisibleTimes;</mo>
+ *   <munderover>
+ *     <mo>&sum;</mo>
+ *     <mrow><mi>k</mi><mo>=</mo><mn>0</mn></mrow>
+ *     <mrow><mi>Z</mi><mo>-</mo><mn>1</mn></mrow>
+ *   </munderover>
+ *   <msup>
+ *     <mfenced>
+ *       <mfrac>
+ *         <mrow>
+ *           <msub><mi>E</mi><mi>Thres</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *         </mrow>
+ *         <mrow>
+ *           <msub><mi>s</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *         </mrow>
+ *       </mfrac>
+ *     </mfenced>
+ *     <mn>0.23</mn>
+ *   </msup>
+ *   <mfenced>
+ *     <mrow>
+ *       <msup>
+ *         <mfenced>
+ *           <mrow>
+ *             <mn>1</mn>
+ *             <mo>+</mo>
+ *             <mfrac>
+ *               <mrow>
+ *                 <mi>max</mi>
+ *                 <mfenced>
+ *                   <mrow>
+ *                     <msub><mi>s</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                     <mo>&sdot;</mo>
+ *                     <msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub>
+ *                     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                     <mo>-</mo>
+ *                     <msub><mi>s</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                     <mo>&sdot;</mo>
+ *                     <msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Test</mi></mrow></msub>
+ *                     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                   </mrow>
+ *                   <mn>0</mn>
+ *                 </mfenced>
+ *               </mrow>
+ *               <mrow>
+ *                 <msub><mi>E</mi><mi>Thres</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                 <mo>+</mo>
+ *                 <msub><mi>s</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                 <mo>&sdot;</mo>
+ *                 <msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Test</mi></mrow></msub>
+ *                 <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                 <mo>&sdot;</mo>
+ *                 <mi>&beta;</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *               </mrow>
+ *             </mfrac>
+ *           </mrow>
+ *         </mfenced>
+ *         <mn>0.23</mn>
+ *       </msup>
+ *       <mo>-</mo>
+ *       <mn>1</mn>
+ *     </mrow>
+ *   </mfenced>
+ * </math></informalequation> 
+ * with <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>s</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>=</mo><mn>0.15</mn><mo>&sdot;</mo><msub><mi>Mod</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>+</mo><mn>1</mn>
+ * </math></inlineequation>, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>s</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>=</mo><mn>0.15</mn><mo>&sdot;</mo><msub><mi>Mod</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>+</mo><mn>1</mn>
+ * </math></inlineequation>,
+ * and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>&beta;</mi><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>=</mo><mi>exp</mi><mfenced><mrow><mn>-1.5</mn><mo>&sdot;</mo><mfenced><mrow><msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>-</mo><msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Test</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced><mo>/</mo><msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Test</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced>
+ * </math></inlineequation>
+ * where <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mi>Thres</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation> 
+ * is the internal ear noise as returned by peaq_earmodel_get_internal_noise(), <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>
+ * and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Test</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>
+ * are the spectrally adapted patterns of the reference and test signal as
+ * returned by peaq_leveladapter_get_adapted_ref() and
+ * peaq_leveladapter_get_adapted_test(), respectively, and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>Mod</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>
+ * and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>Mod</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>
+ * are the modulation of the test and reference signal, respectively, as
+* obtained with peaq_modulationprocessor_get_modulation()
+ * If MC is negative, it is set to zero. Likewise, if NL is less than 0.1, it
+ * is set to zero.
+ *
+ * Note: If #SWAP_MOD_PATTS_FOR_NOISE_LOUDNESS_MOVS is not set, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>Mod</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>
+ * and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>Mod</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation> have to be exchanged in the calculation of MC.
+ */
 void
 peaq_mov_noise_loud_asym (PeaqModulationProcessor * const *ref_mod_proc,
                           PeaqModulationProcessor * const *test_mod_proc,
@@ -296,6 +576,105 @@ peaq_mov_noise_loud_asym (PeaqModulationProcessor * const *ref_mod_proc,
   }
 }
 
+/**
+ * peaq_mov_lin_dist:
+ * @ref_mod_proc: Modulation processors of the reference signal (one per
+ * channel).
+ * @test_mod_proc: Modulation processors of the test signal (one per channel).
+ * @level: Level adapters (one per channel).
+ * @state: States of the reference signal ear model (one per channels).
+ * @mov_accum: Accumulator for the AvgLinDistA MOV.
+ *
+ * Calculates the AvgLinDistA model output variable as
+ * <informalequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mi>LD</mi><mo>=</mo>
+ *   <mfrac><mn>24</mn><mi>Z</mi></mfrac>
+ *   <mo>&InvisibleTimes;</mo>
+ *   <munderover>
+ *     <mo>&sum;</mo>
+ *     <mrow><mi>k</mi><mo>=</mo><mn>0</mn></mrow>
+ *     <mrow><mi>Z</mi><mo>-</mo><mn>1</mn></mrow>
+ *   </munderover>
+ *   <msup>
+ *     <mfenced>
+ *       <mfrac>
+ *         <mrow>
+ *           <msub><mi>E</mi><mi>Thres</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *         </mrow>
+ *         <mrow>
+ *           <msub><mi>s</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *         </mrow>
+ *       </mfrac>
+ *     </mfenced>
+ *     <mn>0.23</mn>
+ *   </msup>
+ *   <mfenced>
+ *     <mrow>
+ *       <msup>
+ *         <mfenced>
+ *           <mrow>
+ *             <mn>1</mn>
+ *             <mo>+</mo>
+ *             <mfrac>
+ *               <mrow>
+ *                 <mi>max</mi>
+ *                 <mfenced>
+ *                   <mrow>
+ *                     <msub><mi>s</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                     <mo>&sdot;</mo>
+ *                     <msub><mi>E</mi><mi>Ref</mi></msub>
+ *                     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                     <mo>-</mo>
+ *                     <msub><mi>s</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                     <mo>&sdot;</mo>
+ *                     <msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub>
+ *                     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                   </mrow>
+ *                   <mn>0</mn>
+ *                 </mfenced>
+ *               </mrow>
+ *               <mrow>
+ *                 <msub><mi>E</mi><mi>Thres</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                 <mo>+</mo>
+ *                 <msub><mi>s</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                 <mo>&sdot;</mo>
+ *                 <msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub>
+ *                 <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *                 <mo>&sdot;</mo>
+ *                 <mi>&beta;</mi><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *               </mrow>
+ *             </mfrac>
+ *           </mrow>
+ *         </mfenced>
+ *         <mn>0.23</mn>
+ *       </msup>
+ *       <mo>-</mo>
+ *       <mn>1</mn>
+ *     </mrow>
+ *   </mfenced>
+ * </math></informalequation> 
+ * where <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mi>Thres</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation> 
+ * is the internal ear noise as returned by peaq_earmodel_get_internal_noise(), <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>
+ * are the spectrally adapted patterns of the reference signal as returned by
+ * peaq_leveladapter_get_adapted_ref(), <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mi>Ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>
+ * are the excitation patterns of the reference signal as returned by
+ * peaq_earmodel_get_excitation(), <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>s</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>=</mo><msub><mi>s</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>=</mo><mn>0.15</mn><mo>&sdot;</mo><msub><mi>Mod</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>+</mo><mn>1</mn>
+ * </math></inlineequation> 
+ * are computed from the modulation <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>Mod</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>
+ * of the reference signal as obtained with
+ * peaq_modulationprocessor_get_modulation() and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>&beta;</mi><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>=</mo><mi>exp</mi><mfenced><mrow><mn>-1.5</mn><mo>&sdot;</mo><mfenced><mrow><msub><mi>E</mi><mi>Ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced><mo>-</mo><msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced><mo>/</mo><msub><mi>E</mi><mrow><mi>P</mi><mo>,</mo><mi>Ref</mi></mrow></msub><mfenced open="[" close="]"><mi>k</mi></mfenced></mrow></mfenced>
+ * </math></inlineequation>.
+ * If the resulting linear distortion measure is negative, it is set to zero.
+ *
+ * Note: If #SWAP_MOD_PATTS_FOR_NOISE_LOUDNESS_MOVS is not set, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>Mod</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>
+ * is used to calculate <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>s</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
+ * </math></inlineequation>.
+ */
 void
 peaq_mov_lin_dist (PeaqModulationProcessor * const *ref_mod_proc,
                    PeaqModulationProcessor * const *test_mod_proc,
