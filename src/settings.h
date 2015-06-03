@@ -25,6 +25,12 @@
  * @short_description: Settings controlling behaviour not sufficiently
  * specified in the standard.
  * @title: Compile time settings
+ *
+ * Unfortunately, <xref linkend="BS1387" /> is in some aspects underspecified
+ * or inconstent. Additionally, <xref linkend="Kabal03" /> proposes a few
+ * reasonable deviations from the exact wording of <xref linkend="BS1387" />.
+ * To facillitate easy exploration of the alternatives, they can be chosen
+ * using the preprocessor macros defined herein.
  */
 
 /**
