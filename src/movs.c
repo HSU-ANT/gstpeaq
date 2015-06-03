@@ -732,7 +732,7 @@ calc_noise_loudness (gdouble alpha, gdouble thres_fac, gdouble S0,
     /* (68) in [BS1387] */
     gdouble beta = exp (-alpha * (ep_test - ep_ref) / ep_ref);
     /* (66) in [BS1387] */
-    noise_loudness += pow (1. / stest * ethres, 0.23) *
+    noise_loudness += pow (ethres / stest, 0.23) *
       (pow (1. + MAX (stest * ep_test - sref * ep_ref, 0.) /
 	    (ethres + sref * ep_ref * beta), 0.23) - 1.);
   }
