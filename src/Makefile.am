@@ -3,6 +3,7 @@ bin_PROGRAMS = peaq
 check_PROGRAMS = testpeaq 
 EXTRA_DIST = runtest.sh
 TESTS = testpeaq runtest.sh
+AM_TESTS_ENVIRONMENT=GSTLAUNCH=@GSTLAUNCH@; export GSTLAUNCH;
 noinst_HEADERS = gstpeaq.h earmodel.h leveladapter.h \
 	modpatt.h fftearmodel.h fbearmodel.h movaccum.h movs.h nn.h settings.h
 libgstpeaq_la_SOURCES = gstpeaq.c gstpeaqplugin.c earmodel.c \

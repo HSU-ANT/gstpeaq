@@ -27,6 +27,11 @@ AC_FUNC_MALLOC
 PKG_CHECK_MODULES(PKGCONF, [gstreamer-0.10 >= 0.10.14 gstreamer-base-0.10 >= 0.10.11 gstreamer-fft-0.10 >= 0.10.15])
 PKG_CHECK_MODULES(PKGCONF_BIN, [gstreamer-0.10])
 
+AC_ARG_VAR(GSTLAUNCH, [name of the gst-launch tool])
+AC_CHECK_PROGS(GSTLAUNCH, [gst-launch-0.10 gst-launch], [:])
+AM_CONDITIONAL(NO_GSTLAUNCH, [test $GSTLAUNCH = :])
+AM_COND_IF(NO_GSTLAUNCH, [AC_WARN([gst-launch not found, cannot run all tests])])
+
 GST_SET_PLUGINDIR
 
 GTK_DOC_CHECK([1.10],[--flavour no-tmpl])
