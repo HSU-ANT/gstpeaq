@@ -256,10 +256,10 @@
 				"GCC_PREPROCESSOR_DEFINITIONS[arch=*]" = (
 					"$(inherited)",
 					"PACKAGE_URL=\\\"http://ant.hsu-hh.de/gstpeaq\\\"",
-					"PACKAGE_STRING=\"\\\"GstPEAQ 0.4.1\\\"\"",
+					"PACKAGE_STRING=\"\\\"GstPEAQ 0.5\\\"\"",
 					"PACKAGE=\\\"gstpeaq\\\"",
 					"PACKAGE_NAME=\\\"GstPEAQ\\\"",
-					"PACKAGE_VERSION=\\\"0.4.1\\\"",
+					"PACKAGE_VERSION=\\\"0.5\\\"",
 					"PACKAGE_BUGREPORT=\\\"martin.holters@hsu-hh.de\\\"",
 				);
 				HEADER_SEARCH_PATHS = (
@@ -277,10 +277,10 @@
 				"GCC_PREPROCESSOR_DEFINITIONS[arch=*]" = (
 					"$(inherited)",
 					"PACKAGE_URL=\\\"http://ant.hsu-hh.de/gstpeaq\\\"",
-					"PACKAGE_STRING=\"\\\"GstPEAQ 0.4.1\\\"\"",
+					"PACKAGE_STRING=\"\\\"GstPEAQ 0.5\\\"\"",
 					"PACKAGE=\\\"gstpeaq\\\"",
 					"PACKAGE_NAME=\\\"GstPEAQ\\\"",
-					"PACKAGE_VERSION=\\\"0.4.1\\\"",
+					"PACKAGE_VERSION=\\\"0.5\\\"",
 					"PACKAGE_BUGREPORT=\\\"martin.holters@hsu-hh.de\\\"",
 				);
 				HEADER_SEARCH_PATHS = (
