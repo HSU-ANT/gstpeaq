@@ -74,12 +74,14 @@ my_bus_callback (GstBus * bus, GstMessage * message, gpointer data)
   return TRUE;
 }
 
+#if GST_VERSION_MAJOR < 1
 static void
 new_pad (GstElement * element, GstPad * pad, gpointer data)
 {
   GstPad *sinkpad = GST_PAD (data);
   gst_pad_link (pad, sinkpad);
 }
+#endif
 
 int
 main(int argc, char *argv[])
@@ -145,8 +147,12 @@ main(int argc, char *argv[])
   loop = g_main_loop_new (NULL, FALSE);
 
   pipeline = gst_pipeline_new ("pipeline");
+#if GST_VERSION_MAJOR < 1
   gst_object_ref (pipeline);
   gst_object_sink (pipeline);
+#else
+  gst_object_ref_sink (pipeline);
+#endif
   GstBus *bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   gst_bus_add_watch (bus, my_bus_callback, NULL);
   gst_object_unref (bus);
@@ -156,8 +162,12 @@ main(int argc, char *argv[])
     puts ("Error: peaq element could not be instantiated - is the plugin installed correctly?");
     exit (2);
   }
+#if GST_VERSION_MAJOR < 1
   gst_object_ref (peaq);
   gst_object_sink (peaq);
+#else
+  gst_object_ref_sink (peaq);
+#endif
   g_object_set (G_OBJECT (peaq), "advanced", advanced,
                 "console_output", FALSE, NULL);
   ref_source = gst_element_factory_make ("filesrc", "ref_file-source");
@@ -203,10 +213,12 @@ main(int argc, char *argv[])
     exit (2);
   }
 
+#if GST_VERSION_MAJOR < 1
   g_signal_connect (ref_parser, "pad-added", G_CALLBACK (new_pad),
                     gst_element_get_static_pad (ref_converter, "sink"));
   g_signal_connect (test_parser, "pad-added", G_CALLBACK (new_pad),
                     gst_element_get_static_pad (test_converter, "sink"));
+#endif
 
   gst_bin_add_many (GST_BIN (pipeline), 
                     ref_source, ref_parser, ref_converter, ref_resample,
@@ -214,9 +226,15 @@ main(int argc, char *argv[])
                     peaq,
                     NULL);
   gst_element_link (ref_source, ref_parser);
+#if GST_VERSION_MAJOR >= 1
+  gst_element_link (ref_parser, ref_converter);
+#endif
   gst_element_link (ref_converter, ref_resample);
   gst_element_link_pads (ref_resample, "src", peaq, "ref");
   gst_element_link (test_source, test_parser);
+#if GST_VERSION_MAJOR >= 1
+  gst_element_link (test_parser, test_converter);
+#endif
   gst_element_link (test_converter, test_resample);
   gst_element_link_pads (test_resample, "src", peaq, "test");
 
