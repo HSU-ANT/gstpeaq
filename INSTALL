@@ -31,6 +31,10 @@ but --with-gstreamer=0.10 or --with-gstreamer=1.0 may be used to enforce a
 specific API version to use.
 
 For active development of GstPEAQ, the --enable-gtk-doc and --enable-man
-options of configure may be useful to enable rebuilding of the documentation.
+options of configure may be useful to enable rebuilding of the documentation,
+as well as the --with-conformance-dataset=DIR option that enables verification
+of the conformance results if the required WAV files (to be obtained from the
+ITU) are provided in the given directory.
+
 Further documentation of the build process is left to the autotools
 documentation.

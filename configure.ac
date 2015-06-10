@@ -49,12 +49,21 @@ AS_IF([test "x$with_gstreamer" = "x0.10"],
 AC_SUBST(GST_API_VERSION)
 PKG_CHECK_MODULES(PKGCONF_BIN, [gstreamer-$GST_API_VERSION])
 
+GST_SET_PLUGINDIR
+
 AC_ARG_VAR(GSTLAUNCH, [name of the gst-launch tool])
 AC_CHECK_PROGS(GSTLAUNCH, [gst-launch-$GST_API_VERSION gst-launch], [:])
 AS_IF([test "x$GSTLAUNCH" = "x:"],
       [AC_WARN([gst-launch not found, cannot run all tests])])
 
-GST_SET_PLUGINDIR
+AC_ARG_WITH([conformance-dataset],
+	    [AC_HELP_STRING([--with-conformance-dataset=DIR],
+			    [use BS.1367 conformance testing files at DIR])],
+	    [],
+	    [with_conformance_dataset="no"])
+AS_IF([test "x$with_conformance_dataset" != xno],
+      [CONFORMANCEDATADIR=`cd $with_conformance_dataset && pwd`
+       AC_SUBST(CONFORMANCEDATADIR)])
 
 GTK_DOC_CHECK([1.10],[--flavour no-tmpl])
 

@@ -1,0 +1,64 @@
+<table frame="none" id="conformance_basic_table">
+	<title>Conformance test results for the basic version.</title>
+	<tgroup cols='4' align='right' colsep='1' rowsep='1'>
+		<colspec align='left' />
+		<thead>
+			<row>
+				<entry>Item</entry>
+				<entry>Reference DI</entry>
+				<entry>Actual DI</entry>
+				<entry>Difference</entry>
+			</row>
+		</thead>
+		<tbody>
+			<row>
+				<entry>acodsna</entry><entry>1.304</entry><entry>1.297</entry><entry>-.007</entry>
+			</row>
+			<row>
+				<entry>bcodtri</entry><entry>1.949</entry><entry>2.030</entry><entry>.081</entry>
+			</row>
+			<row>
+				<entry>ccodsax</entry><entry>0.048</entry><entry>0.105</entry><entry>.057</entry>
+			</row>
+			<row>
+				<entry>ecodsmg</entry><entry>1.731</entry><entry>1.829</entry><entry>.098</entry>
+			</row>
+			<row>
+				<entry>fcodsb1</entry><entry>0.677</entry><entry>0.732</entry><entry>.055</entry>
+			</row>
+			<row>
+				<entry>fcodtr1</entry><entry>1.419</entry><entry>1.498</entry><entry>.079</entry>
+			</row>
+			<row>
+				<entry>fcodtr2</entry><entry>-0.045</entry><entry>0.085</entry><entry>.130</entry>
+			</row>
+			<row>
+				<entry>fcodtr3</entry><entry>-0.715</entry><entry>-0.561</entry><entry>.154</entry>
+			</row>
+			<row>
+				<entry>gcodcla</entry><entry>1.781</entry><entry>1.830</entry><entry>.049</entry>
+			</row>
+			<row>
+				<entry>icodsna</entry><entry>-3.029</entry><entry>-2.958</entry><entry>.071</entry>
+			</row>
+			<row>
+				<entry>kcodsme</entry><entry>3.093</entry><entry>3.132</entry><entry>.039</entry>
+			</row>
+			<row>
+				<entry>lcodhrp</entry><entry>1.041</entry><entry>1.108</entry><entry>.067</entry>
+			</row>
+			<row>
+				<entry>lcodpip</entry><entry>1.973</entry><entry>2.664</entry><entry>.691</entry>
+			</row>
+			<row>
+				<entry>mcodcla</entry><entry>-0.436</entry><entry>-0.359</entry><entry>.077</entry>
+			</row>
+			<row>
+				<entry>ncodsfe</entry><entry>3.135</entry><entry>3.101</entry><entry>-.034</entry>
+			</row>
+			<row>
+				<entry>scodclv</entry><entry>1.689</entry><entry>1.739</entry><entry>.050</entry>
+			</row>
+		</tbody>
+	</tgroup>
+</table>

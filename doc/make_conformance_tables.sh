@@ -4,7 +4,7 @@ runpeaq() {
 	MODE=$1
 	CODFILE=$2
 	REFFILE=${CODFILE/cod/ref}
-	OUTPUT=`LANG=LC_ALL ${BASEDIR}/peaq --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=${BASEDIR}/.libs/libgstpeaq.so \
+	OUTPUT=`LANG=LC_ALL ${BASEDIR}/../src/peaq --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=${BASEDIR}/../src/.libs/libgstpeaq.so \
 		${MODE} "${REFFILE}" "$CODFILE"`
 	DI=`echo "$OUTPUT" | grep "Distortion Index:" | cut -d " " -f3`
 	DI_DELTA=`echo $DI - $3 | bc`
@@ -14,10 +14,7 @@ runpeaq() {
 	echo $ITEM "DI: " $DI "(should be $3, diff: $DI_DELTA)" "ODG: " $ODG "(should be $4, diff: $ODG_DELTA)"
 	cat >>${XML_FILE} <<EOF
 			<row>
-				<entry>${ITEM}</entry>
-				<entry>${3}</entry>
-				<entry>${DI}</entry>
-				<entry>${DI_DELTA}</entry>
+				<entry>${ITEM}</entry><entry>${3}</entry><entry>${DI}</entry><entry>${DI_DELTA}</entry>
 			</row>
 EOF
 	ODG_DELTA_SUM=`echo $ODG_DELTA_SUM + $ODG_DELTA | bc`
@@ -29,14 +26,18 @@ EOF
 
 BASEDIR=`dirname $0`
 
-DATADIR="${BASEDIR}/../BS.1387-ConformanceDatabase"
+DATADIR=`grep CONFORMANCEDATADIR ${BASEDIR}/Makefile | cut -f 3 -d " "`
+if [ "x$DATADIR" == x ]; then
+	echo "CONFORMANCEDATADIR not set, cannot evaluate conformance."
+	exit 0
+fi
 if [ ! -d $DATADIR ]; then
-	echo "Reference data not found, conformance test NOT run."
+	echo "Reference data not found, cannot evaluate conformance."
 	exit 0
 fi
 
 
-XML_FILE="${BASEDIR}/../doc/conformance_basic_table.xml"
+XML_FILE="${BASEDIR}/conformance_basic_table.xml"
 cat >${XML_FILE} <<EOF
 <table frame="none" id="conformance_basic_table">
 	<title>Conformance test results for the basic version.</title>
@@ -84,7 +85,7 @@ cat >>${XML_FILE} <<EOF
 </table>
 EOF
 
-XML_FILE="${BASEDIR}/../doc/conformance_advanced_table.xml"
+XML_FILE="${BASEDIR}/conformance_advanced_table.xml"
 cat >${XML_FILE} <<EOF
 <table frame="none" id="conformance_advanced_table">
 	<title>Conformance test results for the advanced version.</title>
