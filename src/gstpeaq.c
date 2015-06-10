@@ -454,6 +454,7 @@ finalize (GObject * object)
     GST_ELEMENT_CLASS (g_type_class_peek_parent (g_type_class_peek
                                                  (GST_TYPE_PEAQ)));
   GstPeaq *peaq = GST_PEAQ (object);
+  free_per_channel_data (peaq);
   g_object_unref (peaq->ref_adapter_fft);
   g_object_unref (peaq->test_adapter_fft);
   g_object_unref (peaq->ref_adapter_fb);
@@ -704,6 +705,10 @@ do_processing (GstPeaq *peaq, GstAdapter *ref_adapter, GstAdapter *test_adapter,
     gfloat *testframe = (gfloat *) gst_adapter_map (test_adapter, frame_size_bytes);
 #endif
     process_block (peaq, refframe, testframe);
+#if GST_VERSION_MAJOR >= 1
+    gst_adapter_unmap (ref_adapter);
+    gst_adapter_unmap (test_adapter);
+#endif
     gst_adapter_flush (ref_adapter, step_size_bytes);
     gst_adapter_flush (test_adapter, step_size_bytes);
   }
@@ -886,6 +891,10 @@ do_flush (GstPeaq *peaq, GstAdapter *ref_adapter, GstAdapter *test_adapter,
     g_memmove (padded_test_frame, testframe, test_data_count);
     memset (((char *) padded_test_frame) + test_data_count, 0,
             frame_size_bytes - test_data_count);
+#if GST_VERSION_MAJOR >= 1
+    gst_adapter_unmap (ref_adapter);
+    gst_adapter_unmap (test_adapter);
+#endif
     process_block (peaq, padded_ref_frame, padded_test_frame);
     gst_adapter_flush (ref_adapter, ref_data_count);
     gst_adapter_flush (test_adapter, test_data_count);

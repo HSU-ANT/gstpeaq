@@ -227,12 +227,16 @@ init (GTypeInstance *obj, gpointer klass)
 static void
 finalize (GObject *obj)
 {
+  PeaqEarModelClass *parent_class = 
+    PEAQ_EARMODEL_CLASS (g_type_class_peek_parent (g_type_class_peek
+                                                   (PEAQ_TYPE_FILTERBANKEARMODEL)));
   PeaqFilterbankEarModel *model = PEAQ_FILTERBANKEARMODEL (obj);
   guint band;
   for (band = 0; band < 40; band++) {
     g_free (model->fbh_re[band]);
     g_free (model->fbh_im[band]);
   }
+  G_OBJECT_CLASS (parent_class)->finalize (obj);
 }
 
 static gdouble
