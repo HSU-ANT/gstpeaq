@@ -21,8 +21,8 @@ sufficiently small such that it should still provide an alternative to
 listening tests just as good as implementations conforming to ITU-R BS.1387-1
 do.
 
-GstPEAQ comes as a GStreamer 0.10 plugin providing an element named "peaq".
-The element has two sink pads, "ref" and "test" for reference and test signal,
+GstPEAQ comes as a GStreamer plugin providing an element named "peaq". The
+element has two sink pads, "ref" and "test" for reference and test signal,
 respectively. The computed ODG can be obtained by reading the "odg" property.
 For the common case that reference and test signal are available as WAV files,
 a command line utility "peaq" is provided that can simply be invoked as

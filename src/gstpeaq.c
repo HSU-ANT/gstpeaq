@@ -45,7 +45,7 @@
  * "test.wav", the following will calculate the basic version objective
  * difference grade and print the result to the console:
  * |[
- * gst-launch-0.10 \
+ * gst-launch \
  *   filesrc location="ref.wav" \! wavparse \! audioconvert name=refsrc \
  *   filesrc location="test.wav" \! wavparse \! audioconvert name=testsrc \
  *   peaq name=peaq \

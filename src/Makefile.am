@@ -2,7 +2,7 @@ plugin_LTLIBRARIES = libgstpeaq.la
 bin_PROGRAMS = peaq 
 check_PROGRAMS = testpeaq 
 EXTRA_DIST = runtest.sh
-TESTS = testpeaq runtest.sh
+TESTS = testpeaq runtest-@GST_API_VERSION@.sh
 AM_TESTS_ENVIRONMENT=GSTLAUNCH=@GSTLAUNCH@; export GSTLAUNCH;
 noinst_HEADERS = gstpeaq.h earmodel.h leveladapter.h \
 	modpatt.h fftearmodel.h fbearmodel.h movaccum.h movs.h nn.h settings.h

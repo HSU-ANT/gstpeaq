@@ -4,7 +4,8 @@ GstPEAQ - Installation instructions for Mac OS X platform
 Prerequisites:
 * GStreamer 0.10 and its dependencies. This is best obtained as the GStreamer
   SDK from http://docs.gstreamer.com/display/GstSDK/Installing+on+Mac+OS+X
-  where it is available as an installable PKG package.
+  where it is available as an installable PKG package. (Building against
+  GStreamer 1.0 may work but has not been tested.)
 
 Compilation:
 The recommended way to compile GstPEAQ is to use the XCode project in the xcode

@@ -6,7 +6,8 @@ Prerequisites:
   version 2013 or newer.
 * GStreamer 0.10 and its dependencies. This is best obtained as the GStreamer
   SDK from http://docs.gstreamer.com/display/GstSDK/Installing+on+Windows where
-  it is available as an installable MSI package.
+  it is available as an installable MSI package. (Building against
+  GStreamer 1.0 may work but has not been tested.)
 
 Compilation:
 If using Microsoft Visual Studio 2013 (or newer), the easiest way to compile
