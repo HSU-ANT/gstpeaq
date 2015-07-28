@@ -38,7 +38,6 @@
 #include <math.h>
 
 #include "leveladapter.h"
-#include "gstpeaq.h"
 
 /**
  * PeaqLevelAdapterClass:
