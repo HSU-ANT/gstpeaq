@@ -57,7 +57,7 @@ struct _PeaqLevelAdapterClass
  */
 struct _PeaqLevelAdapter
 {
-  GObjectClass parent;
+  GObject parent;
   PeaqEarModel *ear_model;
   gdouble *ear_time_constants;
   gdouble *ref_filtered_excitation;

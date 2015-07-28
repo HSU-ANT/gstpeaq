@@ -99,7 +99,7 @@ struct _PeaqMovAccum
  * The opaque PeaqMovAccum structure.
  */
 {
-  GObjectClass parent;
+  GObject parent;
   Status status;
   PeaqMovAccumMode mode;
   guint channels;

@@ -56,7 +56,7 @@ struct _PeaqModulationProcessorClass
  */
 struct _PeaqModulationProcessor
 {
-  GObjectClass parent;
+  GObject parent;
   PeaqEarModel *ear_model;
   gdouble *ear_time_constants;
   gdouble *previous_loudness;
