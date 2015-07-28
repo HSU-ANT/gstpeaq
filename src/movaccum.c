@@ -277,25 +277,25 @@ realloc_data (PeaqMovAccum *acc, guint old_channels)
       case MODE_AVG_LOG:
       case MODE_RMS:
       case MODE_ADB:
-        acc->data[c] = g_new0 (Fraction, acc->channels);
-        acc->data_saved[c] = g_new0 (Fraction, acc->channels);
+        acc->data[c] = g_new0 (Fraction, 1);
+        acc->data_saved[c] = g_new0 (Fraction, 1);
         break;
       case MODE_RMS_ASYM:
-        acc->data[c] = g_new0 (TwinFraction, acc->channels);
-        acc->data_saved[c] = g_new0 (TwinFraction, acc->channels);
+        acc->data[c] = g_new0 (TwinFraction, 1);
+        acc->data_saved[c] = g_new0 (TwinFraction, 1);
         break;
       case MODE_AVG_WINDOW:
         {
-          acc->data[c] = g_new0 (WinAvgData, acc->channels);
-          acc->data_saved[c] = g_new0 (Fraction, acc->channels);
+          acc->data[c] = g_new0 (WinAvgData, 1);
+          acc->data_saved[c] = g_new0 (Fraction, 1);
           guint i;
           for (i = 0; i < 3; i++)
             ((WinAvgData *) acc->data[c])->past_sqrts[i] = NAN;
         }
         break;
       case MODE_FILTERED_MAX:
-        acc->data[c] = g_new0 (FiltMaxData, acc->channels);
-        acc->data_saved[c] = g_new0 (FiltMaxData, acc->channels);
+        acc->data[c] = g_new0 (FiltMaxData, 1);
+        acc->data_saved[c] = g_new0 (FiltMaxData, 1);
         break;
     }
 }
