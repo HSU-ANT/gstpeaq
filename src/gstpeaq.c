@@ -1086,6 +1086,7 @@ process_fft_block_basic (GstPeaq *peaq, gfloat *refdata, gfloat *testdata)
   peaq_mov_prob_detect(peaq->fft_ear_model,
                        peaq->ref_fft_ear_state,
                        peaq->test_fft_ear_state,
+                       peaq->channels,
                        peaq->mov_accum[MOVBASIC_ADB],
                        peaq->mov_accum[MOVBASIC_MFPD]);
 

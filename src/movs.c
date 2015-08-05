@@ -1221,7 +1221,8 @@ peaq_mov_nmr (PeaqFFTEarModel const *ear_model, const gpointer *ref_state,
  */
 void
 peaq_mov_prob_detect (PeaqEarModel const *ear_model, const gpointer *ref_state,
-                      const gpointer *test_state, PeaqMovAccum *mov_accum_adb,
+                      const gpointer *test_state, guint channels,
+                      PeaqMovAccum *mov_accum_adb,
                       PeaqMovAccum *mov_accum_mfpd)
 {
   guint c;
@@ -1232,7 +1233,7 @@ peaq_mov_prob_detect (PeaqEarModel const *ear_model, const gpointer *ref_state,
   for (i = 0; i < band_count; i++) {
     gdouble detection_probability = 0.;
     gdouble detection_steps = 0.;
-    for (c = 0; c < peaq_movaccum_get_channels (mov_accum_adb); c++) {
+    for (c = 0; c < channels; c++) {
       gdouble const *ref_excitation =
         peaq_earmodel_get_excitation (ear_model, ref_state[c]);
       gdouble const *test_excitation =
