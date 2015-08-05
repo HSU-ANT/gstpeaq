@@ -218,13 +218,13 @@ peaq_leveladapter_set_ear_model (PeaqLevelAdapter *level,
 /**
  * peaq_leveladapter_process:
  * @level: The #PeaqLevelAdapter.
- * @ref_exciation: The excitation patterns of the reference signal
+ * @ref_excitation: The excitation patterns of the reference signal
  * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mi>Ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
  * in <xref linkend="BS1387" />, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mover accent="true"><mi>E</mi><mo>~</mo></mover><mi>sR</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
- * @test_exciation: The excitation patterns of the test signal
+ * @test_excitation: The excitation patterns of the test signal
  * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>E</mi><mi>Test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>
  * in <xref linkend="BS1387" />, <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mover accent="true"><mi>E</mi><mo>~</mo></mover><mi>sT</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
@@ -234,7 +234,7 @@ peaq_leveladapter_set_ear_model (PeaqLevelAdapter *level,
  * Performs the actual level and pattern adaptation as described in 
  * section 3.1 of <xref linkend="BS1387" /> and section 4.1 of <xref
  * linkend="Kabal03" />. The number of elements in the input data
- * @ref_exciation and @test_exciation as well as in the preallocated output
+ * @ref_excitation and @test_excitation as well as in the preallocated output
  * data @spectrally_adapted_ref_patterns and @spectrally_adapted_test_patterns
  * has to match the number of bands specified by the underlying #PeaqEarModel
  * as set with peaq_leveladapter_set_ear_model() or upon construction with
@@ -242,8 +242,8 @@ peaq_leveladapter_set_ear_model (PeaqLevelAdapter *level,
  */
 void
 peaq_leveladapter_process (PeaqLevelAdapter *level,
-                           gdouble const *ref_exciation,
-			   gdouble const *test_exciation)
+                           gdouble const *ref_excitation,
+			   gdouble const *test_excitation)
 {
   guint band_count, k;
   gdouble num, den;
@@ -264,11 +264,11 @@ peaq_leveladapter_process (PeaqLevelAdapter *level,
     /* (42) in [BS1387], (56) in [Kabal03] */
     level->ref_filtered_excitation[k] =
       level->ear_time_constants[k] * level->ref_filtered_excitation[k] +
-      (1 - level->ear_time_constants[k]) * ref_exciation[k];
+      (1 - level->ear_time_constants[k]) * ref_excitation[k];
     /* (43) in [BS1387], (56) in [Kabal03] */
     level->test_filtered_excitation[k]
       = level->ear_time_constants[k] * level->test_filtered_excitation[k]
-      + (1 - level-> ear_time_constants[k]) * test_exciation[k];
+      + (1 - level-> ear_time_constants[k]) * test_excitation[k];
     /* (45) in [BS1387], (57) in [Kabal03] */
     num +=
       sqrt (level->ref_filtered_excitation[k] *
@@ -277,16 +277,16 @@ peaq_leveladapter_process (PeaqLevelAdapter *level,
   }
   lev_corr = num * num / (den * den);
   if (lev_corr > 1) {
-    levcorr_test_excitation = test_exciation;
+    levcorr_test_excitation = test_excitation;
     for (k = 0; k < band_count; k++)
       /* (46) in [BS1387], (58) in [Kabal03] */
-      levcorr_excitation[k] = ref_exciation[k] / lev_corr;
+      levcorr_excitation[k] = ref_excitation[k] / lev_corr;
     levcorr_ref_excitation = levcorr_excitation;
   } else {
-    levcorr_ref_excitation = ref_exciation;
+    levcorr_ref_excitation = ref_excitation;
       /* (47) in [BS1387], (58) in [Kabal03] */
     for (k = 0; k < band_count; k++)
-      levcorr_excitation[k] = test_exciation[k] * lev_corr;
+      levcorr_excitation[k] = test_excitation[k] * lev_corr;
     levcorr_test_excitation = levcorr_excitation;
   }
   for (k = 0; k < band_count; k++) {
