@@ -1370,7 +1370,7 @@ peaq_mov_ehs (PeaqEarModel const *ear_model, gpointer *ref_state,
   gint channels = peaq_movaccum_get_channels(mov_accum);
 
   guint frame_size = peaq_earmodel_get_frame_size (ear_model);
-  gdouble ehs_valid = FALSE;
+  gboolean ehs_valid = FALSE;
   for (chan = 0; chan < channels; chan++) {
     if (peaq_fftearmodel_is_energy_threshold_reached (ref_state[chan]) ||
         peaq_fftearmodel_is_energy_threshold_reached (test_state[chan]))

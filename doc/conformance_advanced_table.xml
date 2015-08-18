@@ -15,7 +15,7 @@
 				<entry>acodsna</entry><entry>1.632</entry><entry>1.600</entry><entry>-.032</entry>
 			</row>
 			<row>
-				<entry>bcodtri</entry><entry>2.000</entry><entry>1.979</entry><entry>-.021</entry>
+				<entry>bcodtri</entry><entry>2.000</entry><entry>1.978</entry><entry>-.022</entry>
 			</row>
 			<row>
 				<entry>ccodsax</entry><entry>0.567</entry><entry>0.474</entry><entry>-.093</entry>
@@ -24,34 +24,34 @@
 				<entry>ecodsmg</entry><entry>1.594</entry><entry>1.592</entry><entry>-.002</entry>
 			</row>
 			<row>
-				<entry>fcodsb1</entry><entry>1.039</entry><entry>0.809</entry><entry>-.230</entry>
+				<entry>fcodsb1</entry><entry>1.039</entry><entry>0.819</entry><entry>-.220</entry>
 			</row>
 			<row>
-				<entry>fcodtr1</entry><entry>1.555</entry><entry>1.508</entry><entry>-.047</entry>
+				<entry>fcodtr1</entry><entry>1.555</entry><entry>1.506</entry><entry>-.049</entry>
 			</row>
 			<row>
-				<entry>fcodtr2</entry><entry>0.162</entry><entry>0.062</entry><entry>-.100</entry>
+				<entry>fcodtr2</entry><entry>0.162</entry><entry>0.061</entry><entry>-.101</entry>
 			</row>
 			<row>
-				<entry>fcodtr3</entry><entry>-0.783</entry><entry>-0.301</entry><entry>.482</entry>
+				<entry>fcodtr3</entry><entry>-0.783</entry><entry>-0.282</entry><entry>.501</entry>
 			</row>
 			<row>
-				<entry>gcodcla</entry><entry>1.457</entry><entry>1.368</entry><entry>-.089</entry>
+				<entry>gcodcla</entry><entry>1.457</entry><entry>1.369</entry><entry>-.088</entry>
 			</row>
 			<row>
-				<entry>icodsna</entry><entry>-2.510</entry><entry>-2.434</entry><entry>.076</entry>
+				<entry>icodsna</entry><entry>-2.510</entry><entry>-2.430</entry><entry>.080</entry>
 			</row>
 			<row>
-				<entry>kcodsme</entry><entry>2.765</entry><entry>2.792</entry><entry>.027</entry>
+				<entry>kcodsme</entry><entry>2.765</entry><entry>2.797</entry><entry>.032</entry>
 			</row>
 			<row>
-				<entry>lcodhrp</entry><entry>1.538</entry><entry>1.336</entry><entry>-.202</entry>
+				<entry>lcodhrp</entry><entry>1.538</entry><entry>1.331</entry><entry>-.207</entry>
 			</row>
 			<row>
 				<entry>lcodpip</entry><entry>2.149</entry><entry>2.089</entry><entry>-.060</entry>
 			</row>
 			<row>
-				<entry>mcodcla</entry><entry>0.430</entry><entry>-0.150</entry><entry>-.580</entry>
+				<entry>mcodcla</entry><entry>0.430</entry><entry>-0.148</entry><entry>-.578</entry>
 			</row>
 			<row>
 				<entry>ncodsfe</entry><entry>3.163</entry><entry>3.125</entry><entry>-.038</entry>

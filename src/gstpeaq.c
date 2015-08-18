@@ -675,7 +675,7 @@ set_caps (GstPad *pad, GstCaps *caps)
   gst_structure_get_int (gst_caps_get_structure (caps, 0),
                          "channels", &(peaq->channels));
   for (i = 0; i < COUNT_MOV_BASIC; i++)
-    if (i == MOVBASIC_ADB || i == MOVBASIC_MFPD)
+    if (!peaq->advanced && (i == MOVBASIC_ADB || i == MOVBASIC_MFPD))
       peaq_movaccum_set_channels (peaq->mov_accum[i], 1);
     else
       peaq_movaccum_set_channels (peaq->mov_accum[i], peaq->channels);
