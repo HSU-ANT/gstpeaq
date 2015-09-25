@@ -6,22 +6,29 @@ Prerequisites:
   version 2013 or newer.
 * GStreamer 0.10 and its dependencies. This is best obtained as the GStreamer
   SDK from http://docs.gstreamer.com/display/GstSDK/Installing+on+Windows where
-  it is available as an installable MSI package. (Building against
-  GStreamer 1.0 may work but has not been tested.)
+  it is available as an installable MSI package.
+  --- OR ---
+  GStreamer 1.0 and its dependencies. This is best obtained from 
+  http://gstreamer.freedesktop.org/download/ where it is available as
+  installable MSI packages.
 
 Compilation:
 If using Microsoft Visual Studio 2013 (or newer), the easiest way to compile
-GstPEAQ is to use the solution/projects in the vs directory. Provided the
-GStreamer SDK development files have been properly installed, compilation
-should work out of the box.
+GstPEAQ is to use the solutions/projects in the vs directory, where the
+trailing version number in the file names indicates the GStreamer version to
+build against. Provided the GStreamer development files have been properly
+installed, compilation should work out of the box.
 
 Installation:
 The created gstpeaq.dll has to be placed in one of the directories where
-GStreamer looks for plugins. For the GStreamer SDK, these are
-* %HOMEDRIVE%%HOMEFOLDER%/.gstreamer-0.10/plugins
+GStreamer looks for plugins. For the GStreamer 0.10 SDK, these are
+* %HOMEDRIVE%%HOMEFOLDER%\.gstreamer-0.10\plugins
 * C:\gstreamer-sdk\0.10\x86\lib\gstreamer-0.10
 * <location of libgstreamer-0.10-0.dll>\..\lib\gstreamer-0.10
-* %GST_PLUGIN_PATH%
+and for GStreamer 1.0 these are
+* %HOMEDRIVE%%HOMEFOLDER%\AppData\Local\gstreamer-1.0\plugins
+* C:\gstreamer\1.0\x86\lib\gstreamer-1.0
+in addition to the paths specified in %GST_PLUGIN_PATH%.
 Alternatively, the --gst-plugin-load option may be used to explicitly specify
 the location of the gstpeaq.dll.
 Note that the location of the GStreamer DLLs has to be contained in the %PATH%.
