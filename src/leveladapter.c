@@ -234,8 +234,7 @@ peaq_leveladapter_set_ear_model (PeaqLevelAdapter *level,
  * Performs the actual level and pattern adaptation as described in 
  * section 3.1 of <xref linkend="BS1387" /> and section 4.1 of <xref
  * linkend="Kabal03" />. The number of elements in the input data
- * @ref_excitation and @test_excitation as well as in the preallocated output
- * data @spectrally_adapted_ref_patterns and @spectrally_adapted_test_patterns
+ * @ref_excitation and @test_excitation
  * has to match the number of bands specified by the underlying #PeaqEarModel
  * as set with peaq_leveladapter_set_ear_model() or upon construction with
  * peaq_leveladapter_new().

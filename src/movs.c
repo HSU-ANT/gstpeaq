@@ -1028,6 +1028,7 @@ peaq_mov_nmr (PeaqFFTEarModel const *ear_model, const gpointer *ref_state,
  * @test_state belong.
  * @ref_state: Ear model states for the reference signal.
  * @test_state: Ear model states for the test signal.
+ * @channels: Number of audio channels being processed.
  * @mov_accum_adb: Accumulator for the ADBB MOV.
  * @mov_accum_mfpd: Accumulator for the MFPDB MOV.
  *
