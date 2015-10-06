@@ -1,0 +1,9 @@
+Version 0.6
+===========
+
+Important user visible changes:
+* Two bugs were fixed where only the first channel of the audio data was used
+  during MOV computation. This did change the results on the conformance
+  dataset a little bit.
+* Both Gstreamer API versions 0.10 and 1.0 are now supported (to be chosen at
+  compile time).
