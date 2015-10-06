@@ -24,7 +24,7 @@ docheck() {
 		REF_DI=${ITEM:8}
 		DI=`LANG=LC_ALL ${PEAQ} --${MODE} "${REFFILE}" "$CODFILE" | grep "Distortion Index:" | cut -d " " -f3`
 		echo -n $ITEMNAME $DI $REF_DI
-		if [ $DI = $REF_DI ]; then
+		if [ x$DI = x$REF_DI ]; then
 			echo " OK"
 		else
 			echo " FAILED"
