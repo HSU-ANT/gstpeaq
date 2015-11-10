@@ -1,0 +1,10 @@
+.deps/
+.libs/
+*.log
+*.trs
+libgstpeaq.la
+libgstpeaq_la*.lo
+peaq
+peaq-*.o
+testpeaq
+testpeaq-*.o

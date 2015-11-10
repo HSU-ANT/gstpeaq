@@ -1,4 +1,4 @@
-./makeChangeLog.sh
+git2cl >ChangeLog
 libtoolize
 gtkdocize
 aclocal -I m4
