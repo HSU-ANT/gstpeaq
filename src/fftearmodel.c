@@ -298,7 +298,7 @@ get_playback_level (PeaqEarModel const *model)
 {
   PeaqFFTEarModel *fft_model = PEAQ_FFTEARMODEL (model);
   return 10. * log10 (fft_model->level_factor *
-                      (GAMMA / 4 * (FFT_FRAMESIZE - 1) / FFT_FRAMESIZE));
+                      8. / 3. * (GAMMA / 4 * (FFT_FRAMESIZE - 1)) * (GAMMA / 4 * (FFT_FRAMESIZE - 1)));
 }
 
 static void
