@@ -1,3 +1,10 @@
+Version 0.6.1
+=============
+
+Bugfix release: The playback-level property reported a wrong value when read.
+Setting it to a specfic value worked corectly; also the default was correctly
+set to 92dB (although it was incorrectly reported as 28.24dB).
+
 Version 0.6
 ===========
 
