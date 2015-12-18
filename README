@@ -19,7 +19,10 @@ following anchor points:
 Although GstPEAQ does not conform to ITU-R BS.1387-1, deviations are
 sufficiently small such that it should still provide an alternative to
 listening tests just as good as implementations conforming to ITU-R BS.1387-1
-do.
+do. See M. Holters and U. Zölzer, "GstPEAQ – an Open Source Implementation of
+the PEAQ Algorithm"
+(http://www.hsu-hh.de/download-1.5.1.php?brick_id=gywLUdLoxvNqEvNJ)
+for details.
 
 GstPEAQ comes as a GStreamer plugin providing an element named "peaq". The
 element has two sink pads, "ref" and "test" for reference and test signal,
