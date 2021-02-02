@@ -33,18 +33,9 @@ plugin_init (GstPlugin * plugin)
   return gst_element_register (plugin, "peaq", GST_RANK_NONE, GST_TYPE_PEAQ);
 }
 
-#if GST_VERSION_MAJOR < 1
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-		   GST_VERSION_MINOR,
-		   "peaq",
-		   "Perceptual evaluation of audio quality",
-		   plugin_init, PACKAGE_VERSION, "LGPL",
-		   PACKAGE_NAME, PACKAGE_URL)
-#else
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
 		   GST_VERSION_MINOR,
 		   peaq,
 		   "Perceptual evaluation of audio quality",
 		   plugin_init, PACKAGE_VERSION, "LGPL",
 		   PACKAGE_NAME, PACKAGE_URL)
-#endif

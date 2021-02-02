@@ -2,11 +2,7 @@ GstPEAQ - Installation instructions for Mac OS X platform
 ---------------------------------------------------------
 
 Prerequisites:
-* GStreamer 0.10 and its dependencies. This is best obtained as the GStreamer
-  SDK from http://docs.gstreamer.com/display/GstSDK/Installing+on+Mac+OS+X
-  where it is available as an installable PKG package.
-  --- OR ---
-  GStreamer 1.0 and its dependencies. This is best obtained from
+* GStreamer 1.0 and its dependencies. This is best obtained from
   http://gstreamer.freedesktop.org/download/ 
   where it is available as a installable PKG packages.
 
@@ -17,10 +13,7 @@ installed in the default location, it should work out of the box.
 
 Installation:
 The created libgstpeaq.dylib has to be placed in one of the directories where
-GStreamer looks for plugins. For the GStreamer 0.10 SDK, these are
-* $HOME/.gstreamer-0.10/plugins/
-* /Library/Frameworks/GStreamer.framework/Versions/0.10/lib/gstreamer-0.10/
-and for GStreamer 1.0 these are
+GStreamer looks for plugins. These are
 * $HOME/.local/share/gstreamer-1.0/plugins/
 * /Library/Frameworks/GStreamer.framework/Versions/1.0/lib/gstreamer-1.0/
 in addition to any paths listed in $GST_PLUGIN_PATH.

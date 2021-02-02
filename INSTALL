@@ -8,10 +8,8 @@ make
 make install
 
 should work. However, this will place the built GStreamer plugin in the default
-location (usually /usr/local/lib/gstreamer-0.10 or
-/usr/local/lib/gstreamer-1.0, depending on the GStreamer version being built
-against) which may not be in the plugin search path. This can be overcome in
-two ways:
+location (usually /usr/local/lib/gstreamer-1.0) which may not be in the plugin
+search path. This can be overcome in two ways:
 * Add the install location to the search path by setting GST_PLUGIN_PATH or
   specifying the --gst-plugin-path command line parameter, assuming the invoked
   executable supports it (e.g. both peaq and gst-launch do).
@@ -24,11 +22,8 @@ Additionally, you may find the --with-html-dir option of configure useful to
 install the HTML documentation in a directors different from the default
 (/usr/local/share/gtk-doc/html/gstpeaq).
 
-Of course, development files of GStreamer, including the base libraries
-and the FFT library, are needed for the build. Both GStreamer API versions 0.10
-and 1.0 are supported. If both are available, configure by default prefers 1.0,
-but --with-gstreamer=0.10 or --with-gstreamer=1.0 may be used to enforce a
-specific API version to use.
+Of course, development files of GStreamer (API version 1.0), including the base
+libraries and the FFT library, are needed for the build.
 
 For active development of GstPEAQ, the --enable-gtk-doc and --enable-man
 options of configure may be useful to enable rebuilding of the documentation,

@@ -143,15 +143,6 @@ struct _GstPeaqClass
   GstElementClass parent_class;
 };
 
-#if GST_VERSION_MAJOR < 1
-#define STATIC_CAPS \
-  GST_STATIC_CAPS ( \
-		    "audio/x-raw-float, " \
-		    "rate = (int) 48000, " \
-		    "endianness = (int) BYTE_ORDER, " \
-		    "width = (int) 32" \
-		  )
-#else
 #define STATIC_CAPS \
   GST_STATIC_CAPS ( \
 		    "audio/x-raw, " \
@@ -159,7 +150,6 @@ struct _GstPeaqClass
                     "layout = interleaved," \
 		    "rate = (int) 48000 " \
 		  )
-#endif
 
 static GstStaticPadTemplate gst_peaq_ref_template =
 GST_STATIC_PAD_TEMPLATE ("ref",
@@ -184,24 +174,12 @@ static void get_property (GObject *obj, guint id, GValue *value,
                           GParamSpec *pspec);
 static void set_property (GObject *obj, guint id, const GValue *value,
                           GParamSpec *pspec);
-#if GST_VERSION_MAJOR < 1
-static GstCaps *get_caps (GstPad *pad);
-#endif
 static gboolean set_caps (GstPad *pad, GstCaps *caps);
-#if GST_VERSION_MAJOR < 1
-static GstFlowReturn pad_chain (GstPad *pad, GstBuffer *buffer);
-static gboolean pad_event (GstPad *pad, GstEvent *event);
-static gboolean query (GstElement *element, GstQuery *query);
-#else
 static GstFlowReturn pad_chain (GstPad *pad, GstObject *parent, GstBuffer *buffer);
 static gboolean pad_event (GstPad *pad, GstObject *parent, GstEvent *event);
 static gboolean pad_query (GstPad *pad, GstObject *parent, GstQuery *query);
-#endif
 static GstStateChangeReturn change_state (GstElement * element,
                                           GstStateChange transition);
-#if GST_VERSION_MAJOR < 1
-static gboolean send_event (GstElement *element, GstEvent *event);
-#endif
 static void process_fft_block_basic (GstPeaq *peaq, gfloat *refdata,
                                      gfloat *testdata);
 static void process_fft_block_advanced (GstPeaq *peaq, gfloat *refdata,
@@ -234,23 +212,6 @@ gst_peaq_get_type (void)
   return type;
 }
 
-#if GST_VERSION_MAJOR < 1
-static gboolean
-query (GstElement *element, GstQuery *query)
-{
-  GstElementClass *parent_class = 
-    GST_ELEMENT_CLASS (g_type_class_peek_parent (g_type_class_peek
-                                                 (GST_TYPE_PEAQ)));
-  switch (query->type) {
-    case GST_QUERY_LATENCY:
-      /* we are not live, no latency compensation required */
-      gst_query_set_latency (query, FALSE, 0, -1);
-      return TRUE;
-    default:
-      return parent_class->query(element, query);
-  }
-}
-#else
 static gboolean
 pad_query (GstPad *pad, GstObject *parent, GstQuery *query)
 {
@@ -281,7 +242,6 @@ pad_query (GstPad *pad, GstObject *parent, GstQuery *query)
       return gst_pad_query_default (pad, parent, query);
   }
 }
-#endif
 
 
 static void
@@ -297,19 +257,7 @@ base_init (gpointer g_class)
   pad_template = gst_static_pad_template_get (&gst_peaq_test_template);
   gst_element_class_add_pad_template (element_class, pad_template);
 
-#if GST_VERSION_MAJOR < 1
-  gst_element_class_set_details_simple (element_class,
-                                        "Perceptual evaluation of audio quality",
-                                        "Sink/Audio",
-                                        "Compute objective audio quality measures",
-                                        "Martin Holters <" PACKAGE_BUGREPORT ">");
-
-  element_class->query = query;
-#endif
   element_class->change_state = change_state;
-#if GST_VERSION_MAJOR < 1
-  element_class->send_event = send_event;
-#endif
 
   gobject_class->finalize = finalize;
 }
@@ -318,9 +266,7 @@ static void
 class_init (gpointer g_class, gpointer class_data)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (g_class);
-#if GST_VERSION_MAJOR >= 1
   GstElementClass *element_class = GST_ELEMENT_CLASS (g_class);
-#endif
 
   object_class->get_property = get_property;
   object_class->set_property = set_property;
@@ -370,13 +316,11 @@ class_init (gpointer g_class, gpointer class_data)
 							 G_PARAM_READWRITE |
 							 G_PARAM_CONSTRUCT));
 
-#if GST_VERSION_MAJOR >= 1
   gst_element_class_set_static_metadata (element_class,
                                         "Perceptual evaluation of audio quality",
                                         "Sink/Audio",
                                         "Compute objective audio quality measures",
                                         "Martin Holters <" PACKAGE_BUGREPORT ">");
-#endif
 }
 
 static void
@@ -397,12 +341,7 @@ init (GTypeInstance *obj, gpointer g_class)
   gst_object_unref (template);
   gst_pad_set_chain_function (peaq->refpad, pad_chain);
   gst_pad_set_event_function (peaq->refpad, pad_event);
-#if GST_VERSION_MAJOR < 1
-  gst_pad_set_setcaps_function (peaq->refpad, set_caps);
-  gst_pad_set_getcaps_function (peaq->refpad, get_caps);
-#else
   gst_pad_set_query_function (peaq->refpad, pad_query);
-#endif
   gst_element_add_pad (GST_ELEMENT (peaq), peaq->refpad);
 
   template = gst_static_pad_template_get (&gst_peaq_test_template);
@@ -410,19 +349,10 @@ init (GTypeInstance *obj, gpointer g_class)
   gst_object_unref (template);
   gst_pad_set_chain_function (peaq->testpad, pad_chain);
   gst_pad_set_event_function (peaq->testpad, pad_event);
-#if GST_VERSION_MAJOR < 1
-  gst_pad_set_setcaps_function (peaq->testpad, set_caps);
-  gst_pad_set_getcaps_function (peaq->testpad, get_caps);
-#else
   gst_pad_set_query_function (peaq->testpad, pad_query);
-#endif
   gst_element_add_pad (GST_ELEMENT (peaq), peaq->testpad);
 
-#if GST_VERSION_MAJOR < 1
-  GST_OBJECT_FLAG_SET (peaq, GST_ELEMENT_IS_SINK);
-#else
   GST_OBJECT_FLAG_SET (peaq, GST_ELEMENT_FLAG_SINK);
-#endif
 
   peaq->frame_counter = 0;
   peaq->frame_counter_fb = 0;
@@ -635,33 +565,6 @@ set_property (GObject *obj, guint id, const GValue *value, GParamSpec *pspec)
   }
 }
 
-#if GST_VERSION_MAJOR < 1
-static GstCaps *
-get_caps (GstPad *pad)
-{
-  GstPeaq *peaq = GST_PEAQ (gst_pad_get_parent_element (pad));
-  GstCaps *caps;
-  GstCaps *mycaps;
-  GstCaps *peercaps;
-  if (pad == peaq->refpad) {
-    mycaps = gst_static_pad_template_get_caps (&gst_peaq_ref_template);
-    peercaps = gst_pad_peer_get_caps_reffed (peaq->testpad);
-  } else {
-    mycaps = gst_static_pad_template_get_caps (&gst_peaq_test_template);
-    peercaps = gst_pad_peer_get_caps_reffed (peaq->refpad);
-  }
-  if (peercaps) {
-    caps = gst_caps_intersect (mycaps, peercaps);
-    gst_caps_unref (peercaps);
-    gst_caps_unref (mycaps);
-  } else {
-    caps = mycaps;
-  }
-  gst_object_unref (peaq);
-  return caps;
-}
-#endif
-
 static gboolean
 set_caps (GstPad *pad, GstCaps *caps)
 {
@@ -697,47 +600,21 @@ do_processing (GstPeaq *peaq, GstAdapter *ref_adapter, GstAdapter *test_adapter,
   while (gst_adapter_available (ref_adapter) >= frame_size_bytes &&
          gst_adapter_available (test_adapter) >= frame_size_bytes)
   {
-#if GST_VERSION_MAJOR < 1
-    gfloat *refframe = (gfloat *) gst_adapter_peek (ref_adapter, frame_size_bytes);
-    gfloat *testframe = (gfloat *) gst_adapter_peek (test_adapter, frame_size_bytes);
-#else
     gfloat *refframe = (gfloat *) gst_adapter_map (ref_adapter, frame_size_bytes);
     gfloat *testframe = (gfloat *) gst_adapter_map (test_adapter, frame_size_bytes);
-#endif
     process_block (peaq, refframe, testframe);
-#if GST_VERSION_MAJOR >= 1
     gst_adapter_unmap (ref_adapter);
     gst_adapter_unmap (test_adapter);
-#endif
     gst_adapter_flush (ref_adapter, step_size_bytes);
     gst_adapter_flush (test_adapter, step_size_bytes);
   }
 }
 
 static GstFlowReturn
-#if GST_VERSION_MAJOR < 1
-pad_chain (GstPad *pad, GstBuffer *buffer)
-#else
 pad_chain (GstPad *pad, GstObject *parent, GstBuffer *buffer)
-#endif
 {
-#if GST_VERSION_MAJOR < 1
-  GstElement *element = gst_pad_get_parent_element (pad);
-#else
   GstElement *element = GST_ELEMENT (parent);
-#endif
   GstPeaq *peaq = GST_PEAQ (element);
-
-#if GST_VERSION_MAJOR < 1
-  if (buffer->caps != NULL) {
-    gint channels;
-    gst_structure_get_int (gst_caps_get_structure (buffer->caps, 0),
-                           "channels", &channels);
-    if (channels != peaq->channels || peaq->channels == 0) {
-      return GST_FLOW_NOT_NEGOTIATED;
-    }
-  }
-#endif
 
   GST_OBJECT_LOCK (peaq);
 
@@ -780,29 +657,17 @@ pad_chain (GstPad *pad, GstObject *parent, GstBuffer *buffer)
 
   GST_OBJECT_UNLOCK (peaq);
 
-#if GST_VERSION_MAJOR < 1
-  gst_object_unref (peaq);
-#endif
-
   return GST_FLOW_OK;
 }
 
 static gboolean
-#if GST_VERSION_MAJOR < 1
-pad_event (GstPad *pad, GstEvent* event)
-#else
 pad_event (GstPad *pad, GstObject *parent, GstEvent* event)
-#endif
 {
   gboolean ret = FALSE;
   switch (event->type) {
     case GST_EVENT_EOS:
       {
-#if GST_VERSION_MAJOR < 1
-        GstElement *element = gst_pad_get_parent_element (pad);
-#else
         GstElement *element = GST_ELEMENT (parent);
-#endif
         GstPeaq *peaq = GST_PEAQ (element);
 
         if (pad == peaq->refpad) {
@@ -812,23 +677,15 @@ pad_event (GstPad *pad, GstObject *parent, GstEvent* event)
         }
 
         if (peaq->ref_eos && peaq->test_eos) {
-#if GST_VERSION_MAJOR < 1
-          GstMessage *msg = gst_message_new_eos (GST_OBJECT_CAST (element));
-#else
           GstMessage *msg = gst_message_new_eos (parent);
-#endif
           guint32 seqnum = gst_event_get_seqnum (event);
           gst_message_set_seqnum (msg, seqnum);
           ret = gst_element_post_message (element, msg);
         }
 
         gst_event_unref (event);
-#if GST_VERSION_MAJOR < 1
-        gst_object_unref (peaq);
-#endif
         break;
       }
-#if GST_VERSION_MAJOR >= 1
     case GST_EVENT_CAPS:
       {
         GstCaps *caps;
@@ -849,13 +706,8 @@ pad_event (GstPad *pad, GstObject *parent, GstEvent* event)
         gst_event_unref (event);
         break;
       }
-#endif
     default:
-#if GST_VERSION_MAJOR < 1
-      ret = gst_pad_event_default (pad, event);
-#else
       ret = gst_pad_event_default (pad, parent, event);
-#endif
   }
   return ret;
 }
@@ -874,27 +726,18 @@ do_flush (GstPeaq *peaq, GstAdapter *ref_adapter, GstAdapter *test_adapter,
     gfloat *padded_test_frame = g_newa (gfloat, peaq->channels * frame_size);
     guint ref_data_count = MIN (ref_data_left_count, frame_size_bytes);
     guint test_data_count = MIN (test_data_left_count, frame_size_bytes);
-#if GST_VERSION_MAJOR < 1
-    gfloat *refframe = (gfloat *) gst_adapter_peek (ref_adapter,
-                                                    ref_data_count);
-    gfloat *testframe = (gfloat *) gst_adapter_peek (test_adapter,
-                                                     test_data_count);
-#else
     gfloat *refframe = (gfloat *) gst_adapter_map (ref_adapter,
                                                    ref_data_count);
     gfloat *testframe = (gfloat *) gst_adapter_map (test_adapter,
                                                     test_data_count);
-#endif
     memmove (padded_ref_frame, refframe, ref_data_count);
     memset (((char *) padded_ref_frame) + ref_data_count, 0,
             frame_size_bytes - ref_data_count);
     memmove (padded_test_frame, testframe, test_data_count);
     memset (((char *) padded_test_frame) + test_data_count, 0,
             frame_size_bytes - test_data_count);
-#if GST_VERSION_MAJOR >= 1
     gst_adapter_unmap (ref_adapter);
     gst_adapter_unmap (test_adapter);
-#endif
     process_block (peaq, padded_ref_frame, padded_test_frame);
     gst_adapter_flush (ref_adapter, ref_data_count);
     gst_adapter_flush (test_adapter, test_data_count);
@@ -944,35 +787,8 @@ change_state (GstElement * element, GstStateChange transition)
     return GST_STATE_CHANGE_FAILURE;
   }
 
-#if GST_VERSION_MAJOR < 1
-  switch (transition) {
-    case GST_STATE_CHANGE_READY_TO_PAUSED:
-      return GST_STATE_CHANGE_ASYNC;
-    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-      if (peaq->channels == 0)
-        return GST_STATE_CHANGE_ASYNC;
-    default:
-      break;
-  }
-#endif
-
   return GST_STATE_CHANGE_SUCCESS;
 }
-
-#if GST_VERSION_MAJOR < 1
-static gboolean
-send_event (GstElement *element, GstEvent *event)
-{
-  if (event->type == GST_EVENT_LATENCY) {
-    return TRUE;
-  } else {
-    GstElementClass *parent_class = 
-      GST_ELEMENT_CLASS (g_type_class_peek_parent (g_type_class_peek
-                                                   (GST_TYPE_PEAQ)));
-    return parent_class->send_event (element, event);
-  }
-}
-#endif
 
 static void
 apply_ear_model (PeaqEarModel *model, guint channels, gfloat *data,
