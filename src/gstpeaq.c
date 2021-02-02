@@ -885,10 +885,10 @@ do_flush (GstPeaq *peaq, GstAdapter *ref_adapter, GstAdapter *test_adapter,
     gfloat *testframe = (gfloat *) gst_adapter_map (test_adapter,
                                                     test_data_count);
 #endif
-    g_memmove (padded_ref_frame, refframe, ref_data_count);
+    memmove (padded_ref_frame, refframe, ref_data_count);
     memset (((char *) padded_ref_frame) + ref_data_count, 0,
             frame_size_bytes - ref_data_count);
-    g_memmove (padded_test_frame, testframe, test_data_count);
+    memmove (padded_test_frame, testframe, test_data_count);
     memset (((char *) padded_test_frame) + test_data_count, 0,
             frame_size_bytes - test_data_count);
 #if GST_VERSION_MAJOR >= 1
