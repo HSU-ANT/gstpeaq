@@ -1,0 +1,38 @@
+
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        cc: [ gcc, clang ]
+
+    runs-on: ubuntu-latest
+
+    env:
+      CC: ${{ matrix.cc }}
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - name: install prerequisites
+      run: sudo apt-get install -y ${{ matrix.cc }} git2cl gtk-doc-tools w3-dtd-mathml libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-tools gstreamer1.0-plugins-base
+    - name: autogen
+      run: ./autogen.sh
+    - name: make
+      run: make
+    - name: make check
+      run: make check
+    - name: make distcheck
+      run: make distcheck
+    - if: ${{ matrix.cc == 'gcc' }}
+      uses: actions/upload-artifact@v2.2.1
+      with:
+        name: tarball
+        path: gstpeaq-*.tar.gz

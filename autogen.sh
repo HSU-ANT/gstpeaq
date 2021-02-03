@@ -1,4 +1,4 @@
-git2cl >ChangeLog
+git log --pretty --numstat --summary | git2cl >ChangeLog
 libtoolize
 gtkdocize
 aclocal -I m4
