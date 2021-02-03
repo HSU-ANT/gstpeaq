@@ -1,7 +1,7 @@
 plugin_LTLIBRARIES = libgstpeaq.la
 bin_PROGRAMS = peaq 
 check_PROGRAMS = testpeaq 
-EXTRA_DIST = runtest-0.10.sh runtest-1.0.sh checkconformanceresults.sh
+EXTRA_DIST = runtest-1.0.sh checkconformanceresults.sh
 TESTS = testpeaq runtest-@GST_API_VERSION@.sh checkconformanceresults.sh
 AM_TESTS_ENVIRONMENT=GSTLAUNCH=@GSTLAUNCH@; export GSTLAUNCH; CONFORMANCEDATADIR=@CONFORMANCEDATADIR@; export CONFORMANCEDATADIR;
 noinst_HEADERS = gstpeaq.h earmodel.h leveladapter.h \

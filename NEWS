@@ -1,3 +1,9 @@
+Version 0.7
+===========
+
+* Support for GStreamer API version 0.10 has been dropped; only API 1.0 (i.e.
+  GStreamer 1.x) is supported.
+
 Version 0.6.1
 =============
 

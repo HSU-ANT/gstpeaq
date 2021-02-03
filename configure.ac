@@ -22,30 +22,9 @@ AC_HEADER_STDC
 
 AC_FUNC_MALLOC
 
-AC_ARG_WITH([gstreamer],
-	    [AC_HELP_STRING([--with-gstreamer=VERSION],
-			    [choose specific GStreamer API version (0.10 or 1.0)])],
-	    [],
-	    [with_gstreamer="yes"])
-
-gstreamer_0_10_packages="gstreamer-0.10 >= 0.10.14
-			  gstreamer-base-0.10 >= 0.10.11
-			  gstreamer-fft-0.10 >= 0.10.15"
+GST_API_VERSION=1.0
 gstreamer_1_0_packages="gstreamer-1.0 gstreamer-base-1.0 gstreamer-fft-1.0"
-AS_IF([test "x$with_gstreamer" = "x0.10"],
-      [PKG_CHECK_MODULES(PKGCONF, [$gstreamer_0_10_packages],
-			 [GST_API_VERSION=0.10])],
-      [test "x$with_gstreamer" = "x1.0"],
-      [PKG_CHECK_MODULES(PKGCONF, [$gstreamer_1_0_packages],
-			 [GST_API_VERSION=1.0])],
-      [test "x$with_gstreamer" = "xyes"],
-      [PKG_CHECK_MODULES(PKGCONF, [$gstreamer_1_0_packages],
-			 [GST_API_VERSION=1.0],
-			 [PKG_CHECK_MODULES(PKGCONF, [$gstreamer_0_10_packages],
-					    [GST_API_VERSION=0.10])])],
-      [test "x$with_gstreamer" = "xno"], [
-       AC_ERROR([cannot build without GStreamer])],
-      [AC_MSG_ERROR([GStreamer API version must be 0.10 or 1.0])])
+PKG_CHECK_MODULES(PKGCONF, [$gstreamer_1_0_packages])
 AC_SUBST(GST_API_VERSION)
 PKG_CHECK_MODULES(PKGCONF_BIN, [gstreamer-$GST_API_VERSION])
 
