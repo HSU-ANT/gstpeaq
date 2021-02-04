@@ -10,19 +10,24 @@ jobs:
   linux-build:
     strategy:
       matrix:
-        cc: [ gcc, clang ]
+        include:
+          - cc: gcc
+            cxx: g++
+          - cc: clang
+            cxx: clang++
 
     runs-on: ubuntu-latest
 
     env:
       CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
 
     steps:
     - uses: actions/checkout@v2
       with:
         fetch-depth: 0
     - name: install prerequisites
-      run: sudo apt-get install -y ${{ matrix.cc }} git2cl gtk-doc-tools w3-dtd-mathml libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-tools gstreamer1.0-plugins-base
+      run: sudo apt-get install -y autoconf-archive git2cl gtk-doc-tools w3-dtd-mathml libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-tools gstreamer1.0-plugins-base
     - name: autogen
       run: ./autogen.sh
     - name: make
