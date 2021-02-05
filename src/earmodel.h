@@ -1,5 +1,5 @@
 /* GstPEAQ
- * Copyright (C) 2006, 2011, 2012, 2013, 2014, 2015
+ * Copyright (C) 2006, 2011, 2012, 2013, 2014, 2015, 2021
  * Martin Holters <martin.holters@hsu-hh.de>
  *
  * earmodel.h: Peripheral ear model part.
@@ -25,6 +25,10 @@
 #define __EARMODEL_H__ 1
 
 #include <glib-object.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define PEAQ_TYPE_EARMODEL (peaq_earmodel_get_type ())
 #define PEAQ_EARMODEL(obj) \
@@ -180,5 +184,9 @@ gdouble peaq_earmodel_calc_time_constant (PeaqEarModel const *model,
 gdouble peaq_earmodel_calc_ear_weight (gdouble frequency);
 gdouble peaq_earmodel_calc_loudness (PeaqEarModel const *model,
                                      gpointer state);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
