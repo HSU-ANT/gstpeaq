@@ -418,12 +418,12 @@ free_per_channel_data (GstPeaq *peaq)
   }
   if (peaq->ref_modulation_processor) {
     for (c = 0; c < peaq->channels; c++)
-      g_object_unref (peaq->ref_modulation_processor[c]);
+      peaq_modulationprocessor_delete(peaq->ref_modulation_processor[c]);
     g_free (peaq->ref_modulation_processor);
   }
   if (peaq->test_modulation_processor) {
     for (c = 0; c < peaq->channels; c++)
-      g_object_unref (peaq->test_modulation_processor[c]);
+      peaq_modulationprocessor_delete(peaq->test_modulation_processor[c]);
     g_free (peaq->test_modulation_processor);
   }
   if (peaq->ref_fb_ear_state) {
