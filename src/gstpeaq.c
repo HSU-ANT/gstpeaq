@@ -413,7 +413,7 @@ free_per_channel_data (GstPeaq *peaq)
   }
   if (peaq->level_adapter) {
     for (c = 0; c < peaq->channels; c++)
-      g_object_unref (peaq->level_adapter[c]);
+      peaq_leveladapter_delete (peaq->level_adapter[c]);
     g_free (peaq->level_adapter);
   }
   if (peaq->ref_modulation_processor) {
