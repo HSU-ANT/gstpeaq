@@ -392,7 +392,7 @@ finalize (GObject * object)
   g_object_unref (peaq->fft_ear_model);
   g_object_unref (peaq->fb_ear_model);
   for (i = 0; i < COUNT_MOV_BASIC; i++)
-    g_object_unref (peaq->mov_accum[i]);
+    peaq_movaccum_delete (peaq->mov_accum[i]);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
