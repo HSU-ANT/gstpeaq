@@ -19,26 +19,25 @@
  * Boston, MA 02111-1307, USA.
  */
 
-
 #ifndef __FBEARMODEL_H__
 #define __FBEARMODEL_H__ 1
 
-#include <glib-object.h>
 #include "earmodel.h"
 
 #ifdef __cplusplus
+#include <algorithm>
 #include <array>
 #include <complex>
 #include <vector>
 
 namespace peaq {
 
-class FilterbankEarModel : PeaqEarModel
+class FilterbankEarModel : public EarModelBase<FilterbankEarModel>
 {
 private:
   static constexpr std::size_t BUFFER_LENGTH = 1456;
   static constexpr std::size_t FB_NUMBANDS = 40;
-  static constexpr double SLOPE_FILTER_A = 0.993355506255034; /* exp(-32 / (48000 * 0.1)) */
+  static constexpr double SLOPE_FILTER_A = 0.99335550625034; /* exp(-32 / (48000 * 0.1)) */
   static constexpr double DIST = 0.921851456499719; /* pow(0.1,(z[39]-z[0])/(39*20)) */
   static constexpr double CL = 0.0802581846102741;  /* pow(DIST, 31) */
   /* taken from Table 8 in [BS1387] */
@@ -47,9 +46,16 @@ private:
     626,  570,  520,  472,  430,  390,  354,  320,  290,  262, 238, 214, 194, 176,
     158,  144,  130,  118,  106,  96,   86,   78,   70,   64,  58,  52
   };
+
 public:
-  static constexpr std::size_t FB_FRAMESIZE = 192;
-  struct state_t
+  static constexpr std::size_t FRAME_SIZE = 192;
+  static constexpr std::size_t STEP_SIZE = FRAME_SIZE;
+  /* see section 3.3 in [BS1387], section 4.3 in [Kabal03] */
+  static constexpr auto LOUDNESS_SCALE = 1.26539;
+  /* see section 2.2.11 in [BS1387], section 3.7 in [Kabal03] */
+  static constexpr auto TAU_MIN = 0.004;
+  static constexpr auto TAU_100 = 0.020;
+  struct state_t : EarModel::state_t
   {
     double hpfilter1_x1{};
     double hpfilter1_x2{};
@@ -65,13 +71,29 @@ public:
     std::array<double, FB_NUMBANDS> unsmeared_excitation{};
   };
   FilterbankEarModel();
-  [[nodiscard]] auto playback_level() const { return 20. * std::log10(level_factor); }
+  [[nodiscard]] double get_playback_level() const { return 20. * std::log10(level_factor); }
   void set_playback_level(double level)
   {
     /* scale factor for playback level; (27) in [BS1387], (34) in [Kabal03] */
     level_factor = std::pow(10.0, level / 20.0);
   }
-  void process_block(state_t& state, std::array<double, FB_FRAMESIZE>& sample_data) const;
+  virtual state_t* state_alloc() const override { return new state_t{}; }
+  virtual void state_free(EarModel::state_t* state) const override { delete state; }
+  void process_block(state_t& state, std::array<double, FRAME_SIZE>& sample_data) const;
+  virtual void process_block(EarModel::state_t* state, float const* samples) const override
+  {
+    std::array<double, FRAME_SIZE> data;
+    std::copy_n(samples, FRAME_SIZE, std::begin(data));
+    process_block(*reinterpret_cast<state_t*>(state), data);
+  }
+  virtual double const* get_excitation(EarModel::state_t const* state) const
+  {
+    return reinterpret_cast<state_t const*>(state)->excitation.data();
+  }
+  virtual double const* get_unsmeared_excitation(EarModel::state_t const* state) const
+  {
+    return reinterpret_cast<state_t const*>(state)->unsmeared_excitation.data();
+  }
 
 private:
   double level_factor;
@@ -108,26 +130,7 @@ typedef struct _PeaqFilterbankEarModel PeaqFilterbankEarModel;
  * excitation patterns.
  */
 
-
-#define PEAQ_TYPE_FILTERBANKEARMODEL \
-  (peaq_filterbankearmodel_get_type ())
-#define PEAQ_FILTERBANKEARMODEL(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST (obj, PEAQ_TYPE_FILTERBANKEARMODEL, \
-                               PeaqFilterbankEarModel))
-#define PEAQ_FILTERBANKEARMODEL_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST (klass, PEAQ_TYPE_FILTERBANKEARMODEL, PeaqFilterbankEarModelClass))
-#define PEAQ_FILTERBANKEARMODEL_GET_CLASS(obj) \
-  (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_FILTERBANKEARMODEL, PeaqFilterbankEarModelClass))
-
-
-/**
- * PeaqFilterbankEarModelClass:
- *
- * The opaque PeaqFilterbankEarModelClass structure.
- */
-typedef struct _PeaqFilterbankEarModelClass PeaqFilterbankEarModelClass;
-
-GType peaq_filterbankearmodel_get_type ();
+PeaqEarModel* peaq_filterbankearmodel_new();
 
 #ifdef __cplusplus
 }

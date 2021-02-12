@@ -24,62 +24,11 @@
 #endif
 
 #include "fbearmodel.h"
-#include "gstpeaq.h"
 #include "settings.h"
 
-#include <algorithm>
-#include <new>
 #include <tuple>
 
 namespace peaq {
-
-enum
-{
-  PROP_0,
-  PROP_PLAYBACK_LEVEL
-};
-
-struct FilterbankEarModelClass
-{
-  PeaqEarModelClass parent;
-  FilterbankEarModelClass();
-};
-
-static void class_init(gpointer klass, gpointer class_data);
-static void init(GTypeInstance* obj, gpointer klass);
-static void finalize(GObject* obj);
-static gdouble get_playback_level(PeaqEarModel const* model);
-static void set_playback_level(PeaqEarModel* model, double level);
-static gpointer state_alloc(PeaqEarModel const* model);
-static void state_free(PeaqEarModel const* model, gpointer state);
-static void process_block(PeaqEarModel const* model,
-                          gpointer state,
-                          gfloat const* sample_data);
-static gdouble const* get_excitation(PeaqEarModel const* model, gpointer state);
-static gdouble const* get_unsmeared_excitation(PeaqEarModel const* model, gpointer state);
-
-FilterbankEarModelClass::FilterbankEarModelClass()
-{
-  /* override finalize method */
-  G_OBJECT_CLASS(this)->finalize = finalize;
-
-  PeaqEarModelClass* ear_model_class = PEAQ_EARMODEL_CLASS(this);
-
-  ear_model_class->get_playback_level = get_playback_level;
-  ear_model_class->set_playback_level = set_playback_level;
-  ear_model_class->state_alloc = state_alloc;
-  ear_model_class->state_free = state_free;
-  ear_model_class->process_block = process_block;
-  ear_model_class->get_excitation = get_excitation;
-  ear_model_class->get_unsmeared_excitation = get_unsmeared_excitation;
-  ear_model_class->frame_size = FilterbankEarModel::FB_FRAMESIZE;
-  ear_model_class->step_size = FilterbankEarModel::FB_FRAMESIZE;
-  /* see section 3.3 in [BS1387], section 4.3 in [Kabal03] */
-  ear_model_class->loudness_scale = 1.26539;
-  /* see section 2.2.11 in [BS1387], section 3.7 in [Kabal03] */
-  ear_model_class->tau_min = 0.004;
-  ear_model_class->tau_100 = 0.020;
-}
 
 const std::array<double, 6> FilterbankEarModel::back_mask_h = [] {
   /* precompute coefficients of the backward masking filter, see section 2.2.9
@@ -94,7 +43,7 @@ const std::array<double, 6> FilterbankEarModel::back_mask_h = [] {
 
 FilterbankEarModel::FilterbankEarModel()
 {
-  GArray* fc_array = g_array_sized_new(FALSE, FALSE, sizeof(gdouble), FB_NUMBANDS);
+  auto fc_array = std::vector<double>(FB_NUMBANDS);
 
   /* precompute filter bank impulse responses */
   for (std::size_t band = 0; band < FB_NUMBANDS; band++) {
@@ -104,10 +53,10 @@ FilterbankEarModel::FilterbankEarModel()
       std::sinh((std::asinh(50.0 / 650.0) +
                  band * (std::asinh(18000.0 / 650.0) - std::asinh(50.0 / 650.0)) / 39.0)) *
       650.0;
-    g_array_append_val(fc_array, fc);
+    fc_array[band] = fc;
     auto N = filter_length[band];
     /* include outer and middle ear filtering in filter bank coefficients */
-    auto Wt = peaq_earmodel_calc_ear_weight(fc);
+    auto Wt = calc_ear_weight(fc);
     /* due to symmetry, it is sufficient to compute the first half of the
      * coefficients */
     fbh[band].resize(N / 2 + 1);
@@ -119,8 +68,8 @@ FilterbankEarModel::FilterbankEarModel()
     }
   }
 
-  g_object_set(G_OBJECT(this), "band-centers", fc_array, NULL);
-  g_array_unref(fc_array);
+  set_bands(fc_array);
+  set_playback_level(92);
 }
 
 auto FilterbankEarModel::apply_filter_bank(FilterbankEarModel::state_t const& state) const
@@ -133,8 +82,8 @@ auto FilterbankEarModel::apply_filter_bank(FilterbankEarModel::state_t const& st
     auto out = std::complex<double>{};
     /* exploit symmetry in filter responses */
     auto N_2 = N / 2;
-    auto in1 = cbegin(state.fb_buf) + D + state.fb_buf_offset;
-    auto in2 = cbegin(state.fb_buf) + D + N + state.fb_buf_offset;
+    const auto* in1 = cbegin(state.fb_buf) + D + state.fb_buf_offset;
+    const auto* in2 = cbegin(state.fb_buf) + D + N + state.fb_buf_offset;
     auto h = cbegin(fbh[band]);
     /* first filter coefficient is zero, so skip it */
     for (size_t n = 1; n < N_2; n++) {
@@ -154,11 +103,9 @@ auto FilterbankEarModel::apply_filter_bank(FilterbankEarModel::state_t const& st
 }
 
 void FilterbankEarModel::process_block(FilterbankEarModel::state_t& state,
-                                       std::array<double, FB_FRAMESIZE>& sample_data) const
+                                       std::array<double, FRAME_SIZE>& sample_data) const
 {
-  PeaqEarModel const* model = PEAQ_EARMODEL(this);
-
-  for (std::size_t k = 0; k < FB_FRAMESIZE; k++) {
+  for (std::size_t k = 0; k < FRAME_SIZE; k++) {
     /* setting of playback level; 2.2.3 in [BS1387], 3 in [Kabal03] */
     auto scaled_input = sample_data[k] * level_factor;
 
@@ -190,7 +137,7 @@ void FilterbankEarModel::process_block(FilterbankEarModel::state_t& state,
 
       /* frequency domain spreading; 2.2.7 in [BS1387], 3.4 in [Kabal03] */
       for (std::size_t band = 0; band < FB_NUMBANDS; band++) {
-        auto fc = peaq_earmodel_get_band_center_frequency(model, band);
+        auto fc = get_band_center_frequency(band);
         auto L = 10 * std::log10(std::norm(fb_out[band]));
         auto s = std::max(4.0, 24.0 + 230.0 / fc - 0.2 * L);
         auto dist_s = std::pow(DIST, s);
@@ -239,96 +186,21 @@ void FilterbankEarModel::process_block(FilterbankEarModel::state_t& state,
     E1[band] += state.E0_buf[band][5] * back_mask_h[5];
 
     /* adding of internal noise; 2.2.10 in [BS1387], 3.6 in [Kabal03] */
-    auto EThres = peaq_earmodel_get_internal_noise(model, band);
+    auto EThres = get_internal_noise(band);
     state.unsmeared_excitation[band] = E1[band] + EThres;
 
     /* time domain smearing (2) - forward masking; 2.2.11 in [BS1387], 3.7 in
      * [Kabal03] */
-    auto a = peaq_earmodel_get_ear_time_constant(model, band);
+    auto a = get_ear_time_constant(band);
 
     state.excitation[band] =
       a * state.excitation[band] + (1. - a) * state.unsmeared_excitation[band];
   }
 }
 
-static void class_init(gpointer klass, gpointer /*class_data*/)
-{
-  new (klass) FilterbankEarModelClass;
-}
-
-static void init(GTypeInstance* obj, gpointer /*klass*/)
-{
-  new (obj) FilterbankEarModel;
-}
-
-static void finalize(GObject* obj)
-{
-  PeaqEarModelClass* parent_class = PEAQ_EARMODEL_CLASS(
-    g_type_class_peek_parent(g_type_class_peek(PEAQ_TYPE_FILTERBANKEARMODEL)));
-  PEAQ_FILTERBANKEARMODEL(obj)->~FilterbankEarModel();
-  G_OBJECT_CLASS(parent_class)->finalize(obj);
-}
-
-static gdouble get_playback_level(PeaqEarModel const* model)
-{
-  return PEAQ_FILTERBANKEARMODEL(model)->playback_level();
-}
-
-static void set_playback_level(PeaqEarModel* model, double level)
-{
-  PEAQ_FILTERBANKEARMODEL(model)->set_playback_level(level);
-}
-
-static gpointer state_alloc(PeaqEarModel const* /*model*/)
-{
-  return new FilterbankEarModel::state_t{};
-}
-
-static void state_free(PeaqEarModel const* /*model*/, gpointer state)
-{
-  delete reinterpret_cast<FilterbankEarModel::state_t*>(state);
-}
-
-static void process_block(PeaqEarModel const* model,
-                          gpointer state,
-                          gfloat const* sample_data)
-{
-  std::array<double, FilterbankEarModel::FB_FRAMESIZE> data;
-  std::copy_n(sample_data, FilterbankEarModel::FB_FRAMESIZE, std::begin(data));
-  PEAQ_FILTERBANKEARMODEL(model)->process_block(*((FilterbankEarModel::state_t*)state),
-                                                data);
-}
-
-static gdouble const* get_excitation(PeaqEarModel const* /*model*/, gpointer state)
-{
-  return ((FilterbankEarModel::state_t*)state)->excitation.data();
-}
-
-static gdouble const* get_unsmeared_excitation(PeaqEarModel const* /*model*/,
-                                               gpointer state)
-{
-  return ((FilterbankEarModel::state_t*)state)->unsmeared_excitation.data();
-}
-
 } // namespace peaq
 
-extern "C" GType peaq_filterbankearmodel_get_type()
+PeaqEarModel* peaq_filterbankearmodel_new()
 {
-  static GType type = 0;
-  if (type == 0) {
-    static const GTypeInfo info = {
-      sizeof(peaq::FilterbankEarModelClass), /* class_size */
-      nullptr,                               /* base_init */
-      nullptr,                               /* base_finalize */
-      peaq::class_init,                      /* class_init */
-      nullptr,                               /* class_finalize */
-      nullptr,                               /* class_data */
-      sizeof(peaq::FilterbankEarModel),      /* instance_size */
-      0,                                     /* n_preallocs */
-      peaq::init                             /* instance_init */
-    };
-    type = g_type_register_static(
-      PEAQ_TYPE_EARMODEL, "FilterbankEarModel", &info, (GTypeFlags)0);
-  }
-  return type;
+  return new PeaqFilterbankEarModel();
 }

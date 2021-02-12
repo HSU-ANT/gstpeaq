@@ -361,8 +361,8 @@ init (GTypeInstance *obj, gpointer g_class)
   peaq->total_noise_energy = 0.;
 
   peaq->channels = 0;
-  peaq->fft_ear_model = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
-  peaq->fb_ear_model = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL, NULL);
+  peaq->fft_ear_model = peaq_fftearmodel_new();
+  peaq->fb_ear_model = peaq_filterbankearmodel_new();
 
   peaq->ref_fft_ear_state = NULL;
   peaq->test_fft_ear_state = NULL;
@@ -389,8 +389,8 @@ finalize (GObject * object)
   g_object_unref (peaq->test_adapter_fft);
   g_object_unref (peaq->ref_adapter_fb);
   g_object_unref (peaq->test_adapter_fb);
-  g_object_unref (peaq->fft_ear_model);
-  g_object_unref (peaq->fb_ear_model);
+  peaq_earmodel_delete (peaq->fft_ear_model);
+  peaq_earmodel_delete (peaq->fb_ear_model);
   for (i = 0; i < COUNT_MOV_BASIC; i++)
     peaq_movaccum_delete (peaq->mov_accum[i]);
   G_OBJECT_CLASS (parent_class)->finalize (object);
@@ -478,8 +478,7 @@ get_property (GObject *obj, guint id, GValue *value, GParamSpec *pspec)
   GstPeaq *peaq = GST_PEAQ (obj);
   switch (id) {
     case PROP_PLAYBACK_LEVEL:
-      g_object_get_property (G_OBJECT (peaq->fft_ear_model),
-			     "playback-level", value);
+      g_value_set_double (value, peaq_earmodel_get_playback_level(peaq->fft_ear_model));
       break;
     case PROP_DI:
       if (peaq->advanced)
@@ -508,10 +507,8 @@ set_property (GObject *obj, guint id, const GValue *value, GParamSpec *pspec)
   GstPeaq *peaq = GST_PEAQ (obj);
   switch (id) {
     case PROP_PLAYBACK_LEVEL:
-      g_object_set_property (G_OBJECT (peaq->fft_ear_model),
-			     "playback-level", value);
-      g_object_set_property (G_OBJECT (peaq->fb_ear_model),
-			     "playback-level", value);
+      peaq_earmodel_set_playback_level(peaq->fft_ear_model, g_value_get_double(value));
+      peaq_earmodel_set_playback_level(peaq->fb_ear_model, g_value_get_double(value));
       break;
     case PROP_MODE_ADVANCED:
       {
@@ -523,7 +520,7 @@ set_property (GObject *obj, guint id, const GValue *value, GParamSpec *pspec)
         } else {
           band_count = 109;
         }
-        g_object_set (peaq->fft_ear_model, "number-of-bands", band_count, NULL);
+        peaq_fftearmodel_set_bandcount(PEAQ_FFTEARMODEL(peaq->fft_ear_model), band_count);
         if (peaq->advanced) {
           peaq_movaccum_set_mode (peaq->mov_accum[MOVADV_RMS_MOD_DIFF],
                                   MODE_RMS);

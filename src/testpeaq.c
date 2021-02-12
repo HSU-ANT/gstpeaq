@@ -660,8 +660,8 @@ test_ear ()
   PeaqEarModel *ear;
   PeaqEarModel *fb_ear;
 
-  ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
-  fb_ear = g_object_new (PEAQ_TYPE_FILTERBANKEARMODEL, NULL);
+  ear = peaq_fftearmodel_new();
+  fb_ear = peaq_filterbankearmodel_new();
   gpointer state = peaq_earmodel_state_alloc (ear);
   gpointer fb_state = peaq_earmodel_state_alloc (fb_ear);
 
@@ -755,7 +755,7 @@ test_leveladapt ()
   gdouble const *spectrally_adapted_ref_patterns;
   gdouble const *spectrally_adapted_test_patterns;
 
-  ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
+  ear = peaq_fftearmodel_new();
 
   band_count = peaq_earmodel_get_band_count (ear);
   level = peaq_leveladapter_new (ear);
@@ -791,7 +791,7 @@ test_modulationproc ()
   PeaqEarModel *ear;
   PeaqModulationProcessor *modproc;
 
-  ear = g_object_new (PEAQ_TYPE_FFTEARMODEL, NULL);
+  ear = peaq_fftearmodel_new();
 
   modproc = peaq_modulationprocessor_new (ear);
   for (i = 0; i < 109; i++) {

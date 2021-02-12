@@ -24,6 +24,8 @@
 #include "config.h"
 #endif
 
+#include <glib.h>
+
 #include <algorithm>
 #include <cmath>
 
@@ -32,11 +34,9 @@
 namespace peaq {
 void LevelAdapter::set_ear_model(PeaqEarModel* ear_model)
 {
-  g_object_ref(ear_model);
-  this->ear_model =
-    std::unique_ptr<PeaqEarModel, decltype(&g_object_unref)>{ ear_model, g_object_unref };
+  this->ear_model = ear_model;
 
-  auto band_count = peaq_earmodel_get_band_count(ear_model);
+  auto band_count = ear_model->get_band_count();
 
   ref_filtered_excitation.resize(band_count);
   test_filtered_excitation.resize(band_count);
@@ -51,7 +51,7 @@ void LevelAdapter::set_ear_model(PeaqEarModel* ear_model)
 
   /* see section 3.1 in [BS1387], section 4.1 in [Kabal03] */
   for (std::size_t k = 0; k < band_count; k++) {
-    ear_time_constants[k] = peaq_earmodel_calc_time_constant(ear_model, k, 0.008, 0.05);
+    ear_time_constants[k] = ear_model->calc_time_constant(k, 0.008, 0.05);
   }
 #if 0
   /* [Kabal03] suggests initialization to 1, although the standard does not
@@ -66,10 +66,10 @@ void LevelAdapter::set_ear_model(PeaqEarModel* ear_model)
 
 void LevelAdapter::process(double const* ref_excitation, double const* test_excitation)
 {
-  std::size_t band_count = peaq_earmodel_get_band_count(ear_model.get());
-  auto* pattadapt_ref = g_newa(gdouble, band_count);
-  auto* pattadapt_test = g_newa(gdouble, band_count);
-  auto* levcorr_excitation = g_newa(gdouble, band_count);
+  std::size_t band_count = ear_model->get_band_count();
+  auto* pattadapt_ref = g_newa(double, band_count);
+  auto* pattadapt_test = g_newa(double, band_count);
+  auto* levcorr_excitation = g_newa(double, band_count);
 
   auto num = 0.0;
   auto den = 0.0;

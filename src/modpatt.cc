@@ -31,11 +31,9 @@
 namespace peaq {
 void ModulationProcessor::set_ear_model(PeaqEarModel* ear_model)
 {
-  g_object_ref(ear_model);
-  this->ear_model =
-    std::unique_ptr<PeaqEarModel, decltype(&g_object_unref)>{ ear_model, g_object_unref };
+  this->ear_model = ear_model;
 
-  auto band_count = peaq_earmodel_get_band_count(ear_model);
+  auto band_count = ear_model->get_band_count();
 
   previous_loudness.resize(band_count);
   filtered_loudness.resize(band_count);
@@ -44,15 +42,15 @@ void ModulationProcessor::set_ear_model(PeaqEarModel* ear_model)
   ear_time_constants.resize(band_count);
   for (size_t k = 0; k < band_count; k++) {
     /* (56) in [BS1387] */
-    ear_time_constants[k] = peaq_earmodel_calc_time_constant(ear_model, k, 0.008, 0.05);
+    ear_time_constants[k] = ear_model->calc_time_constant(k, 0.008, 0.05);
   }
 }
 
 void ModulationProcessor::process(double const* unsmeared_excitation)
 {
-  auto band_count = peaq_earmodel_get_band_count(ear_model.get());
-  auto step_size = peaq_earmodel_get_step_size(ear_model.get());
-  auto sampling_rate = peaq_earmodel_get_sampling_rate(ear_model.get());
+  auto band_count = ear_model->get_band_count();
+  auto step_size = ear_model->get_step_size();
+  auto sampling_rate = ear_model->get_sampling_rate();
   auto derivative_factor = static_cast<double>(sampling_rate) / step_size;
 
   for (std::size_t k = 0; k < band_count; k++) {

@@ -58,8 +58,7 @@ public:
   }
 
 private:
-  std::unique_ptr<PeaqEarModel, decltype(&g_object_unref)> ear_model{ nullptr,
-                                                                      g_object_unref };
+  PeaqEarModel* ear_model{};
   std::vector<double> ear_time_constants;
   std::vector<double> ref_filtered_excitation;
   std::vector<double> test_filtered_excitation;

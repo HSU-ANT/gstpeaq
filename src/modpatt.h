@@ -45,15 +45,14 @@ namespace peaq {
 class ModulationProcessor
 {
 public:
-  [[nodiscard]] auto get_ear_model() const { return ear_model.get(); }
+  [[nodiscard]] auto get_ear_model() const { return ear_model; }
   void set_ear_model(PeaqEarModel* ear_model);
   void process(double const* unsmeared_excitation);
   [[nodiscard]] const auto& get_average_loudness() const { return filtered_loudness; }
   [[nodiscard]] const auto& get_modulation() const { return modulation; }
 
 private:
-  std::unique_ptr<PeaqEarModel, decltype(&g_object_unref)> ear_model{ nullptr,
-                                                                      g_object_unref };
+  PeaqEarModel* ear_model{};
 
   std::vector<double> ear_time_constants;
   std::vector<double> previous_loudness;

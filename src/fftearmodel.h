@@ -28,18 +28,22 @@
 #include <gst/fft/gstfftf64.h>
 
 #ifdef __cplusplus
+#include <algorithm>
 #include <array>
 #include <memory>
 #include <vector>
 
 namespace peaq {
 
-struct FFTEarModel
+struct FFTEarModel : EarModelBase<FFTEarModel>
 {
-  static constexpr size_t FFT_FRAMESIZE = 2048;
+  static constexpr size_t FRAME_SIZE = 2048;
+  static constexpr size_t STEP_SIZE = FRAME_SIZE / 2;
+  static constexpr auto TAU_MIN = 0.008;
+  static constexpr auto TAU_100 = 0.030;
   static constexpr double GAMMA = 0.84971762641205;
   static constexpr double LOUDNESS_SCALE = 1.07664;
-  struct state_t
+  struct state_t : EarModel::state_t
   {
     state_t(std::size_t band_count)
       : filtered_excitation(band_count)
@@ -49,16 +53,15 @@ struct FFTEarModel
     std::vector<double> filtered_excitation;
     std::vector<double> unsmeared_excitation;
     std::vector<double> excitation;
-    std::array<double, FFT_FRAMESIZE / 2 + 1> power_spectrum;
-    std::array<double, FFT_FRAMESIZE / 2 + 1> weighted_power_spectrum;
+    std::array<double, FRAME_SIZE / 2 + 1> power_spectrum;
+    std::array<double, FRAME_SIZE / 2 + 1> weighted_power_spectrum;
     bool energy_threshold_reached;
   };
-  PeaqEarModel parent;
   FFTEarModel();
-  [[nodiscard]] auto playback_level() const
+  [[nodiscard]] double get_playback_level() const override
   {
-    return 10.0 * std::log10(level_factor * 8. / 3. * (GAMMA / 4 * (FFT_FRAMESIZE - 1)) *
-                             (GAMMA / 4 * (FFT_FRAMESIZE - 1)));
+    return 10.0 * std::log10(level_factor * 8. / 3. * (GAMMA / 4 * (FRAME_SIZE - 1)) *
+                             (GAMMA / 4 * (FRAME_SIZE - 1)));
   }
   void set_playback_level(double level)
   {
@@ -66,35 +69,53 @@ struct FFTEarModel
      * [Kabal03] except for a factor of sqrt(8/3) which is part of the Hann
      * window in [BS1387] but not in [Kabal03]; see [Kabal03] for the derivation
      * of the denominator and the meaning of GAMMA */
-    level_factor =
-      std::pow(10, level / 10.0) /
-      (8. / 3. * (GAMMA / 4 * (FFT_FRAMESIZE - 1)) * (GAMMA / 4 * (FFT_FRAMESIZE - 1)));
+    level_factor = std::pow(10, level / 10.0) / (8. / 3. * (GAMMA / 4 * (FRAME_SIZE - 1)) *
+                                                 (GAMMA / 4 * (FRAME_SIZE - 1)));
   }
+  virtual state_t* state_alloc() const override { return new state_t{ get_band_count() }; }
+  virtual void state_free(EarModel::state_t* state) const override { delete state; }
   void set_bandcount(std::size_t bandcount);
   [[nodiscard]] auto const& get_masking_difference() const { return masking_difference; }
 
-  void process_block(state_t* state,
-                     std::array<float, FFT_FRAMESIZE> const& sample_data) const;
-  void group_into_bands(std::array<double, FFT_FRAMESIZE / 2 + 1> const& spectrum,
+  void process_block(state_t& state,
+                     std::array<float, FRAME_SIZE> const& sample_data) const;
+  virtual void process_block(EarModel::state_t* state, float const* samples) const override
+  {
+    std::array<float, FRAME_SIZE> data;
+    std::copy_n(samples, FRAME_SIZE, begin(data));
+    process_block(*reinterpret_cast<state_t*>(state), data);
+  }
+  virtual double const* get_excitation(EarModel::state_t const* state) const
+  {
+    return reinterpret_cast<state_t const*>(state)->excitation.data();
+  }
+  virtual double const* get_unsmeared_excitation(EarModel::state_t const* state) const
+  {
+    return reinterpret_cast<state_t const*>(state)->unsmeared_excitation.data();
+  }
+  void group_into_bands(std::array<double, FRAME_SIZE / 2 + 1> const& spectrum,
                         double* band_power) const;
-  static auto const& get_power_spectrum(state_t const& state) {
+  static auto const& get_power_spectrum(state_t const& state)
+  {
     return state.power_spectrum;
   }
-  static auto const& get_weighted_power_spectrum(state_t const& state) {
+  static auto const& get_weighted_power_spectrum(state_t const& state)
+  {
     return state.weighted_power_spectrum;
   }
-  static auto is_energy_threshold_reached(state_t const& state) {
+  static auto is_energy_threshold_reached(state_t const& state)
+  {
     return state.energy_threshold_reached;
   }
 
 private:
   void do_spreading(double const* Pp, double* E2) const;
-  static const std::array<double, FFT_FRAMESIZE> hann_window;
+  static const std::array<double, FRAME_SIZE> hann_window;
   std::unique_ptr<GstFFTF64, decltype(&gst_fft_f64_free)> gstfft{
-    gst_fft_f64_new(FFT_FRAMESIZE, FALSE),
+    gst_fft_f64_new(FRAME_SIZE, FALSE),
     &gst_fft_f64_free
   };
-  std::array<double, FFT_FRAMESIZE / 2 + 1> outer_middle_ear_weight;
+  std::array<double, FRAME_SIZE / 2 + 1> outer_middle_ear_weight;
   double deltaZ;
   double level_factor;
   std::vector<std::size_t> band_lower_end;
@@ -144,24 +165,10 @@ typedef struct _PeaqFFTEarModel PeaqFFTEarModel;
  * <xref linkend="Kabal03" />.
  */
 
-#define PEAQ_TYPE_FFTEARMODEL (peaq_fftearmodel_get_type ())
-#define PEAQ_FFTEARMODEL(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST (obj, PEAQ_TYPE_FFTEARMODEL, PeaqFFTEarModel))
-#define PEAQ_FFTEARMODEL_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST (klass, PEAQ_TYPE_FFTEARMODEL, PeaqFFTEarModelClass))
-#define PEAQ_IS_FFTEARMODEL(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE (obj, PEAQ_TYPE_FFTEARMODEL))
-#define PEAQ_IS_FFTEARMODEL_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE (klass, PEAQ_TYPE_FFTEARMODEL))
-#define PEAQ_FFTEARMODEL_GET_CLASS(obj) \
-  (G_TYPE_INSTANCE_GET_CLASS (obj, PEAQ_TYPE_FFTEARMODEL, PeaqFFTEarModelClass))
+#define PEAQ_FFTEARMODEL(obj) ((PeaqFFTEarModel*)obj)
 
-/**
- * PeaqFFTEarModelClass:
- *
- * The opaque PeaqFFTEarModelClass structure.
- */
-typedef struct _PeaqFFTEarModelClass PeaqFFTEarModelClass;
+PeaqEarModel* peaq_fftearmodel_new();
+void peaq_fftearmodel_set_bandcount(PeaqFFTEarModel* model, unsigned int band_count);
 
 /**
  * peaq_fftearmodel_get_power_spectrum:
@@ -178,9 +185,9 @@ typedef struct _PeaqFFTEarModelClass PeaqFFTEarModelClass;
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
  */
-void peaq_fftearmodel_group_into_bands (PeaqFFTEarModel const *model,
-                                        gdouble const *spectrum,
-                                        gdouble *band_power);
+void peaq_fftearmodel_group_into_bands(PeaqFFTEarModel const* model,
+                                       gdouble const* spectrum,
+                                       gdouble* band_power);
 
 /**
  * peaq_fftearmodel_get_masking_difference:
@@ -222,8 +229,8 @@ void peaq_fftearmodel_group_into_bands (PeaqFFTEarModel const *model,
  * The pointer points to internal data of the PeaqFFTEarModel and must not be
  * freed.
  */
-gdouble const *peaq_fftearmodel_get_masking_difference (PeaqFFTEarModel const *model);
-gdouble const *peaq_fftearmodel_get_power_spectrum (gpointer state);
+gdouble const* peaq_fftearmodel_get_masking_difference(PeaqFFTEarModel const* model);
+gdouble const* peaq_fftearmodel_get_power_spectrum(gpointer state);
 
 /**
  * peaq_fftearmodel_get_weighted_power_spectrum:
@@ -241,7 +248,7 @@ gdouble const *peaq_fftearmodel_get_power_spectrum (gpointer state);
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
  */
-gdouble const *peaq_fftearmodel_get_weighted_power_spectrum (gpointer state);
+gdouble const* peaq_fftearmodel_get_weighted_power_spectrum(gpointer state);
 
 /**
  * peaq_fftearmodel_is_energy_threshold_reached:
@@ -254,8 +261,7 @@ gdouble const *peaq_fftearmodel_get_weighted_power_spectrum (gpointer state);
  *
  * Returns: TRUE if the energy threshold was reached, FALSE otherwise.
  */
-gboolean peaq_fftearmodel_is_energy_threshold_reached (gpointer state);
-GType peaq_fftearmodel_get_type ();
+gboolean peaq_fftearmodel_is_energy_threshold_reached(gpointer state);
 
 #ifdef __cplusplus
 }
