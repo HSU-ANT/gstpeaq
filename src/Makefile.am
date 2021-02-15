@@ -15,7 +15,7 @@ libgstpeaq_la_LDFLAGS = -module
 peaq_SOURCES = peaq.c
 peaq_CFLAGS = @PKGCONF_CFLAGS@
 peaq_LDADD = @PKGCONF_BIN_LIBS@
-testpeaq_SOURCES = testpeaq.c earmodel.cc leveladapter.cc modpatt.cc \
+testpeaq_SOURCES = testpeaq.cc earmodel.cc leveladapter.cc modpatt.cc \
 		   fftearmodel.cc fbearmodel.cc movaccum.cc
 testpeaq_CFLAGS = @PKGCONF_CFLAGS@
 testpeaq_CXXFLAGS = @PKGCONF_CFLAGS@

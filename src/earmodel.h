@@ -294,17 +294,6 @@ double const* peaq_earmodel_get_unsmeared_excitation(PeaqEarModel const* model,
                                                      PeaqEarModelState const* state);
 
 /**
- * peaq_earmodel_get_band_count:
- * @model: The #PeaqEarModel to obtain the number of bands of.
- *
- * Returns the number of frequency bands, i.e. the length of the array the
- * #PeaqEarModel:band-centers property was set to.
- *
- * Returns: Number of frequency bands currently used by @model.
- */
-unsigned int peaq_earmodel_get_band_count(PeaqEarModel const* model);
-
-/**
  * peaq_earmodel_get_frame_size:
  * @model: The #PeaqEarModel to obtain the frame size of.
  *

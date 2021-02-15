@@ -99,11 +99,6 @@ double const* peaq_earmodel_get_unsmeared_excitation(PeaqEarModel const* model,
   return model->get_unsmeared_excitation(state);
 }
 
-unsigned int peaq_earmodel_get_band_count(PeaqEarModel const* model)
-{
-  return model->get_band_count();
-}
-
 unsigned int peaq_earmodel_get_frame_size(PeaqEarModel const* model)
 {
   return model->get_frame_size();
