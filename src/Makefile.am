@@ -4,9 +4,9 @@ check_PROGRAMS = testpeaq
 EXTRA_DIST = runtest-1.0.sh checkconformanceresults.sh
 TESTS = testpeaq runtest-@GST_API_VERSION@.sh checkconformanceresults.sh
 AM_TESTS_ENVIRONMENT=GSTLAUNCH=@GSTLAUNCH@; export GSTLAUNCH; CONFORMANCEDATADIR=@CONFORMANCEDATADIR@; export CONFORMANCEDATADIR;
-noinst_HEADERS = gstpeaq.h earmodel.h leveladapter.h \
+noinst_HEADERS = gstpeaq.h peaqalgo.h earmodel.h leveladapter.h \
 	modpatt.h fftearmodel.h fbearmodel.h movaccum.h movs.h nn.h settings.h
-libgstpeaq_la_SOURCES = gstpeaq.c gstpeaqplugin.c earmodel.cc \
+libgstpeaq_la_SOURCES = gstpeaq.c gstpeaqplugin.c peaqalgo.cc earmodel.cc \
 	leveladapter.cc modpatt.cc fftearmodel.cc fbearmodel.cc movaccum.cc movs.cc nn.cc
 libgstpeaq_la_CFLAGS = @PKGCONF_CFLAGS@
 libgstpeaq_la_CXXFLAGS = @PKGCONF_CFLAGS@
