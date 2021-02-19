@@ -4,7 +4,7 @@ runpeaq() {
 	MODE=$1
 	CODFILE=$2
 	REFFILE=${CODFILE/cod/ref}
-	OUTPUT=`LANG=LC_ALL ${BASEDIR}/../src/peaq --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=${BASEDIR}/../src/.libs/libgstpeaq.so \
+	OUTPUT=`LC_ALL=C ${BASEDIR}/../src/peaq --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=${BASEDIR}/../src/.libs/libgstpeaq.so \
 		${MODE} "${REFFILE}" "$CODFILE"`
 	DI=`echo "$OUTPUT" | grep "Distortion Index:" | cut -d " " -f3`
 	DI_DELTA=`echo $DI - $3 | bc`

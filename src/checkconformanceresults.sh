@@ -22,7 +22,7 @@ docheck() {
 		CODFILE=${CONFORMANCEDATADIR}/${ITEMNAME}.wav
 		REFFILE=${CONFORMANCEDATADIR}/${ITEMNAME/cod/ref}.wav
 		REF_DI=${ITEM:8}
-		DI=`LANG=LC_ALL ${PEAQ} --${MODE} "${REFFILE}" "$CODFILE" | grep "Distortion Index:" | cut -d " " -f3`
+		DI=`LC_ALL=C ${PEAQ} --${MODE} "${REFFILE}" "$CODFILE" | grep "Distortion Index:" | cut -d " " -f3`
 		echo -n $ITEMNAME $DI $REF_DI
 		if [ x$DI = x$REF_DI ]; then
 			echo " OK"
