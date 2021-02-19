@@ -4,7 +4,7 @@ fi
 
 GSTLAUNCH=${GSTLAUNCH:-gst-launch-1.0}
 
-ODG=`LANG=LC_ALL $GSTLAUNCH --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=.libs/libgstpeaq.so \
+ODG=`LC_ALL=C $GSTLAUNCH --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=.libs/libgstpeaq.so \
 	audiotestsrc name=src0 num-buffers=128 freq=440 \
 	tee \
 	queue name=queue0 \
@@ -18,7 +18,7 @@ echo $ODG
 if [ x$ODG != x0.171 ]; then
 	exit 1
 fi
-ODG=`LANG=LC_ALL $GSTLAUNCH --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=.libs/libgstpeaq.so \
+ODG=`LC_ALL=C $GSTLAUNCH --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=.libs/libgstpeaq.so \
 	audiotestsrc name=src0 num-buffers=128 wave=saw freq=440 \
 	audiotestsrc name=src1 num-buffers=128 wave=triangle freq=440 \
 	peaq name=peaq \
@@ -28,7 +28,7 @@ echo $ODG
 if [ x$ODG != x-2.007 ]; then
 	exit 1
 fi
-ODG=`LANG=LC_ALL $GSTLAUNCH --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=.libs/libgstpeaq.so \
+ODG=`LC_ALL=C $GSTLAUNCH --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=.libs/libgstpeaq.so \
 	audiotestsrc name=src0 num-buffers=128 wave=saw freq=440 \
 	audiotestsrc name=src1 num-buffers=128 wave=triangle freq=440 \
 	peaq name=peaq \
@@ -38,7 +38,7 @@ echo $ODG
 if [ x$ODG != x-2.007 ]; then
 	exit 1
 fi
-ODG=`LANG=LC_ALL $GSTLAUNCH --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=.libs/libgstpeaq.so \
+ODG=`LC_ALL=C $GSTLAUNCH --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=.libs/libgstpeaq.so \
 	audiotestsrc name=src0 num-buffers=128 wave=saw freq=440 \
 	audiotestsrc name=src1 num-buffers=128 wave=triangle freq=440 \
 	peaq name=peaq \
