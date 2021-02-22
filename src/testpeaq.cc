@@ -628,8 +628,7 @@ static void test_leveladapt()
   auto ear = peaq::FFTEarModel{};
 
   auto band_count = ear.get_band_count();
-  auto level = peaq::LevelAdapter();
-  level.set_ear_model(&ear);
+  auto level = peaq::LevelAdapter(ear);
   for (std::size_t i = 0; i < band_count; i++) {
     input_data_ref[i] = i + 1;
     input_data_test[i] = band_count - i;

@@ -32,11 +32,9 @@
 #include "leveladapter.h"
 
 namespace peaq {
-void LevelAdapter::set_ear_model(PeaqEarModel* ear_model)
+LevelAdapter::LevelAdapter(EarModel& ear_model)
 {
-  this->ear_model = ear_model;
-
-  auto band_count = ear_model->get_band_count();
+  band_count = ear_model.get_band_count();
 
   ref_filtered_excitation.resize(band_count);
   test_filtered_excitation.resize(band_count);
@@ -51,7 +49,7 @@ void LevelAdapter::set_ear_model(PeaqEarModel* ear_model)
 
   /* see section 3.1 in [BS1387], section 4.1 in [Kabal03] */
   for (std::size_t k = 0; k < band_count; k++) {
-    ear_time_constants[k] = ear_model->calc_time_constant(k, 0.008, 0.05);
+    ear_time_constants[k] = ear_model.calc_time_constant(k, 0.008, 0.05);
   }
 #if 0
   /* [Kabal03] suggests initialization to 1, although the standard does not
@@ -66,7 +64,6 @@ void LevelAdapter::set_ear_model(PeaqEarModel* ear_model)
 
 void LevelAdapter::process(double const* ref_excitation, double const* test_excitation)
 {
-  std::size_t band_count = ear_model->get_band_count();
   auto* pattadapt_ref = g_newa(double, band_count);
   auto* pattadapt_test = g_newa(double, band_count);
   auto* levcorr_excitation = g_newa(double, band_count);
@@ -148,37 +145,3 @@ void LevelAdapter::process(double const* ref_excitation, double const* test_exci
   }
 }
 } // namespace peaq
-
-PeaqLevelAdapter* peaq_leveladapter_new(PeaqEarModel* ear_model)
-{
-  auto* level = new PeaqLevelAdapter;
-  peaq_leveladapter_set_ear_model(level, ear_model);
-  return level;
-}
-
-void peaq_leveladapter_delete(PeaqLevelAdapter* level)
-{
-  delete level;
-}
-
-void peaq_leveladapter_set_ear_model(PeaqLevelAdapter* level, PeaqEarModel* ear_model)
-{
-  level->set_ear_model(ear_model);
-}
-
-void peaq_leveladapter_process(PeaqLevelAdapter* level,
-                               double const* ref_excitation,
-                               double const* test_excitation)
-{
-  level->process(ref_excitation, test_excitation);
-}
-
-double const* peaq_leveladapter_get_adapted_ref(PeaqLevelAdapter const* level)
-{
-  return level->get_adapted_ref().data();
-}
-
-double const* peaq_leveladapter_get_adapted_test(PeaqLevelAdapter const* level)
-{
-  return level->get_adapted_test().data();
-}

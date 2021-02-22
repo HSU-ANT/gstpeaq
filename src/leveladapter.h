@@ -20,7 +20,6 @@
  * Boston, MA 02111-1307, USA.
  */
 
-
 #ifndef __LEVELADAPTER_H__
 #define __LEVELADAPTER_H__ 1
 
@@ -35,10 +34,8 @@
  * to compensate level differences and linear distortions.
  */
 
-
 #include "earmodel.h"
 
-#ifdef __cplusplus
 #include <memory>
 #include <vector>
 
@@ -46,7 +43,7 @@ namespace peaq {
 class LevelAdapter
 {
 public:
-  void set_ear_model(PeaqEarModel* ear_model);
+  LevelAdapter(EarModel& ear_model);
   void process(double const* ref_excitation, double const* test_excitation);
   [[nodiscard]] auto const& get_adapted_ref() const
   {
@@ -58,7 +55,7 @@ public:
   }
 
 private:
-  PeaqEarModel* ear_model{};
+  std::size_t band_count;
   std::vector<double> ear_time_constants;
   std::vector<double> ref_filtered_excitation;
   std::vector<double> test_filtered_excitation;
@@ -70,44 +67,6 @@ private:
   std::vector<double> spectrally_adapted_test_patterns;
 };
 } // namespace peaq
-
-using PeaqLevelAdapter = peaq::LevelAdapter;
-
-extern "C" {
-#else
-/**
- * PeaqLevelAdapter:
- *
- * The opaque PeaqLevelAdapter structure.
- */
-typedef struct _PeaqLevelAdapter PeaqLevelAdapter;
-#endif
-
-
-/**
- * peaq_leveladapter_new:
- * @ear_model: The #PeaqEarModel to get the band information from.
- *
- * Constructs a new #PeaqLevelAdapter, using the given @ear_model to obtain
- * information about the number of frequency bands used and their center
- * frequencies.
- *
- * Returns: The newly constructed #PeaqLevelAdapter.
- */
-PeaqLevelAdapter *peaq_leveladapter_new (PeaqEarModel *ear_model);
-
-void peaq_leveladapter_delete(PeaqLevelAdapter *level);
-
-/**
- * peaq_leveladapter_set_ear_model:
- * @level: The #PeaqLevelAdapter to set the #PeaqEarModel of.
- * @ear_model: The #PeaqEarModel to get the band information from.
- *
- * Sets the #PeaqEarModel from which the frequency band information is used and
- * precomputes time constants that depend on the band center frequencies.
- */
-void peaq_leveladapter_set_ear_model (PeaqLevelAdapter *level,
-                                      PeaqEarModel *ear_model);
 
 /**
  * peaq_leveladapter_process:
@@ -133,9 +92,6 @@ void peaq_leveladapter_set_ear_model (PeaqLevelAdapter *level,
  * as set with peaq_leveladapter_set_ear_model() or upon construction with
  * peaq_leveladapter_new().
  */
-void peaq_leveladapter_process (PeaqLevelAdapter *level,
-				double const *ref_excitation,
-				double const *test_excitation);
 
 /**
  * peaq_leveladapter_get_adapted_ref:
@@ -154,7 +110,6 @@ void peaq_leveladapter_process (PeaqLevelAdapter *level,
  * The pointer points to internal data of the #PeaqLevelAdapter and must not be
  * freed.
  */
-double const* peaq_leveladapter_get_adapted_ref (PeaqLevelAdapter const* level);
 
 /**
  * peaq_leveladapter_get_adapted_test:
@@ -173,11 +128,5 @@ double const* peaq_leveladapter_get_adapted_ref (PeaqLevelAdapter const* level);
  * The pointer points to internal data of the #PeaqLevelAdapter and must not be
  * freed.
  */
-double const* peaq_leveladapter_get_adapted_test (PeaqLevelAdapter const* level);
-
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

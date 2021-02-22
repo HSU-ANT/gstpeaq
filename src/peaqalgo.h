@@ -155,10 +155,7 @@ public:
     AlgoBase::set_channels(channel_count);
     ref_buffers.resize(channel_count);
     test_buffers.resize(channel_count);
-    level_adapters.resize(channel_count);
-    for (auto& level : level_adapters) {
-      level.set_ear_model(&fft_ear_model);
-    }
+    level_adapters.resize(channel_count, LevelAdapter{ fft_ear_model });
     ref_modulation_processors.resize(channel_count);
     for (auto& modproc : ref_modulation_processors) {
       modproc.set_ear_model(&fft_ear_model);
@@ -302,10 +299,7 @@ public:
     test_buffers.resize(channel_count);
     fb_earmodel_state_ref.resize(channel_count);
     fb_earmodel_state_test.resize(channel_count);
-    level_adapters.resize(channel_count);
-    for (auto& level : level_adapters) {
-      level.set_ear_model(&fb_ear_model);
-    }
+    level_adapters.resize(channel_count, LevelAdapter{ fb_ear_model });
     ref_modulation_processors.resize(channel_count);
     for (auto& modproc : ref_modulation_processors) {
       modproc.set_ear_model(&fb_ear_model);
