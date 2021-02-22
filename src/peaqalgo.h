@@ -56,13 +56,6 @@ template<unsigned int MOV_COUNT, typename Derived>
 class AlgoBase : public Algo
 {
 public:
-  AlgoBase()
-  {
-    for (auto& accum : mov_accums) {
-      accum = std::unique_ptr<PeaqMovAccum, mov_accum_deleter>{ peaq_movaccum_new(),
-                                                                mov_accum_deleter{} };
-    }
-  }
   [[nodiscard]] auto get_channels() const -> int final { return channel_count; }
   void set_channels(unsigned int channel_count) override
   {
@@ -114,11 +107,7 @@ protected:
   std::vector<LevelAdapter> level_adapters;
   std::vector<ModulationProcessor> ref_modulation_processors;
   std::vector<ModulationProcessor> test_modulation_processors;
-  struct mov_accum_deleter
-  {
-    void operator()(PeaqMovAccum* accum) const { peaq_movaccum_delete(accum); }
-  };
-  std::array<std::unique_ptr<PeaqMovAccum, mov_accum_deleter>, MOV_COUNT> mov_accums;
+  std::array<std::unique_ptr<MovAccum>, MOV_COUNT> mov_accums;
 };
 
 class AlgoBasic : public AlgoBase<11, AlgoBasic>
@@ -149,17 +138,17 @@ public:
   AlgoBasic()
   {
     fft_ear_model.set_bandcount(FFT_BAND_COUNT);
-    peaq_movaccum_set_mode(mov_accums[MOV_BANDWIDTH_REF].get(), MODE_AVG);
-    peaq_movaccum_set_mode(mov_accums[MOV_BANDWIDTH_TEST].get(), MODE_AVG);
-    peaq_movaccum_set_mode(mov_accums[MOV_TOTAL_NMR].get(), MODE_AVG_LOG);
-    peaq_movaccum_set_mode(mov_accums[MOV_WIN_MOD_DIFF].get(), MODE_AVG_WINDOW);
-    peaq_movaccum_set_mode(mov_accums[MOV_ADB].get(), MODE_ADB);
-    peaq_movaccum_set_mode(mov_accums[MOV_EHS].get(), MODE_AVG);
-    peaq_movaccum_set_mode(mov_accums[MOV_AVG_MOD_DIFF_1].get(), MODE_AVG);
-    peaq_movaccum_set_mode(mov_accums[MOV_AVG_MOD_DIFF_2].get(), MODE_AVG);
-    peaq_movaccum_set_mode(mov_accums[MOV_RMS_NOISE_LOUD].get(), MODE_RMS);
-    peaq_movaccum_set_mode(mov_accums[MOV_MFPD].get(), MODE_FILTERED_MAX);
-    peaq_movaccum_set_mode(mov_accums[MOV_REL_DIST_FRAMES].get(), MODE_AVG);
+    mov_accums[MOV_BANDWIDTH_REF] = std::make_unique<movaccum_avg>();
+    mov_accums[MOV_BANDWIDTH_TEST] = std::make_unique<movaccum_avg>();
+    mov_accums[MOV_TOTAL_NMR] = std::make_unique<movaccum_avg_log>();
+    mov_accums[MOV_WIN_MOD_DIFF] = std::make_unique<movaccum_avg_window>();
+    mov_accums[MOV_ADB] = std::make_unique<movaccum_adb>();
+    mov_accums[MOV_EHS] = std::make_unique<movaccum_avg>();
+    mov_accums[MOV_AVG_MOD_DIFF_1] = std::make_unique<movaccum_avg>();
+    mov_accums[MOV_AVG_MOD_DIFF_2] = std::make_unique<movaccum_avg>();
+    mov_accums[MOV_RMS_NOISE_LOUD] = std::make_unique<movaccum_rms>();
+    mov_accums[MOV_MFPD] = std::make_unique<movaccum_filtered_max>();
+    mov_accums[MOV_REL_DIST_FRAMES] = std::make_unique<movaccum_avg>();
   }
   void set_channels(unsigned int channel_count) final
   {
@@ -180,9 +169,9 @@ public:
     }
     for (auto i = 0; i < MOV_COUNT; i++) {
       if (i == MOV_ADB || i == MOV_MFPD) {
-        peaq_movaccum_set_channels(mov_accums[i].get(), 1);
+        mov_accums[i]->set_channels(1);
       } else {
-        peaq_movaccum_set_channels(mov_accums[i].get(), channel_count);
+        mov_accums[i]->set_channels(channel_count);
       }
     }
   }
@@ -247,7 +236,7 @@ public:
   {
     auto movs = std::array<double, COUNT_MOV_BASIC>{};
     for (auto i = 0; i < COUNT_MOV_BASIC; i++) {
-      movs[i] = peaq_movaccum_get_value(mov_accums[i].get());
+      movs[i] = mov_accums[i]->get_value();
     }
     auto distortion_index = peaq_calculate_di_basic(movs.data());
 
@@ -300,11 +289,11 @@ public:
   AlgoAdvanced()
   {
     fft_ear_model.set_bandcount(FFT_BAND_COUNT);
-    peaq_movaccum_set_mode(mov_accums[MOV_RMS_MOD_DIFF].get(), MODE_RMS);
-    peaq_movaccum_set_mode(mov_accums[MOV_SEGMENTAL_NMR].get(), MODE_AVG);
-    peaq_movaccum_set_mode(mov_accums[MOV_EHS].get(), MODE_AVG);
-    peaq_movaccum_set_mode(mov_accums[MOV_AVG_LIN_DIST].get(), MODE_AVG);
-    peaq_movaccum_set_mode(mov_accums[MOV_RMS_NOISE_LOUD_ASYM].get(), MODE_RMS_ASYM);
+    mov_accums[MOV_RMS_MOD_DIFF] = std::make_unique<movaccum_rms>();
+    mov_accums[MOV_SEGMENTAL_NMR] = std::make_unique<movaccum_avg>();
+    mov_accums[MOV_EHS] = std::make_unique<movaccum_avg>();
+    mov_accums[MOV_AVG_LIN_DIST] = std::make_unique<movaccum_avg>();
+    mov_accums[MOV_RMS_NOISE_LOUD_ASYM] = std::make_unique<movaccum_rms_asym>();
   }
   void set_channels(unsigned int channel_count) final
   {
@@ -326,7 +315,7 @@ public:
       modproc.set_ear_model(&fb_ear_model);
     }
     for (auto i = 0; i < COUNT_MOV_ADVANCED; i++) {
-      peaq_movaccum_set_channels(mov_accums[i].get(), channel_count);
+      mov_accums[i]->set_channels(channel_count);
     }
   }
   [[nodiscard]] auto get_playback_level() const -> double final
@@ -399,7 +388,7 @@ public:
   {
     auto movs = std::array<double, COUNT_MOV_ADVANCED>{};
     for (auto i = 0; i < COUNT_MOV_ADVANCED; i++) {
-      movs[i] = peaq_movaccum_get_value(mov_accums[i].get());
+      movs[i] = mov_accums[i]->get_value();
     }
     auto distortion_index = peaq_calculate_di_advanced(movs.data());
 

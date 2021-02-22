@@ -186,13 +186,13 @@ namespace peaq {
 void mov_modulation_difference(FFTEarModel const& ear_model,
                                std::vector<ModulationProcessor> const& ref_mod_proc,
                                std::vector<ModulationProcessor> const& test_mod_proc,
-                               PeaqMovAccum& mov_accum1,
-                               PeaqMovAccum& mov_accum2,
-                               PeaqMovAccum& mov_accum_win);
+                               MovAccum& mov_accum1,
+                               MovAccum& mov_accum2,
+                               MovAccum& mov_accum_win);
 void mov_modulation_difference(FilterbankEarModel const& ear_model,
                                std::vector<ModulationProcessor> const& ref_mod_proc,
                                std::vector<ModulationProcessor> const& test_mod_proc,
-                               PeaqMovAccum& mov_accum1);
+                               MovAccum& mov_accum1);
 /**
  * peaq_mov_noise_loudness:
  * @ref_mod_proc: Modulation processors of the reference signal (one per
@@ -293,7 +293,7 @@ void mov_modulation_difference(FilterbankEarModel const& ear_model,
 void mov_noise_loudness(std::vector<ModulationProcessor> const& ref_mod_proc,
                         std::vector<ModulationProcessor> const& test_mod_proc,
                         std::vector<LevelAdapter> const& level,
-                        PeaqMovAccum& mov_accum);
+                        MovAccum& mov_accum);
 
 /**
  * peaq_mov_noise_loud_asym:
@@ -475,7 +475,7 @@ void mov_noise_loudness(std::vector<ModulationProcessor> const& ref_mod_proc,
 void mov_noise_loud_asym(std::vector<ModulationProcessor> const& ref_mod_proc,
                          std::vector<ModulationProcessor> const& test_mod_proc,
                          std::vector<LevelAdapter> const& level,
-                         PeaqMovAccum& mov_accum);
+                         MovAccum& mov_accum);
 
 /**
  * peaq_mov_lin_dist:
@@ -580,7 +580,7 @@ void mov_lin_dist(FilterbankEarModel const& ear_model,
                   std::vector<ModulationProcessor> const& ref_mod_proc,
                   std::vector<LevelAdapter> const& level,
                   std::vector<FilterbankEarModel::state_t> const& state,
-                  PeaqMovAccum& mov_accum);
+                  MovAccum& mov_accum);
 
 /**
  * peaq_mov_bandwidth:
@@ -614,8 +614,8 @@ void mov_lin_dist(FilterbankEarModel const& ear_model,
  */
 void mov_bandwidth(std::vector<FFTEarModel::state_t> const& ref_state,
                    std::vector<FFTEarModel::state_t> const& test_state,
-                   PeaqMovAccum& mov_accum_ref,
-                   PeaqMovAccum& mov_accum_test);
+                   MovAccum& mov_accum_ref,
+                   MovAccum& mov_accum_test);
 
 /**
  * peaq_mov_nmr:
@@ -779,12 +779,12 @@ void mov_bandwidth(std::vector<FFTEarModel::state_t> const& ref_state,
 void mov_nmr(FFTEarModel const& ear_model,
              std::vector<FFTEarModel::state_t> const& ref_state,
              std::vector<FFTEarModel::state_t> const& test_state,
-             PeaqMovAccum& mov_accum_nmr,
-             PeaqMovAccum& mov_accum_rel_dist_frames);
+             MovAccum& mov_accum_nmr,
+             MovAccum& mov_accum_rel_dist_frames);
 void mov_nmr(FFTEarModel const& ear_model,
              std::vector<FFTEarModel::state_t> const& ref_state,
              std::vector<FFTEarModel::state_t> const& test_state,
-             PeaqMovAccum& mov_accum_nmr);
+             MovAccum& mov_accum_nmr);
 
 /**
  * peaq_mov_prob_detect:
@@ -988,8 +988,8 @@ void mov_prob_detect(FFTEarModel const& ear_model,
                      std::vector<FFTEarModel::state_t> const& ref_state,
                      std::vector<FFTEarModel::state_t> const& test_state,
                      unsigned int channels,
-                     PeaqMovAccum& mov_accum_adb,
-                     PeaqMovAccum& mov_accum_mfpd);
+                     MovAccum& mov_accum_adb,
+                     MovAccum& mov_accum_mfpd);
 
 /**
  * peaq_mov_ehs:
@@ -1021,7 +1021,7 @@ void mov_prob_detect(FFTEarModel const& ear_model,
  */
 void mov_ehs(std::vector<FFTEarModel::state_t> const& ref_state,
              std::vector<FFTEarModel::state_t> const& test_state,
-             PeaqMovAccum& mov_accum);
+             MovAccum& mov_accum);
 
 } // namespace peaq
 

@@ -26,7 +26,7 @@
  *
  * The functions herein are used to calculate the model output variables
  * (MOVs). They have to be called once per frame and use one or more given
- * #PeaqMovAccum instances to accumulate the MOV. Note that the #PeaqMovAccum
+ * #MovAccum instances to accumulate the MOV. Note that the #MovAccum
  * instances have to be set up correctly to perform the correct type of
  * accumulation.
  */
@@ -117,45 +117,45 @@ auto calc_modulation_difference(Ear const& ear_model,
 void mov_modulation_difference(FFTEarModel const& ear_model,
                                std::vector<ModulationProcessor> const& ref_mod_proc,
                                std::vector<ModulationProcessor> const& test_mod_proc,
-                               PeaqMovAccum& mov_accum1,
-                               PeaqMovAccum& mov_accum2,
-                               PeaqMovAccum& mov_accum_win)
+                               MovAccum& mov_accum1,
+                               MovAccum& mov_accum2,
+                               MovAccum& mov_accum_win)
 {
   auto band_count = ear_model.get_band_count();
 
-  for (std::size_t c = 0; c < peaq_movaccum_get_channels(&mov_accum1); c++) {
+  for (std::size_t c = 0; c < mov_accum1.get_channels(); c++) {
     auto [mod_diff_1b, mod_diff_2b, temp_wt] =
       calc_modulation_difference(ear_model, ref_mod_proc[c], test_mod_proc[c], 100.);
     mod_diff_1b *= 100. / band_count;
     mod_diff_2b *= 100. / band_count;
-    peaq_movaccum_accumulate(&mov_accum1, c, mod_diff_1b, temp_wt);
-    peaq_movaccum_accumulate(&mov_accum2, c, mod_diff_2b, temp_wt);
-    peaq_movaccum_accumulate(&mov_accum_win, c, mod_diff_1b, 1.);
+    mov_accum1.accumulate(c, mod_diff_1b, temp_wt);
+    mov_accum2.accumulate(c, mod_diff_2b, temp_wt);
+    mov_accum_win.accumulate(c, mod_diff_1b, 1.);
   }
 }
 
 void mov_modulation_difference(FilterbankEarModel const& ear_model,
                                std::vector<ModulationProcessor> const& ref_mod_proc,
                                std::vector<ModulationProcessor> const& test_mod_proc,
-                               PeaqMovAccum& mov_accum1)
+                               MovAccum& mov_accum1)
 {
   auto band_count = ear_model.get_band_count();
 
-  for (std::size_t c = 0; c < peaq_movaccum_get_channels(&mov_accum1); c++) {
+  for (std::size_t c = 0; c < mov_accum1.get_channels(); c++) {
     auto [mod_diff_1b, mod_diff_2b, temp_wt] =
       calc_modulation_difference(ear_model, ref_mod_proc[c], test_mod_proc[c], 1.);
     mod_diff_1b *= 100. / std::sqrt(band_count);
     mod_diff_2b *= 100. / band_count;
-    peaq_movaccum_accumulate(&mov_accum1, c, mod_diff_1b, temp_wt);
+    mov_accum1.accumulate(c, mod_diff_1b, temp_wt);
   }
 }
 
 void mov_noise_loudness(std::vector<ModulationProcessor> const& ref_mod_proc,
                         std::vector<ModulationProcessor> const& test_mod_proc,
                         std::vector<LevelAdapter> const& level,
-                        PeaqMovAccum& mov_accum)
+                        MovAccum& mov_accum)
 {
-  for (std::size_t c = 0; c < peaq_movaccum_get_channels(&mov_accum); c++) {
+  for (std::size_t c = 0; c < mov_accum.get_channels(); c++) {
     auto const& ref_excitation = level[c].get_adapted_ref();
     auto const& test_excitation = level[c].get_adapted_test();
     auto noise_loudness = calc_noise_loudness(1.5,
@@ -166,16 +166,16 @@ void mov_noise_loudness(std::vector<ModulationProcessor> const& ref_mod_proc,
                                               test_mod_proc[c],
                                               ref_excitation,
                                               test_excitation);
-    peaq_movaccum_accumulate(&mov_accum, c, noise_loudness, 1.);
+    mov_accum.accumulate(c, noise_loudness, 1.);
   }
 }
 
 void mov_noise_loud_asym(std::vector<ModulationProcessor> const& ref_mod_proc,
                          std::vector<ModulationProcessor> const& test_mod_proc,
                          std::vector<LevelAdapter> const& level,
-                         PeaqMovAccum& mov_accum)
+                         MovAccum& mov_accum)
 {
-  for (std::size_t c = 0; c < peaq_movaccum_get_channels(&mov_accum); c++) {
+  for (std::size_t c = 0; c < mov_accum.get_channels(); c++) {
     auto const& ref_excitation = level[c].get_adapted_ref();
     auto const& test_excitation = level[c].get_adapted_test();
     auto noise_loudness = calc_noise_loudness(2.5,
@@ -206,7 +206,7 @@ void mov_noise_loud_asym(std::vector<ModulationProcessor> const& ref_mod_proc,
                                                   test_excitation,
                                                   ref_excitation);
 #endif
-    peaq_movaccum_accumulate(&mov_accum, c, noise_loudness, missing_components);
+    mov_accum.accumulate(c, noise_loudness, missing_components);
   }
 }
 
@@ -214,9 +214,9 @@ void mov_lin_dist(FilterbankEarModel const& ear_model,
                   std::vector<ModulationProcessor> const& ref_mod_proc,
                   std::vector<LevelAdapter> const& level,
                   std::vector<FilterbankEarModel::state_t> const& state,
-                  PeaqMovAccum& mov_accum)
+                  MovAccum& mov_accum)
 {
-  for (std::size_t c = 0; c < peaq_movaccum_get_channels(&mov_accum); c++) {
+  for (std::size_t c = 0; c < mov_accum.get_channels(); c++) {
     auto const& ref_adapted_excitation = level[c].get_adapted_ref();
     auto const* ref_excitation = ear_model.get_excitation(&state[c]);
 #if defined(SWAP_MOD_PATTS_FOR_NOISE_LOUDNESS_MOVS) &&                                     \
@@ -239,17 +239,17 @@ void mov_lin_dist(FilterbankEarModel const& ear_model,
                                               ref_adapted_excitation,
                                               ref_excitation);
 #endif
-    peaq_movaccum_accumulate(&mov_accum, c, noise_loudness, 1.);
+    mov_accum.accumulate(c, noise_loudness, 1.);
   }
 }
 
 void mov_bandwidth(std::vector<FFTEarModel::state_t> const& ref_state,
                    std::vector<FFTEarModel::state_t> const& test_state,
-                   PeaqMovAccum& mov_accum_ref,
-                   PeaqMovAccum& mov_accum_test)
+                   MovAccum& mov_accum_ref,
+                   MovAccum& mov_accum_test)
 {
   auto constexpr FIVE_DB_POWER_FACTOR = 3.16227766016838;
-  for (std::size_t c = 0; c < peaq_movaccum_get_channels(&mov_accum_ref); c++) {
+  for (std::size_t c = 0; c < mov_accum_ref.get_channels(); c++) {
     auto const& ref_power_spectrum = FFTEarModel::get_power_spectrum(ref_state[c]);
     auto const& test_power_spectrum = FFTEarModel::get_power_spectrum(test_state[c]);
     auto zero_threshold = std::accumulate(cbegin(test_power_spectrum) + 922,
@@ -271,8 +271,8 @@ void mov_bandwidth(std::vector<FFTEarModel::state_t> const& ref_state,
           break;
         }
       }
-      peaq_movaccum_accumulate(&mov_accum_ref, c, bw_ref, 1.);
-      peaq_movaccum_accumulate(&mov_accum_test, c, bw_test, 1.);
+      mov_accum_ref.accumulate(c, bw_ref, 1.);
+      mov_accum_test.accumulate(c, bw_test, 1.);
     }
   }
 }
@@ -320,27 +320,25 @@ static auto calc_nmr(FFTEarModel const& ear_model,
 void mov_nmr(FFTEarModel const& ear_model,
              std::vector<FFTEarModel::state_t> const& ref_state,
              std::vector<FFTEarModel::state_t> const& test_state,
-             PeaqMovAccum& mov_accum_nmr,
-             PeaqMovAccum& mov_accum_rel_dist_frames)
+             MovAccum& mov_accum_nmr,
+             MovAccum& mov_accum_rel_dist_frames)
 {
-  for (std::size_t c = 0; c < peaq_movaccum_get_channels(&mov_accum_nmr); c++) {
+  for (std::size_t c = 0; c < mov_accum_nmr.get_channels(); c++) {
     auto [nmr, nmr_max] = calc_nmr(ear_model, ref_state[c], test_state[c]);
-    peaq_movaccum_accumulate(&mov_accum_nmr, c, nmr, 1.);
-    peaq_movaccum_accumulate(&mov_accum_rel_dist_frames,
-                             c,
-                             nmr_max > ONE_POINT_FIVE_DB_POWER_FACTOR ? 1. : 0.,
-                             1.);
+    mov_accum_nmr.accumulate(c, nmr, 1.);
+    mov_accum_rel_dist_frames.accumulate(
+      c, nmr_max > ONE_POINT_FIVE_DB_POWER_FACTOR ? 1. : 0., 1.);
   }
 }
 
 void mov_nmr(FFTEarModel const& ear_model,
              std::vector<FFTEarModel::state_t> const& ref_state,
              std::vector<FFTEarModel::state_t> const& test_state,
-             PeaqMovAccum& mov_accum_nmr)
+             MovAccum& mov_accum_nmr)
 {
-  for (std::size_t c = 0; c < peaq_movaccum_get_channels(&mov_accum_nmr); c++) {
+  for (std::size_t c = 0; c < mov_accum_nmr.get_channels(); c++) {
     auto [nmr, nmr_max] = calc_nmr(ear_model, ref_state[c], test_state[c]);
-    peaq_movaccum_accumulate(&mov_accum_nmr, c, 10. * log10(nmr), 1.);
+    mov_accum_nmr.accumulate(c, 10. * log10(nmr), 1.);
   }
 }
 
@@ -348,8 +346,8 @@ void mov_prob_detect(FFTEarModel const& ear_model,
                      std::vector<FFTEarModel::state_t> const& ref_state,
                      std::vector<FFTEarModel::state_t> const& test_state,
                      unsigned int channels,
-                     PeaqMovAccum& mov_accum_adb,
-                     PeaqMovAccum& mov_accum_mfpd)
+                     MovAccum& mov_accum_adb,
+                     MovAccum& mov_accum_mfpd)
 {
   auto band_count = ear_model.get_band_count();
   auto binaural_detection_probability = 1.;
@@ -392,9 +390,9 @@ void mov_prob_detect(FFTEarModel const& ear_model,
   }
   binaural_detection_probability = 1. - binaural_detection_probability;
   if (binaural_detection_probability > 0.5) {
-    peaq_movaccum_accumulate(&mov_accum_adb, 0, binaural_detection_steps, 1.);
+    mov_accum_adb.accumulate(0, binaural_detection_steps, 1.);
   }
-  peaq_movaccum_accumulate(&mov_accum_mfpd, 0, binaural_detection_probability, 1.);
+  mov_accum_mfpd.accumulate(0, binaural_detection_probability, 1.);
 }
 
 static auto do_xcorr(std::array<double, 2 * MAXLAG> const& d)
@@ -441,7 +439,7 @@ static auto do_xcorr(std::array<double, 2 * MAXLAG> const& d)
 
 void mov_ehs(std::vector<FFTEarModel::state_t> const& ref_state,
              std::vector<FFTEarModel::state_t> const& test_state,
-             PeaqMovAccum& mov_accum)
+             MovAccum& mov_accum)
 {
   static GstFFTF64* correlation_fft = nullptr;
   if (correlation_fft == nullptr) {
@@ -462,7 +460,7 @@ void mov_ehs(std::vector<FFTEarModel::state_t> const& ref_state,
     return win;
   }();
 
-  auto channels = peaq_movaccum_get_channels(&mov_accum);
+  auto channels = mov_accum.get_channels();
 
   if (std::none_of(
         cbegin(ref_state),
@@ -533,7 +531,7 @@ void mov_ehs(std::vector<FFTEarModel::state_t> const& ref_state,
       }
       s = new_s;
     }
-    peaq_movaccum_accumulate(&mov_accum, chan, 1000. * ehs, 1.);
+    mov_accum.accumulate(chan, 1000. * ehs, 1.);
   }
 }
 } // namespace peaq

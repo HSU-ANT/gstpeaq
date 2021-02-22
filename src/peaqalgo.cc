@@ -30,7 +30,7 @@ void AlgoBasic::do_process()
       return is_frame_above_threshold(cbegin(chandata), cbegin(chandata) + FRAME_SIZE);
     });
   for (auto& accum : mov_accums) {
-    peaq_movaccum_set_tentative(accum.get(), !above_thres);
+    accum->set_tentative(!above_thres);
   }
   for (auto chan = 0U; chan < channel_count; chan++) {
     fft_ear_model.process_block(&fft_earmodel_state_ref[chan], ref_buffers[chan].data());
@@ -111,8 +111,8 @@ void AlgoAdvanced::do_process_fft()
                                                   cbegin(chandata) + end_offset);
                 });
 
-  peaq_movaccum_set_tentative(mov_accums[MOV_SEGMENTAL_NMR].get(), !above_thres);
-  peaq_movaccum_set_tentative(mov_accums[MOV_EHS].get(), !above_thres);
+  mov_accums[MOV_SEGMENTAL_NMR]->set_tentative(!above_thres);
+  mov_accums[MOV_EHS]->set_tentative(!above_thres);
 
   for (auto c = 0U; c < channel_count; c++) {
     fft_ear_model.process_block(&fft_earmodel_state_ref[c],
@@ -141,9 +141,9 @@ void AlgoAdvanced::do_process_fb()
                   return is_frame_above_threshold(cbegin(chandata) + start_offset,
                                                   cbegin(chandata) + end_offset);
                 });
-  peaq_movaccum_set_tentative(mov_accums[MOV_RMS_MOD_DIFF].get(), !above_thres);
-  peaq_movaccum_set_tentative(mov_accums[MOV_RMS_NOISE_LOUD_ASYM].get(), !above_thres);
-  peaq_movaccum_set_tentative(mov_accums[MOV_AVG_LIN_DIST].get(), !above_thres);
+  mov_accums[MOV_RMS_MOD_DIFF]->set_tentative(!above_thres);
+  mov_accums[MOV_RMS_NOISE_LOUD_ASYM]->set_tentative(!above_thres);
+  mov_accums[MOV_AVG_LIN_DIST]->set_tentative(!above_thres);
 
   for (auto c = 0U; c < channel_count; c++) {
     fb_ear_model.process_block(&fb_earmodel_state_ref[c],

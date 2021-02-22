@@ -19,7 +19,6 @@
  * Boston, MA 02111-1307, USA.
  */
 
-
 #ifndef __MOVACCUM_H__
 #define __MOVACCUM_H__ 1
 
@@ -44,16 +43,229 @@
  * all accumulation done in the mean time.
  */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <numeric>
+#include <vector>
 
-/**
- * PeaqMovAccum:
- *
- * The opaque PeaqMovAccum structure.
- */
-typedef struct _PeaqMovAccum PeaqMovAccum;
+namespace peaq {
+
+class MovAccum
+{
+public:
+  virtual ~MovAccum() = default;
+  virtual void set_channels(std::size_t channels) = 0;
+  [[nodiscard]] virtual auto get_channels() const -> std::size_t = 0;
+  virtual void set_tentative(bool tentative) = 0;
+  virtual void accumulate(std::size_t c, double val, double weight) = 0;
+  [[nodiscard]] virtual auto get_value() const -> double = 0;
+};
+
+namespace detail {
+template<typename Strategy>
+class movaccumimpl : public MovAccum
+{
+public:
+  void set_channels(std::size_t channels) final
+  {
+    this->channels = channels;
+    data.resize(channels);
+    data_saved.resize(channels);
+  }
+  [[nodiscard]] auto get_channels() const -> std::size_t final { return channels; }
+  void set_tentative(bool tentative) final
+  {
+    if (tentative) {
+      if (status == Status::NORMAL) {
+        /* transition to tentative status */
+        save_data();
+        status = Status::TENTATIVE;
+      }
+    } else {
+      status = Status::NORMAL;
+    }
+  }
+  void save_data()
+  {
+    std::transform(cbegin(data), cend(data), begin(data_saved), Strategy::save_data);
+  }
+  void accumulate(std::size_t c, double val, double weight) final
+  {
+    if (status != Status::INIT) {
+      Strategy::accumulate(data[c], val, weight);
+    }
+  }
+
+  [[nodiscard]] auto get_value() const -> double final
+  {
+    return status == Status::TENTATIVE ? get_value(data_saved) : get_value(data);
+  }
+
+  template<typename T>
+  [[nodiscard]] auto get_value(T const& data) const
+  {
+    return std::accumulate(
+             cbegin(data),
+             cend(data),
+             0.0,
+             [](auto v, auto const& d) { return v + Strategy::get_value(d); }) /
+           channels;
+  }
+
+private:
+  enum class Status
+  {
+    INIT,
+    NORMAL,
+    TENTATIVE
+  };
+  Status status{ Status::INIT };
+  std::size_t channels{};
+  std::vector<typename Strategy::Tdata> data;
+  std::vector<typename Strategy::Tdatasaved> data_saved;
+};
+
+template<typename _Tdata, typename _Tdatasaved = _Tdata>
+struct base_strategy
+{
+  using Tdata = _Tdata;
+  using Tdatasaved = _Tdatasaved;
+  static auto const& save_data(Tdata const& d) { return d; }
+};
+
+struct fraction
+{
+  double num{};
+  double den{};
+};
+
+struct weighted_sum_strategy : base_strategy<fraction>
+{
+  static void accumulate(fraction& data, double val, double weight)
+  {
+    data.num += weight * val;
+    data.den += weight;
+  }
+};
+
+struct movaccum_adb_strategy : weighted_sum_strategy
+{
+  static auto get_value(fraction const& frac)
+  {
+    if (frac.den <= 0) {
+      return 0.0;
+    }
+    return frac.num == 0. ? -0.5 : std::log10(frac.num / frac.den);
+  }
+};
+
+struct movaccum_avg_strategy : weighted_sum_strategy
+{
+  static auto get_value(fraction const& frac) { return frac.num / frac.den; }
+};
+
+struct movaccum_avg_log_strategy : weighted_sum_strategy
+{
+  static auto get_value(fraction const& frac)
+  {
+    return 10.0 * std::log10(frac.num / frac.den);
+  }
+};
+
+struct winavgdata
+{
+  fraction frac{};
+  std::array<double, 3> past_sqrts{ NAN, NAN, NAN };
+};
+
+struct movaccum_avg_window_strategy : base_strategy<winavgdata, fraction>
+{
+  static void accumulate(Tdata& data, double val, double /*weight*/)
+  {
+    auto val_sqrt = std::sqrt(val);
+    if (!std::isnan(data.past_sqrts[0])) {
+      auto winsum =
+        std::accumulate(cbegin(data.past_sqrts), cend(data.past_sqrts), val_sqrt);
+      winsum /= 4.;
+      winsum *= winsum;
+      winsum *= winsum;
+      data.frac.num += winsum;
+      data.frac.den += 1.;
+    }
+    for (auto i = 0; i < 2; i++) {
+      data.past_sqrts[i] = data.past_sqrts[i + 1];
+    }
+    data.past_sqrts[2] = val_sqrt;
+  }
+  static auto const& save_data(Tdata const& d) { return d.frac; }
+  static auto get_value(fraction const& frac) { return std::sqrt(frac.num / frac.den); }
+  static auto get_value(Tdata const& winavgdat) { return get_value(winavgdat.frac); }
+};
+
+struct filtmaxdata
+{
+  double max{};
+  double filt_state{};
+};
+
+struct movaccum_filtered_max_strategy : base_strategy<filtmaxdata, double>
+{
+  static void accumulate(Tdata& data, double val, double /*weight*/)
+  {
+    data.filt_state = 0.9 * data.filt_state + 0.1 * val;
+    if (data.filt_state > data.max) {
+      data.max = data.filt_state;
+    }
+  }
+  static auto save_data(Tdata const& dat) { return dat.max; }
+  static auto get_value(Tdata const& dat) { return dat.max; }
+  static auto get_value(double const& dat) { return dat; }
+};
+
+struct movaccum_rms_strategy : base_strategy<fraction>
+{
+  static void accumulate(fraction& data, double val, double weight)
+  {
+    weight *= weight;
+    data.num += weight * val * val;
+    data.den += weight;
+  }
+  static auto get_value(fraction const& frac) { return std::sqrt(frac.num / frac.den); }
+};
+
+struct twinfraction
+{
+  double num1{};
+  double num2{};
+  double den{};
+};
+
+struct movaccum_rms_asym_strategy : base_strategy<twinfraction>
+{
+  static void accumulate(Tdata& data, double val1, double val2)
+  {
+    data.num1 += val1 * val1;
+    data.num2 += val2 * val2;
+    data.den += 1.;
+  }
+  static auto get_value(Tdata const& twinfrac)
+  {
+    return sqrt(twinfrac.num1 / twinfrac.den) + 0.5 * sqrt(twinfrac.num2 / twinfrac.den);
+  }
+};
+
+} // namespace detail
+
+using movaccum_adb = detail::movaccumimpl<detail::movaccum_adb_strategy>;
+using movaccum_avg = detail::movaccumimpl<detail::movaccum_avg_strategy>;
+using movaccum_avg_log = detail::movaccumimpl<detail::movaccum_avg_log_strategy>;
+using movaccum_avg_window = detail::movaccumimpl<detail::movaccum_avg_window_strategy>;
+using movaccum_filtered_max = detail::movaccumimpl<detail::movaccum_filtered_max_strategy>;
+using movaccum_rms = detail::movaccumimpl<detail::movaccum_rms_strategy>;
+using movaccum_rms_asym = detail::movaccumimpl<detail::movaccum_rms_asym_strategy>;
+
+} // namespace peaq
 
 /**
  * PeaqMovAccumMode:
@@ -148,10 +360,10 @@ typedef struct _PeaqMovAccum PeaqMovAccum;
  *   </mfrac></msqrt>
  * </math></informalequation>
  * Note that the factor <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msqrt><mi>Z</mi></msqrt>
- * </math></inlineequation> 
+ * </math></inlineequation>
  * introduced in <xref linkend="BS1387" /> for the weighted case only is not
  * included here but has be included in the calculation of <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>x</mi><mi>i</mi></msub>
- * </math></inlineequation> 
+ * </math></inlineequation>
  * or when using the output of the accumulator for further calculations.
  * @MODE_RMS_ASYM: A variant of root-mean-square averaging used for the
  * Asymmetric Noise Loudness model output variable, see section 4.3.3 of <xref
@@ -335,73 +547,6 @@ typedef struct _PeaqMovAccum PeaqMovAccum;
  * to peaq_movaccum_accumulate(). The resulting per-channel values <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>X</mi><mi>c</mi></msub></math></inlineequation> are averaged to
  * obtain the final result as returned by peaq_movaccum_get_value().
  */
-typedef enum
-{
-  MODE_AVG,
-  MODE_AVG_LOG,
-  MODE_RMS,
-  MODE_RMS_ASYM,
-  MODE_AVG_WINDOW,
-  MODE_FILTERED_MAX,
-  MODE_ADB
-} PeaqMovAccumMode;
-
-/**
- * peaq_movaccum_new:
- *
- * Creates a new #PeaqMovAccum instance. The number of channels is initially
- * set to zero and has to be changed with peaq_movaccum_set_channels() before
- * accumulation can start.
- *
- * Returns: The newly created #PeaqMovAccum instance.
- */
-PeaqMovAccum *peaq_movaccum_new ();
-void peaq_movaccum_delete (PeaqMovAccum *acc);
-
-/**
- * peaq_movaccum_set_channels:
- * @acc: The #PeaqMovAccum instance to set the number of the channels for.
- * @channels: The number of independent channels the given #PeaqMovAccum shall
- * be configured to support.
- *
- * Accumulation is performed individually for all channels; the final value
- * returned by peaq_movaccum_get_value() is obtained by averaging accross
- * channels.
- */
-void peaq_movaccum_set_channels (PeaqMovAccum *acc, unsigned int channels);
-
-/**
- * peaq_movaccum_get_channels:
- * @acc: The #PeaqMovAccum instance to get the number of the channels from.
- *
- * Returns the configured number of channels as set with
- * peaq_movaccum_set_channels().
- *
- * Returns: The number of channels the given #PeaqMovAccum is set up to
- *          support.
- */
-unsigned int peaq_movaccum_get_channels (PeaqMovAccum const *acc);
-
-/**
- * peaq_movaccum_set_mode:
- * @acc: The #PeaqMovAccum instance to set the mode for.
- * @mode: The #PeaqMovAccumMode the given #PeaqMovAccum will use.
- *
- * Configures the way the accumulation is carried out by means of the given
- * #PeaqMovAccumMode.
- */
-void peaq_movaccum_set_mode (PeaqMovAccum *acc, PeaqMovAccumMode mode);
-
-/**
- * peaq_movaccum_get_mode:
- * @acc: The #PeaqMovAccum instance to get the active #PeaqMovAccumMode of.
- *
- * Returns the configured accumulatio mode as set with
- * peaq_movaccum_set_mode().
- *
- * Returns: The #PeaqMovAccumMode the given #PeaqMovAccum is set up to use.
- */
-PeaqMovAccumMode peaq_movaccum_get_mode (PeaqMovAccum *acc);
 
 /**
  * peaq_movaccum_set_tentative:
@@ -415,37 +560,5 @@ PeaqMovAccumMode peaq_movaccum_get_mode (PeaqMovAccum *acc);
  * disabled, the final value is updated to include all values accumulated
  * during tentative state.
  */
-void peaq_movaccum_set_tentative (PeaqMovAccum *acc, int tentative);
-
-/**
- * peaq_movaccum_accumulate:
- * @acc: The #PeaqMovAccum instance to use for accumulation.
- * @c: Number of channel to accumulate to.
- * @val: First value for accumulation.
- * @weight: Second value for accumulation, usually the weight.
- *
- * Accumulates one more value in the given #PeaqMovAccum. The method used for
- * accumulation and the exact meaning of @val and @weight depend on the
- * #PeaqMovAccumMode set with peaq_movaccum_set_mode().
- *
- */
-void peaq_movaccum_accumulate (PeaqMovAccum *acc, unsigned int c, double val,
-                               double weight);
-
-/**
- * peaq_movaccum_get_value:
- * @acc: The #PeaqMovAccum to get the current accumulator value of.
- *
- * Returns the current value of the accumulator. The method used for
- * accumulation and calculation of the final value depend on the
- * #PeaqMovAccumMode set with peaq_movaccum_set_mode().
- *
- * Returns: The current accumulated value.
- */
-double peaq_movaccum_get_value (PeaqMovAccum const *acc);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif
