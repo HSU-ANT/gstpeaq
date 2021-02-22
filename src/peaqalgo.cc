@@ -55,66 +55,47 @@ void AlgoBasic::do_process()
     }
   }
 
-  std::vector<FFTEarModel::state_t*> ref_state(channel_count);
-  std::vector<FFTEarModel::state_t*> test_state(channel_count);
-  for (auto chan = 0U; chan < channel_count; chan++) {
-    ref_state[chan] = &fft_earmodel_state_ref[chan];
-    test_state[chan] = &fft_earmodel_state_test[chan];
-  }
-  std::vector<ModulationProcessor*> ref_mod_procs(ref_modulation_processors.size());
-  std::vector<ModulationProcessor*> test_mod_procs(test_modulation_processors.size());
-  for (std::size_t i = 0; i < ref_modulation_processors.size(); i++) {
-    ref_mod_procs[i] = &ref_modulation_processors[i];
-    test_mod_procs[i] = &test_modulation_processors[i];
-  }
-  std::vector<LevelAdapter*> _level_adapters(level_adapters.size());
-  for (std::size_t i = 0; i < level_adapters.size(); i++) {
-    _level_adapters[i] = &level_adapters[i];
-  }
-
   /* modulation difference */
   if (frame_counter >= 24) {
-    peaq_mov_modulation_difference(ref_mod_procs.data(),
-                                   test_mod_procs.data(),
-                                   mov_accums[MOV_AVG_MOD_DIFF_1].get(),
-                                   mov_accums[MOV_AVG_MOD_DIFF_2].get(),
-                                   mov_accums[MOV_WIN_MOD_DIFF].get());
+    mov_modulation_difference(fft_ear_model,
+                              ref_modulation_processors,
+                              test_modulation_processors,
+                              *mov_accums[MOV_AVG_MOD_DIFF_1],
+                              *mov_accums[MOV_AVG_MOD_DIFF_2],
+                              *mov_accums[MOV_WIN_MOD_DIFF]);
   }
 
   /* noise loudness */
   if (frame_counter >= 24 && frame_counter - 3 >= loudness_reached_frame) {
-    peaq_mov_noise_loudness(ref_mod_procs.data(),
-                            test_mod_procs.data(),
-                            _level_adapters.data(),
-                            mov_accums[MOV_RMS_NOISE_LOUD].get());
+    mov_noise_loudness(ref_modulation_processors,
+                       test_modulation_processors,
+                       level_adapters,
+                       *mov_accums[MOV_RMS_NOISE_LOUD]);
   }
 
   /* bandwidth */
-  peaq_mov_bandwidth((void**)ref_state.data(),
-                     (void**)test_state.data(),
-                     mov_accums[MOV_BANDWIDTH_REF].get(),
-                     mov_accums[MOV_BANDWIDTH_TEST].get());
+  mov_bandwidth(fft_earmodel_state_ref,
+                fft_earmodel_state_test,
+                *mov_accums[MOV_BANDWIDTH_REF],
+                *mov_accums[MOV_BANDWIDTH_TEST]);
 
   /* noise-to-mask ratio */
-  peaq_mov_nmr(&fft_ear_model,
-               (void**)ref_state.data(),
-               (void**)test_state.data(),
-               mov_accums[MOV_TOTAL_NMR].get(),
-               mov_accums[MOV_REL_DIST_FRAMES].get());
+  mov_nmr(fft_ear_model,
+          fft_earmodel_state_ref,
+          fft_earmodel_state_test,
+          *mov_accums[MOV_TOTAL_NMR],
+          *mov_accums[MOV_REL_DIST_FRAMES]);
 
   /* probability of detection */
-  peaq_mov_prob_detect(&fft_ear_model,
-                       (void**)ref_state.data(),
-                       (void**)test_state.data(),
-                       channel_count,
-                       mov_accums[MOV_ADB].get(),
-                       mov_accums[MOV_MFPD].get());
+  mov_prob_detect(fft_ear_model,
+                  fft_earmodel_state_ref,
+                  fft_earmodel_state_test,
+                  channel_count,
+                  *mov_accums[MOV_ADB],
+                  *mov_accums[MOV_MFPD]);
 
   /* error harmonic structure */
-  peaq_mov_ehs(&fft_ear_model,
-               (void**)ref_state.data(),
-               (void**)test_state.data(),
-               mov_accums[MOV_EHS].get());
+  mov_ehs(fft_earmodel_state_ref, fft_earmodel_state_test, *mov_accums[MOV_EHS]);
 
   frame_counter++;
 }
@@ -140,25 +121,14 @@ void AlgoAdvanced::do_process_fft()
                                 test_buffers[c].data() + buffer_fft_offset);
   }
 
-  std::vector<FFTEarModel::state_t*> ref_state(channel_count);
-  std::vector<FFTEarModel::state_t*> test_state(channel_count);
-  for (auto chan = 0U; chan < channel_count; chan++) {
-    ref_state[chan] = &fft_earmodel_state_ref[chan];
-    test_state[chan] = &fft_earmodel_state_test[chan];
-  }
-
   /* noise-to-mask ratio */
-  peaq_mov_nmr(&fft_ear_model,
-               (void**)ref_state.data(),
-               (void**)test_state.data(),
-               mov_accums[MOV_SEGMENTAL_NMR].get(),
-               nullptr);
+  mov_nmr(fft_ear_model,
+          fft_earmodel_state_ref,
+          fft_earmodel_state_test,
+          *mov_accums[MOV_SEGMENTAL_NMR]);
 
   /* error harmonic structure */
-  peaq_mov_ehs(&fft_ear_model,
-               (void**)ref_state.data(),
-               (void**)test_state.data(),
-               mov_accums[MOV_EHS].get());
+  mov_ehs(fft_earmodel_state_ref, fft_earmodel_state_test, *mov_accums[MOV_EHS]);
 }
 
 void AlgoAdvanced::do_process_fb()
@@ -201,43 +171,25 @@ void AlgoAdvanced::do_process_fb()
     }
   }
 
-  std::vector<FilterbankEarModel::state_t*> ref_state(channel_count);
-  std::vector<FilterbankEarModel::state_t*> test_state(channel_count);
-  for (auto chan = 0U; chan < channel_count; chan++) {
-    ref_state[chan] = &fb_earmodel_state_ref[chan];
-    test_state[chan] = &fb_earmodel_state_test[chan];
-  }
-  std::vector<LevelAdapter*> _level_adapters(level_adapters.size());
-  for (std::size_t i = 0; i < level_adapters.size(); i++) {
-    _level_adapters[i] = &level_adapters[i];
-  }
-  std::vector<ModulationProcessor*> ref_mod_procs(ref_modulation_processors.size());
-  std::vector<ModulationProcessor*> test_mod_procs(test_modulation_processors.size());
-  for (std::size_t i = 0; i < ref_modulation_processors.size(); i++) {
-    ref_mod_procs[i] = &ref_modulation_processors[i];
-    test_mod_procs[i] = &test_modulation_processors[i];
-  }
-
   /* modulation difference */
   if (frame_counter >= 125) {
-    peaq_mov_modulation_difference(ref_mod_procs.data(),
-                                   test_mod_procs.data(),
-                                   mov_accums[MOV_RMS_MOD_DIFF].get(),
-                                   nullptr,
-                                   nullptr);
+    mov_modulation_difference(fb_ear_model,
+                              ref_modulation_processors,
+                              test_modulation_processors,
+                              *mov_accums[MOV_RMS_MOD_DIFF]);
   }
 
   /* noise loudness */
   if (frame_counter >= 125 && frame_counter - 13 >= loudness_reached_frame) {
-    peaq_mov_noise_loud_asym(ref_mod_procs.data(),
-                             test_mod_procs.data(),
-                             _level_adapters.data(),
-                             mov_accums[MOV_RMS_NOISE_LOUD_ASYM].get());
-    peaq_mov_lin_dist(ref_mod_procs.data(),
-                      test_mod_procs.data(),
-                      _level_adapters.data(),
-                      (void**)ref_state.data(),
-                      mov_accums[MOV_AVG_LIN_DIST].get());
+    mov_noise_loud_asym(ref_modulation_processors,
+                        test_modulation_processors,
+                        level_adapters,
+                        *mov_accums[MOV_RMS_NOISE_LOUD_ASYM]);
+    mov_lin_dist(fb_ear_model,
+                 ref_modulation_processors,
+                 level_adapters,
+                 fb_earmodel_state_ref,
+                 *mov_accums[MOV_AVG_LIN_DIST]);
   }
 
   frame_counter++;

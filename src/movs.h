@@ -22,15 +22,15 @@
 #ifndef __MOVS_H_
 #define __MOVS_H_ 1
 
+#include "fbearmodel.h"
 #include "fftearmodel.h"
 #include "leveladapter.h"
 #include "modpatt.h"
 #include "movaccum.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <numeric>
 
+namespace peaq {
 /**
  * peaq_mov_modulation_difference:
  * @ref_mod_proc: Modulation processors of the reference signal (one per
@@ -183,12 +183,16 @@ extern "C" {
  * </math></inlineequation>
  * otherwise.
  */
-void peaq_mov_modulation_difference (PeaqModulationProcessor* const *ref_mod_proc,
-                                     PeaqModulationProcessor* const *test_mod_proc,
-                                     PeaqMovAccum *mov_accum1,
-                                     PeaqMovAccum *mov_accum2,
-                                     PeaqMovAccum *mov_accum_win);
-
+void mov_modulation_difference(FFTEarModel const& ear_model,
+                               std::vector<ModulationProcessor> const& ref_mod_proc,
+                               std::vector<ModulationProcessor> const& test_mod_proc,
+                               PeaqMovAccum& mov_accum1,
+                               PeaqMovAccum& mov_accum2,
+                               PeaqMovAccum& mov_accum_win);
+void mov_modulation_difference(FilterbankEarModel const& ear_model,
+                               std::vector<ModulationProcessor> const& ref_mod_proc,
+                               std::vector<ModulationProcessor> const& test_mod_proc,
+                               PeaqMovAccum& mov_accum1);
 /**
  * peaq_mov_noise_loudness:
  * @ref_mod_proc: Modulation processors of the reference signal (one per
@@ -286,10 +290,10 @@ void peaq_mov_modulation_difference (PeaqModulationProcessor* const *ref_mod_pro
  * </math></inlineequation>.
  * If the resulting noise loudness is negative, it is set to zero.
  */
-void peaq_mov_noise_loudness (PeaqModulationProcessor * const *ref_mod_proc,
-                              PeaqModulationProcessor * const *test_mod_proc,
-                              PeaqLevelAdapter * const *level,
-                              PeaqMovAccum *mov_accum);
+void mov_noise_loudness(std::vector<ModulationProcessor> const& ref_mod_proc,
+                        std::vector<ModulationProcessor> const& test_mod_proc,
+                        std::vector<LevelAdapter> const& level,
+                        PeaqMovAccum& mov_accum);
 
 /**
  * peaq_mov_noise_loud_asym:
@@ -468,10 +472,10 @@ void peaq_mov_noise_loudness (PeaqModulationProcessor * const *ref_mod_proc,
  * and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>Mod</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation> have to be exchanged in the calculation of MC.
  */
-void peaq_mov_noise_loud_asym (PeaqModulationProcessor * const *ref_mod_proc,
-                               PeaqModulationProcessor * const *test_mod_proc,
-                               PeaqLevelAdapter * const *level,
-                               PeaqMovAccum *mov_accum);
+void mov_noise_loud_asym(std::vector<ModulationProcessor> const& ref_mod_proc,
+                         std::vector<ModulationProcessor> const& test_mod_proc,
+                         std::vector<LevelAdapter> const& level,
+                         PeaqMovAccum& mov_accum);
 
 /**
  * peaq_mov_lin_dist:
@@ -572,10 +576,11 @@ void peaq_mov_noise_loud_asym (PeaqModulationProcessor * const *ref_mod_proc,
  * is used to calculate <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>s</mi><mi>test</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation>.
  */
-void peaq_mov_lin_dist (PeaqModulationProcessor * const *ref_mod_proc,
-                        PeaqModulationProcessor* const* test_mod_proc,
-                        PeaqLevelAdapter * const *level, const gpointer *state,
-                        PeaqMovAccum *mov_accum);
+void mov_lin_dist(FilterbankEarModel const& ear_model,
+                  std::vector<ModulationProcessor> const& ref_mod_proc,
+                  std::vector<LevelAdapter> const& level,
+                  std::vector<FilterbankEarModel::state_t> const& state,
+                  PeaqMovAccum& mov_accum);
 
 /**
  * peaq_mov_bandwidth:
@@ -607,9 +612,10 @@ void peaq_mov_lin_dist (PeaqModulationProcessor * const *ref_mod_proc,
  * are accumulated to @mov_accum_ref and @mov_accum_test only if the reference
  * bandwidth is greater than 346.
  */
-void peaq_mov_bandwidth (const gpointer *ref_state, const gpointer *test_state,
-                         PeaqMovAccum *mov_accum_ref,
-                         PeaqMovAccum *mov_accum_test);
+void mov_bandwidth(std::vector<FFTEarModel::state_t> const& ref_state,
+                   std::vector<FFTEarModel::state_t> const& test_state,
+                   PeaqMovAccum& mov_accum_ref,
+                   PeaqMovAccum& mov_accum_test);
 
 /**
  * peaq_mov_nmr:
@@ -770,9 +776,15 @@ void peaq_mov_bandwidth (const gpointer *ref_state, const gpointer *test_state,
  * accumlating one for frames that do exceed the threshold, a zero for those
  * that do not.
  */
-void peaq_mov_nmr (PeaqFFTEarModel const *ear_model, const gpointer *ref_state,
-                   const gpointer *test_state, PeaqMovAccum *mov_accum_nmr,
-                   PeaqMovAccum *mov_accum_rel_dist_frames);
+void mov_nmr(FFTEarModel const& ear_model,
+             std::vector<FFTEarModel::state_t> const& ref_state,
+             std::vector<FFTEarModel::state_t> const& test_state,
+             PeaqMovAccum& mov_accum_nmr,
+             PeaqMovAccum& mov_accum_rel_dist_frames);
+void mov_nmr(FFTEarModel const& ear_model,
+             std::vector<FFTEarModel::state_t> const& ref_state,
+             std::vector<FFTEarModel::state_t> const& test_state,
+             PeaqMovAccum& mov_accum_nmr);
 
 /**
  * peaq_mov_prob_detect:
@@ -972,10 +984,12 @@ void peaq_mov_nmr (PeaqFFTEarModel const *ear_model, const gpointer *ref_state,
  * </math></inlineequation>, the total number of steps above the threshold is
  * accumulated in @mov_accum_adb, which should be set to #MODE_ADB.
  */
-void peaq_mov_prob_detect (PeaqEarModel const *ear_model, const gpointer *ref_state,
-                           const gpointer *test_state, guint channels,
-                           PeaqMovAccum *mov_accum_adb,
-                           PeaqMovAccum *mov_accum_mfpd);
+void mov_prob_detect(FFTEarModel const& ear_model,
+                     std::vector<FFTEarModel::state_t> const& ref_state,
+                     std::vector<FFTEarModel::state_t> const& test_state,
+                     unsigned int channels,
+                     PeaqMovAccum& mov_accum_adb,
+                     PeaqMovAccum& mov_accum_mfpd);
 
 /**
  * peaq_mov_ehs:
@@ -1005,9 +1019,10 @@ void peaq_mov_prob_detect (PeaqEarModel const *ear_model, const gpointer *ref_st
  * * #EHS_SUBTRACT_DC_BEFORE_WINDOW controls whether the average is subtracted
  *   before windowing as suggested in <xref linkend="Kabal03" /> or afterwards.
  */
-void peaq_mov_ehs (PeaqEarModel const *ear_model, gpointer *ref_state, gpointer *test_state, PeaqMovAccum *mov_accum);
-#ifdef __cplusplus
-}
-#endif
+void mov_ehs(std::vector<FFTEarModel::state_t> const& ref_state,
+             std::vector<FFTEarModel::state_t> const& test_state,
+             PeaqMovAccum& mov_accum);
+
+} // namespace peaq
 
 #endif

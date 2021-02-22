@@ -43,7 +43,6 @@
 #include <numeric>
 
 namespace peaq {
-auto constexpr FIVE_DB_POWER_FACTOR = 3.16227766016838;
 auto constexpr ONE_POINT_FIVE_DB_POWER_FACTOR = 1.41253754462275;
 auto constexpr MAXLAG = 256;
 
@@ -52,16 +51,16 @@ static auto calc_noise_loudness(double alpha,
                                 double thres_fac,
                                 double S0,
                                 double NLmin,
-                                ModulationProcessor const* ref_mod_proc,
-                                ModulationProcessor const* test_mod_proc,
+                                ModulationProcessor const& ref_mod_proc,
+                                ModulationProcessor const& test_mod_proc,
                                 std::vector<double> const& ref_excitation,
                                 T const& test_excitation)
 {
   auto noise_loudness = 0.0;
-  const auto* ear_model = ref_mod_proc->get_ear_model();
+  const auto* ear_model = ref_mod_proc.get_ear_model();
   auto band_count = ear_model->get_band_count();
-  auto const& ref_modulation = ref_mod_proc->get_modulation();
-  auto const& test_modulation = test_mod_proc->get_modulation();
+  auto const& ref_modulation = ref_mod_proc.get_modulation();
+  auto const& test_modulation = test_mod_proc.get_modulation();
   for (std::size_t i = 0; i < band_count; i++) {
     /* (67) in [BS1387] */
     auto sref = thres_fac * ref_modulation[i] + S0;
@@ -85,61 +84,80 @@ static auto calc_noise_loudness(double alpha,
   return noise_loudness;
 }
 
-void mov_modulation_difference(ModulationProcessor* const* ref_mod_proc,
-                               ModulationProcessor* const* test_mod_proc,
-                               PeaqMovAccum* mov_accum1,
-                               PeaqMovAccum* mov_accum2,
-                               PeaqMovAccum* mov_accum_win)
+template<typename Ear>
+auto calc_modulation_difference(Ear const& ear_model,
+                                ModulationProcessor const& ref_mod_proc,
+                                ModulationProcessor const& test_mod_proc,
+                                double levWt)
 {
-  auto* ear_model = ref_mod_proc[0]->get_ear_model();
-  auto band_count = ear_model->get_band_count();
+  auto band_count = ear_model.get_band_count();
+  auto const& modulation_ref = ref_mod_proc.get_modulation();
+  auto const& modulation_test = test_mod_proc.get_modulation();
+  auto const& average_loudness_ref = ref_mod_proc.get_average_loudness();
 
-  auto levWt = mov_accum2 != nullptr ? 100. : 1.;
-  for (std::size_t c = 0; c < peaq_movaccum_get_channels(mov_accum1); c++) {
-    auto const& modulation_ref = ref_mod_proc[c]->get_modulation();
-    auto const& modulation_test = test_mod_proc[c]->get_modulation();
-    auto const& average_loudness_ref = ref_mod_proc[c]->get_average_loudness();
+  auto mod_diff_1b = 0.;
+  auto mod_diff_2b = 0.;
+  auto temp_wt = 0.;
+  for (std::size_t i = 0; i < band_count; i++) {
+    auto diff = ABS(modulation_ref[i] - modulation_test[i]);
+    /* (63) in [BS1387] with negWt = 1, offset = 1 */
+    mod_diff_1b += diff / (1. + modulation_ref[i]);
+    /* (63) in [BS1387] with negWt = 0.1, offset = 0.01 */
+    auto w = modulation_test[i] >= modulation_ref[i] ? 1. : .1;
+    mod_diff_2b += w * diff / (0.01 + modulation_ref[i]);
+    /* (65) in [BS1387] with levWt = 100 if more than one accumulator is
+       given, 1 otherwise */
+    temp_wt +=
+      average_loudness_ref[i] /
+      (average_loudness_ref[i] + levWt * std::pow(ear_model.get_internal_noise(i), 0.3));
+  }
+  return std::make_tuple(mod_diff_1b, mod_diff_2b, temp_wt);
+}
 
-    auto mod_diff_1b = 0.;
-    auto mod_diff_2b = 0.;
-    auto temp_wt = 0.;
-    for (std::size_t i = 0; i < band_count; i++) {
-      auto diff = ABS(modulation_ref[i] - modulation_test[i]);
-      /* (63) in [BS1387] with negWt = 1, offset = 1 */
-      mod_diff_1b += diff / (1. + modulation_ref[i]);
-      /* (63) in [BS1387] with negWt = 0.1, offset = 0.01 */
-      auto w = modulation_test[i] >= modulation_ref[i] ? 1. : .1;
-      mod_diff_2b += w * diff / (0.01 + modulation_ref[i]);
-      /* (65) in [BS1387] with levWt = 100 if more than one accumulator is
-         given, 1 otherwise */
-      temp_wt +=
-        average_loudness_ref[i] /
-        (average_loudness_ref[i] + levWt * std::pow(ear_model->get_internal_noise(i), 0.3));
-    }
-    if (peaq_movaccum_get_mode(mov_accum1) == MODE_RMS) {
-      mod_diff_1b *= 100. / std::sqrt(band_count);
-    } else {
-      mod_diff_1b *= 100. / band_count;
-    }
+void mov_modulation_difference(FFTEarModel const& ear_model,
+                               std::vector<ModulationProcessor> const& ref_mod_proc,
+                               std::vector<ModulationProcessor> const& test_mod_proc,
+                               PeaqMovAccum& mov_accum1,
+                               PeaqMovAccum& mov_accum2,
+                               PeaqMovAccum& mov_accum_win)
+{
+  auto band_count = ear_model.get_band_count();
+
+  for (std::size_t c = 0; c < peaq_movaccum_get_channels(&mov_accum1); c++) {
+    auto [mod_diff_1b, mod_diff_2b, temp_wt] =
+      calc_modulation_difference(ear_model, ref_mod_proc[c], test_mod_proc[c], 100.);
+    mod_diff_1b *= 100. / band_count;
     mod_diff_2b *= 100. / band_count;
-    peaq_movaccum_accumulate(mov_accum1, c, mod_diff_1b, temp_wt);
-    if (mov_accum2 != nullptr) {
-      peaq_movaccum_accumulate(mov_accum2, c, mod_diff_2b, temp_wt);
-    }
-    if (mov_accum_win != nullptr) {
-      peaq_movaccum_accumulate(mov_accum_win, c, mod_diff_1b, 1.);
-    }
+    peaq_movaccum_accumulate(&mov_accum1, c, mod_diff_1b, temp_wt);
+    peaq_movaccum_accumulate(&mov_accum2, c, mod_diff_2b, temp_wt);
+    peaq_movaccum_accumulate(&mov_accum_win, c, mod_diff_1b, 1.);
   }
 }
 
-void mov_noise_loudness(PeaqModulationProcessor* const* ref_mod_proc,
-                        PeaqModulationProcessor* const* test_mod_proc,
-                        PeaqLevelAdapter* const* level,
-                        PeaqMovAccum* mov_accum)
+void mov_modulation_difference(FilterbankEarModel const& ear_model,
+                               std::vector<ModulationProcessor> const& ref_mod_proc,
+                               std::vector<ModulationProcessor> const& test_mod_proc,
+                               PeaqMovAccum& mov_accum1)
 {
-  for (std::size_t c = 0; c < peaq_movaccum_get_channels(mov_accum); c++) {
-    auto const& ref_excitation = level[c]->get_adapted_ref();
-    auto const& test_excitation = level[c]->get_adapted_test();
+  auto band_count = ear_model.get_band_count();
+
+  for (std::size_t c = 0; c < peaq_movaccum_get_channels(&mov_accum1); c++) {
+    auto [mod_diff_1b, mod_diff_2b, temp_wt] =
+      calc_modulation_difference(ear_model, ref_mod_proc[c], test_mod_proc[c], 1.);
+    mod_diff_1b *= 100. / std::sqrt(band_count);
+    mod_diff_2b *= 100. / band_count;
+    peaq_movaccum_accumulate(&mov_accum1, c, mod_diff_1b, temp_wt);
+  }
+}
+
+void mov_noise_loudness(std::vector<ModulationProcessor> const& ref_mod_proc,
+                        std::vector<ModulationProcessor> const& test_mod_proc,
+                        std::vector<LevelAdapter> const& level,
+                        PeaqMovAccum& mov_accum)
+{
+  for (std::size_t c = 0; c < peaq_movaccum_get_channels(&mov_accum); c++) {
+    auto const& ref_excitation = level[c].get_adapted_ref();
+    auto const& test_excitation = level[c].get_adapted_test();
     auto noise_loudness = calc_noise_loudness(1.5,
                                               0.15,
                                               0.5,
@@ -148,18 +166,18 @@ void mov_noise_loudness(PeaqModulationProcessor* const* ref_mod_proc,
                                               test_mod_proc[c],
                                               ref_excitation,
                                               test_excitation);
-    peaq_movaccum_accumulate(mov_accum, c, noise_loudness, 1.);
+    peaq_movaccum_accumulate(&mov_accum, c, noise_loudness, 1.);
   }
 }
 
-void mov_noise_loud_asym(PeaqModulationProcessor* const* ref_mod_proc,
-                         PeaqModulationProcessor* const* test_mod_proc,
-                         PeaqLevelAdapter* const* level,
-                         PeaqMovAccum* mov_accum)
+void mov_noise_loud_asym(std::vector<ModulationProcessor> const& ref_mod_proc,
+                         std::vector<ModulationProcessor> const& test_mod_proc,
+                         std::vector<LevelAdapter> const& level,
+                         PeaqMovAccum& mov_accum)
 {
-  for (std::size_t c = 0; c < peaq_movaccum_get_channels(mov_accum); c++) {
-    auto const& ref_excitation = level[c]->get_adapted_ref();
-    auto const& test_excitation = level[c]->get_adapted_test();
+  for (std::size_t c = 0; c < peaq_movaccum_get_channels(&mov_accum); c++) {
+    auto const& ref_excitation = level[c].get_adapted_ref();
+    auto const& test_excitation = level[c].get_adapted_test();
     auto noise_loudness = calc_noise_loudness(2.5,
                                               0.3,
                                               1.,
@@ -188,20 +206,19 @@ void mov_noise_loud_asym(PeaqModulationProcessor* const* ref_mod_proc,
                                                   test_excitation,
                                                   ref_excitation);
 #endif
-    peaq_movaccum_accumulate(mov_accum, c, noise_loudness, missing_components);
+    peaq_movaccum_accumulate(&mov_accum, c, noise_loudness, missing_components);
   }
 }
 
-void mov_lin_dist(ModulationProcessor* const* ref_mod_proc,
-                  PeaqEarModel* ear_model,
-                  LevelAdapter* const* level,
-                  const gpointer* state,
-                  PeaqMovAccum* mov_accum)
+void mov_lin_dist(FilterbankEarModel const& ear_model,
+                  std::vector<ModulationProcessor> const& ref_mod_proc,
+                  std::vector<LevelAdapter> const& level,
+                  std::vector<FilterbankEarModel::state_t> const& state,
+                  PeaqMovAccum& mov_accum)
 {
-  for (std::size_t c = 0; c < peaq_movaccum_get_channels(mov_accum); c++) {
-    auto const& ref_adapted_excitation = level[c]->get_adapted_ref();
-    auto const* ref_excitation =
-      ear_model->get_excitation(reinterpret_cast<PeaqEarModelState*>(state[c]));
+  for (std::size_t c = 0; c < peaq_movaccum_get_channels(&mov_accum); c++) {
+    auto const& ref_adapted_excitation = level[c].get_adapted_ref();
+    auto const* ref_excitation = ear_model.get_excitation(&state[c]);
 #if defined(SWAP_MOD_PATTS_FOR_NOISE_LOUDNESS_MOVS) &&                                     \
   SWAP_MOD_PATTS_FOR_NOISE_LOUDNESS_MOVS
     auto noise_loudness = calc_noise_loudness(1.5,
@@ -222,18 +239,19 @@ void mov_lin_dist(ModulationProcessor* const* ref_mod_proc,
                                               ref_adapted_excitation,
                                               ref_excitation);
 #endif
-    peaq_movaccum_accumulate(mov_accum, c, noise_loudness, 1.);
+    peaq_movaccum_accumulate(&mov_accum, c, noise_loudness, 1.);
   }
 }
 
-void mov_bandwidth(FFTEarModel::state_t const* const* ref_state,
-                   FFTEarModel::state_t const* const* test_state,
-                   PeaqMovAccum* mov_accum_ref,
-                   PeaqMovAccum* mov_accum_test)
+void mov_bandwidth(std::vector<FFTEarModel::state_t> const& ref_state,
+                   std::vector<FFTEarModel::state_t> const& test_state,
+                   PeaqMovAccum& mov_accum_ref,
+                   PeaqMovAccum& mov_accum_test)
 {
-  for (std::size_t c = 0; c < peaq_movaccum_get_channels(mov_accum_ref); c++) {
-    auto const& ref_power_spectrum = FFTEarModel::get_power_spectrum(*ref_state[c]);
-    auto const& test_power_spectrum = FFTEarModel::get_power_spectrum(*test_state[c]);
+  auto constexpr FIVE_DB_POWER_FACTOR = 3.16227766016838;
+  for (std::size_t c = 0; c < peaq_movaccum_get_channels(&mov_accum_ref); c++) {
+    auto const& ref_power_spectrum = FFTEarModel::get_power_spectrum(ref_state[c]);
+    auto const& test_power_spectrum = FFTEarModel::get_power_spectrum(test_state[c]);
     auto zero_threshold = std::accumulate(cbegin(test_power_spectrum) + 922,
                                           cbegin(test_power_spectrum) + 1024,
                                           test_power_spectrum[921],
@@ -253,85 +271,95 @@ void mov_bandwidth(FFTEarModel::state_t const* const* ref_state,
           break;
         }
       }
-      peaq_movaccum_accumulate(mov_accum_ref, c, bw_ref, 1.);
-      peaq_movaccum_accumulate(mov_accum_test, c, bw_test, 1.);
+      peaq_movaccum_accumulate(&mov_accum_ref, c, bw_ref, 1.);
+      peaq_movaccum_accumulate(&mov_accum_test, c, bw_test, 1.);
     }
   }
 }
 
-void mov_nmr(FFTEarModel const* ear_model,
-             FFTEarModel::state_t const* const* ref_state,
-             FFTEarModel::state_t const* const* test_state,
-             PeaqMovAccum* mov_accum_nmr,
-             PeaqMovAccum* mov_accum_rel_dist_frames)
+static auto calc_nmr(FFTEarModel const& ear_model,
+                     FFTEarModel::state_t const& ref_state,
+                     FFTEarModel::state_t const& test_state)
 {
-  auto band_count = ear_model->get_band_count();
-  for (std::size_t c = 0; c < peaq_movaccum_get_channels(mov_accum_nmr); c++) {
-    auto const& ref_weighted_power_spectrum =
-      FFTEarModel::get_weighted_power_spectrum(*ref_state[c]);
-    auto const& test_weighted_power_spectrum =
-      FFTEarModel::get_weighted_power_spectrum(*test_state[c]);
-    std::array<double, 1025> noise_spectrum;
+  auto band_count = ear_model.get_band_count();
+  auto const& ref_weighted_power_spectrum =
+    FFTEarModel::get_weighted_power_spectrum(ref_state);
+  auto const& test_weighted_power_spectrum =
+    FFTEarModel::get_weighted_power_spectrum(test_state);
+  std::array<double, 1025> noise_spectrum;
 
-    std::transform(
-      cbegin(ref_weighted_power_spectrum),
-      cend(ref_weighted_power_spectrum),
-      cbegin(test_weighted_power_spectrum),
-      begin(noise_spectrum),
-      [](auto ref, auto test) { return ref - 2 * std::sqrt(ref * test) + test; });
+  std::transform(
+    cbegin(ref_weighted_power_spectrum),
+    cend(ref_weighted_power_spectrum),
+    cbegin(test_weighted_power_spectrum),
+    begin(noise_spectrum),
+    [](auto ref, auto test) { return ref - 2 * std::sqrt(ref * test) + test; });
 
-    auto* noise_in_bands = g_newa(double, band_count);
-    ear_model->group_into_bands(noise_spectrum, noise_in_bands);
+  auto* noise_in_bands = g_newa(double, band_count);
+  ear_model.group_into_bands(noise_spectrum, noise_in_bands);
 
-    auto const* ref_excitation = ear_model->get_excitation(ref_state[c]);
-    auto const& masking_difference = ear_model->get_masking_difference();
-    auto nmr = 0.;
-    auto nmr_max = 0.;
-    for (std::size_t i = 0; i < band_count; i++) {
-      /* (26) in [BS1387] */
-      auto mask = ref_excitation[i] / masking_difference[i];
-      /* (70) in [BS1387], except for conversion to dB in the end */
-      auto curr_nmr = noise_in_bands[i] / mask;
-      nmr += curr_nmr;
-      /* for Relative Disturbed Frames */
-      if (curr_nmr > nmr_max) {
-        nmr_max = curr_nmr;
-      }
+  auto const* ref_excitation = ear_model.get_excitation(&ref_state);
+  auto const& masking_difference = ear_model.get_masking_difference();
+  auto nmr = 0.;
+  auto nmr_max = 0.;
+  for (std::size_t i = 0; i < band_count; i++) {
+    /* (26) in [BS1387] */
+    auto mask = ref_excitation[i] / masking_difference[i];
+    /* (70) in [BS1387], except for conversion to dB in the end */
+    auto curr_nmr = noise_in_bands[i] / mask;
+    nmr += curr_nmr;
+    /* for Relative Disturbed Frames */
+    if (curr_nmr > nmr_max) {
+      nmr_max = curr_nmr;
     }
-    nmr /= band_count;
+  }
+  nmr /= band_count;
+  return std::make_tuple(nmr, nmr_max);
+}
 
-    if (peaq_movaccum_get_mode(mov_accum_nmr) == MODE_AVG_LOG) {
-      peaq_movaccum_accumulate(mov_accum_nmr, c, nmr, 1.);
-    } else {
-      peaq_movaccum_accumulate(mov_accum_nmr, c, 10. * log10(nmr), 1.);
-    }
-    if (mov_accum_rel_dist_frames != nullptr) {
-      peaq_movaccum_accumulate(mov_accum_rel_dist_frames,
-                               c,
-                               nmr_max > ONE_POINT_FIVE_DB_POWER_FACTOR ? 1. : 0.,
-                               1.);
-    }
+void mov_nmr(FFTEarModel const& ear_model,
+             std::vector<FFTEarModel::state_t> const& ref_state,
+             std::vector<FFTEarModel::state_t> const& test_state,
+             PeaqMovAccum& mov_accum_nmr,
+             PeaqMovAccum& mov_accum_rel_dist_frames)
+{
+  for (std::size_t c = 0; c < peaq_movaccum_get_channels(&mov_accum_nmr); c++) {
+    auto [nmr, nmr_max] = calc_nmr(ear_model, ref_state[c], test_state[c]);
+    peaq_movaccum_accumulate(&mov_accum_nmr, c, nmr, 1.);
+    peaq_movaccum_accumulate(&mov_accum_rel_dist_frames,
+                             c,
+                             nmr_max > ONE_POINT_FIVE_DB_POWER_FACTOR ? 1. : 0.,
+                             1.);
   }
 }
 
-void mov_prob_detect(PeaqEarModel const* ear_model,
-                     const gpointer* ref_state,
-                     const gpointer* test_state,
-                     guint channels,
-                     PeaqMovAccum* mov_accum_adb,
-                     PeaqMovAccum* mov_accum_mfpd)
+void mov_nmr(FFTEarModel const& ear_model,
+             std::vector<FFTEarModel::state_t> const& ref_state,
+             std::vector<FFTEarModel::state_t> const& test_state,
+             PeaqMovAccum& mov_accum_nmr)
 {
-  auto band_count = ear_model->get_band_count();
+  for (std::size_t c = 0; c < peaq_movaccum_get_channels(&mov_accum_nmr); c++) {
+    auto [nmr, nmr_max] = calc_nmr(ear_model, ref_state[c], test_state[c]);
+    peaq_movaccum_accumulate(&mov_accum_nmr, c, 10. * log10(nmr), 1.);
+  }
+}
+
+void mov_prob_detect(FFTEarModel const& ear_model,
+                     std::vector<FFTEarModel::state_t> const& ref_state,
+                     std::vector<FFTEarModel::state_t> const& test_state,
+                     unsigned int channels,
+                     PeaqMovAccum& mov_accum_adb,
+                     PeaqMovAccum& mov_accum_mfpd)
+{
+  auto band_count = ear_model.get_band_count();
   auto binaural_detection_probability = 1.;
   auto binaural_detection_steps = 0.;
   for (std::size_t i = 0; i < band_count; i++) {
     auto detection_probability = 0.;
     auto detection_steps = 0.;
     for (std::size_t c = 0; c < channels; c++) {
-      auto const* ref_excitation =
-        ear_model->get_excitation(reinterpret_cast<PeaqEarModelState*>(ref_state[c]));
-      auto const* test_excitation =
-        ear_model->get_excitation(reinterpret_cast<PeaqEarModelState*>(test_state[c]));
+      auto const* ref_excitation = ear_model.get_excitation(&ref_state[c]);
+      auto const* test_excitation = ear_model.get_excitation(&test_state[c]);
       auto eref_db = 10. * std::log10(ref_excitation[i]);
       auto etest_db = 10. * std::log10(test_excitation[i]);
       /* (73) in [BS1387] */
@@ -364,9 +392,9 @@ void mov_prob_detect(PeaqEarModel const* ear_model,
   }
   binaural_detection_probability = 1. - binaural_detection_probability;
   if (binaural_detection_probability > 0.5) {
-    peaq_movaccum_accumulate(mov_accum_adb, 0, binaural_detection_steps, 1.);
+    peaq_movaccum_accumulate(&mov_accum_adb, 0, binaural_detection_steps, 1.);
   }
-  peaq_movaccum_accumulate(mov_accum_mfpd, 0, binaural_detection_probability, 1.);
+  peaq_movaccum_accumulate(&mov_accum_mfpd, 0, binaural_detection_probability, 1.);
 }
 
 static auto do_xcorr(std::array<double, 2 * MAXLAG> const& d)
@@ -411,9 +439,9 @@ static auto do_xcorr(std::array<double, 2 * MAXLAG> const& d)
   return c;
 }
 
-void mov_ehs(FFTEarModel::state_t const* const* ref_state,
-             FFTEarModel::state_t const* const* test_state,
-             PeaqMovAccum* mov_accum)
+void mov_ehs(std::vector<FFTEarModel::state_t> const& ref_state,
+             std::vector<FFTEarModel::state_t> const& test_state,
+             PeaqMovAccum& mov_accum)
 {
   static GstFFTF64* correlation_fft = nullptr;
   if (correlation_fft == nullptr) {
@@ -434,23 +462,23 @@ void mov_ehs(FFTEarModel::state_t const* const* ref_state,
     return win;
   }();
 
-  auto channels = peaq_movaccum_get_channels(mov_accum);
+  auto channels = peaq_movaccum_get_channels(&mov_accum);
 
   if (std::none_of(
-        ref_state,
-        ref_state + channels,
-        [](auto state) { return FFTEarModel::is_energy_threshold_reached(*state); }) &&
-      std::none_of(test_state, test_state + channels, [](auto state) {
-        return FFTEarModel::is_energy_threshold_reached(*state);
+        cbegin(ref_state),
+        cbegin(ref_state) + channels,
+        [](auto state) { return FFTEarModel::is_energy_threshold_reached(state); }) &&
+      std::none_of(cbegin(test_state), cbegin(test_state) + channels, [](auto state) {
+        return FFTEarModel::is_energy_threshold_reached(state);
       })) {
     return;
   }
 
   for (std::size_t chan = 0; chan < channels; chan++) {
     auto const& ref_power_spectrum =
-      FFTEarModel::get_weighted_power_spectrum(*ref_state[chan]);
+      FFTEarModel::get_weighted_power_spectrum(ref_state[chan]);
     auto const& test_power_spectrum =
-      FFTEarModel::get_weighted_power_spectrum(*test_state[chan]);
+      FFTEarModel::get_weighted_power_spectrum(test_state[chan]);
 
     auto d = std::array<double, 2 * MAXLAG>{};
     std::transform(cbegin(ref_power_spectrum),
@@ -505,89 +533,7 @@ void mov_ehs(FFTEarModel::state_t const* const* ref_state,
       }
       s = new_s;
     }
-    peaq_movaccum_accumulate(mov_accum, chan, 1000. * ehs, 1.);
+    peaq_movaccum_accumulate(&mov_accum, chan, 1000. * ehs, 1.);
   }
 }
 } // namespace peaq
-
-void peaq_mov_modulation_difference(PeaqModulationProcessor* const* ref_mod_proc,
-                                    PeaqModulationProcessor* const* test_mod_proc,
-                                    PeaqMovAccum* mov_accum1,
-                                    PeaqMovAccum* mov_accum2,
-                                    PeaqMovAccum* mov_accum_win)
-{
-  peaq::mov_modulation_difference(
-    ref_mod_proc, test_mod_proc, mov_accum1, mov_accum2, mov_accum_win);
-}
-
-void peaq_mov_noise_loudness(PeaqModulationProcessor* const* ref_mod_proc,
-                             PeaqModulationProcessor* const* test_mod_proc,
-                             PeaqLevelAdapter* const* level,
-                             PeaqMovAccum* mov_accum)
-{
-  peaq::mov_noise_loudness(ref_mod_proc, test_mod_proc, level, mov_accum);
-}
-
-void peaq_mov_noise_loud_asym(PeaqModulationProcessor* const* ref_mod_proc,
-                              PeaqModulationProcessor* const* test_mod_proc,
-                              PeaqLevelAdapter* const* level,
-                              PeaqMovAccum* mov_accum)
-{
-  peaq::mov_noise_loud_asym(ref_mod_proc, test_mod_proc, level, mov_accum);
-}
-
-void peaq_mov_lin_dist(PeaqModulationProcessor* const* ref_mod_proc,
-                       PeaqModulationProcessor* const* /*test_mod_proc*/,
-                       PeaqLevelAdapter* const* level,
-                       const gpointer* state,
-                       PeaqMovAccum* mov_accum)
-{
-  peaq::mov_lin_dist(
-    ref_mod_proc, ref_mod_proc[0]->get_ear_model(), level, state, mov_accum);
-}
-
-void peaq_mov_bandwidth(const gpointer* ref_state,
-                        const gpointer* test_state,
-                        PeaqMovAccum* mov_accum_ref,
-                        PeaqMovAccum* mov_accum_test)
-{
-  peaq::mov_bandwidth(
-    reinterpret_cast<peaq::FFTEarModel::state_t const* const*>(ref_state),
-    reinterpret_cast<peaq::FFTEarModel::state_t const* const*>(test_state),
-    mov_accum_ref,
-    mov_accum_test);
-}
-
-void peaq_mov_nmr(PeaqFFTEarModel const* ear_model,
-                  const gpointer* ref_state,
-                  const gpointer* test_state,
-                  PeaqMovAccum* mov_accum_nmr,
-                  PeaqMovAccum* mov_accum_rel_dist_frames)
-{
-  peaq::mov_nmr(ear_model,
-                reinterpret_cast<peaq::FFTEarModel::state_t const* const*>(ref_state),
-                reinterpret_cast<peaq::FFTEarModel::state_t const* const*>(test_state),
-                mov_accum_nmr,
-                mov_accum_rel_dist_frames);
-}
-
-void peaq_mov_prob_detect(PeaqEarModel const* ear_model,
-                          const gpointer* ref_state,
-                          const gpointer* test_state,
-                          guint channels,
-                          PeaqMovAccum* mov_accum_adb,
-                          PeaqMovAccum* mov_accum_mfpd)
-{
-  peaq::mov_prob_detect(
-    ear_model, ref_state, test_state, channels, mov_accum_adb, mov_accum_mfpd);
-}
-
-void peaq_mov_ehs(PeaqEarModel const* /*ear_model*/,
-                  gpointer* ref_state,
-                  gpointer* test_state,
-                  PeaqMovAccum* mov_accum)
-{
-  peaq::mov_ehs(reinterpret_cast<peaq::FFTEarModel::state_t**>(ref_state),
-                reinterpret_cast<peaq::FFTEarModel::state_t**>(test_state),
-                mov_accum);
-}
