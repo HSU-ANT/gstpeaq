@@ -33,16 +33,15 @@ void AlgoBasic::do_process()
     accum->set_tentative(!above_thres);
   }
   for (auto chan = 0U; chan < channel_count; chan++) {
-    fft_ear_model.process_block(&fft_earmodel_state_ref[chan], ref_buffers[chan].data());
-    fft_ear_model.process_block(&fft_earmodel_state_test[chan], test_buffers[chan].data());
-    auto const* ref_excitation =
-      fft_ear_model.get_excitation(&fft_earmodel_state_ref[chan]);
-    auto const* test_excitation =
-      fft_ear_model.get_excitation(&fft_earmodel_state_test[chan]);
-    auto const* ref_unsmeared_excitation =
-      fft_ear_model.get_unsmeared_excitation(&fft_earmodel_state_ref[chan]);
-    auto const* test_unsmeared_excitation =
-      fft_ear_model.get_unsmeared_excitation(&fft_earmodel_state_test[chan]);
+    fft_ear_model.process_block(fft_earmodel_state_ref[chan], cbegin(ref_buffers[chan]));
+    fft_ear_model.process_block(fft_earmodel_state_test[chan], cbegin(test_buffers[chan]));
+    auto const& ref_excitation = fft_ear_model.get_excitation(fft_earmodel_state_ref[chan]);
+    auto const& test_excitation =
+      fft_ear_model.get_excitation(fft_earmodel_state_test[chan]);
+    auto const& ref_unsmeared_excitation =
+      fft_ear_model.get_unsmeared_excitation(fft_earmodel_state_ref[chan]);
+    auto const& test_unsmeared_excitation =
+      fft_ear_model.get_unsmeared_excitation(fft_earmodel_state_test[chan]);
 
     level_adapters[chan].process(ref_excitation, test_excitation);
     ref_modulation_processors[chan].process(ref_unsmeared_excitation);
@@ -67,7 +66,8 @@ void AlgoBasic::do_process()
 
   /* noise loudness */
   if (frame_counter >= 24 && frame_counter - 3 >= loudness_reached_frame) {
-    mov_noise_loudness(ref_modulation_processors,
+    mov_noise_loudness(fft_ear_model,
+                       ref_modulation_processors,
                        test_modulation_processors,
                        level_adapters,
                        *mov_accums[MOV_RMS_NOISE_LOUD]);
@@ -95,7 +95,8 @@ void AlgoBasic::do_process()
                   *mov_accums[MOV_MFPD]);
 
   /* error harmonic structure */
-  mov_ehs(fft_earmodel_state_ref, fft_earmodel_state_test, *mov_accums[MOV_EHS]);
+  mov_ehs<FFT_BAND_COUNT>(
+    fft_earmodel_state_ref, fft_earmodel_state_test, *mov_accums[MOV_EHS]);
 
   frame_counter++;
 }
@@ -115,10 +116,10 @@ void AlgoAdvanced::do_process_fft()
   mov_accums[MOV_EHS]->set_tentative(!above_thres);
 
   for (auto c = 0U; c < channel_count; c++) {
-    fft_ear_model.process_block(&fft_earmodel_state_ref[c],
-                                ref_buffers[c].data() + buffer_fft_offset);
-    fft_ear_model.process_block(&fft_earmodel_state_test[c],
-                                test_buffers[c].data() + buffer_fft_offset);
+    fft_ear_model.process_block(fft_earmodel_state_ref[c],
+                                cbegin(ref_buffers[c]) + buffer_fft_offset);
+    fft_ear_model.process_block(fft_earmodel_state_test[c],
+                                cbegin(test_buffers[c]) + buffer_fft_offset);
   }
 
   /* noise-to-mask ratio */
@@ -128,7 +129,8 @@ void AlgoAdvanced::do_process_fft()
           *mov_accums[MOV_SEGMENTAL_NMR]);
 
   /* error harmonic structure */
-  mov_ehs(fft_earmodel_state_ref, fft_earmodel_state_test, *mov_accums[MOV_EHS]);
+  mov_ehs<FFT_BAND_COUNT>(
+    fft_earmodel_state_ref, fft_earmodel_state_test, *mov_accums[MOV_EHS]);
 }
 
 void AlgoAdvanced::do_process_fb()
@@ -146,19 +148,18 @@ void AlgoAdvanced::do_process_fb()
   mov_accums[MOV_AVG_LIN_DIST]->set_tentative(!above_thres);
 
   for (auto c = 0U; c < channel_count; c++) {
-    fb_ear_model.process_block(&fb_earmodel_state_ref[c],
-                               ref_buffers[c].data() + buffer_fb_offset);
-    fb_ear_model.process_block(&fb_earmodel_state_test[c],
-                               test_buffers[c].data() + buffer_fb_offset);
+    fb_ear_model.process_block(fb_earmodel_state_ref[c],
+                               cbegin(ref_buffers[c]) + buffer_fb_offset);
+    fb_ear_model.process_block(fb_earmodel_state_test[c],
+                               cbegin(test_buffers[c]) + buffer_fb_offset);
   }
   for (auto chan = 0U; chan < channel_count; chan++) {
-    auto const* ref_excitation = fb_ear_model.get_excitation(&fb_earmodel_state_ref[chan]);
-    auto const* test_excitation =
-      fb_ear_model.get_excitation(&fb_earmodel_state_test[chan]);
-    auto const* ref_unsmeared_excitation =
-      fb_ear_model.get_unsmeared_excitation(&fb_earmodel_state_ref[chan]);
-    auto const* test_unsmeared_excitation =
-      fb_ear_model.get_unsmeared_excitation(&fb_earmodel_state_test[chan]);
+    auto const& ref_excitation = fb_ear_model.get_excitation(fb_earmodel_state_ref[chan]);
+    auto const& test_excitation = fb_ear_model.get_excitation(fb_earmodel_state_test[chan]);
+    auto const& ref_unsmeared_excitation =
+      fb_ear_model.get_unsmeared_excitation(fb_earmodel_state_ref[chan]);
+    auto const& test_unsmeared_excitation =
+      fb_ear_model.get_unsmeared_excitation(fb_earmodel_state_test[chan]);
 
     level_adapters[chan].process(ref_excitation, test_excitation);
     ref_modulation_processors[chan].process(ref_unsmeared_excitation);
@@ -181,7 +182,8 @@ void AlgoAdvanced::do_process_fb()
 
   /* noise loudness */
   if (frame_counter >= 125 && frame_counter - 13 >= loudness_reached_frame) {
-    mov_noise_loud_asym(ref_modulation_processors,
+    mov_noise_loud_asym(fb_ear_model,
+                        ref_modulation_processors,
                         test_modulation_processors,
                         level_adapters,
                         *mov_accums[MOV_RMS_NOISE_LOUD_ASYM]);

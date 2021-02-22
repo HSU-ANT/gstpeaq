@@ -36,15 +36,114 @@
 
 #include "earmodel.h"
 
-#include <memory>
-#include <vector>
+#include <array>
 
 namespace peaq {
+template<std::size_t BANDCOUNT>
 class LevelAdapter
 {
 public:
-  LevelAdapter(EarModel& ear_model);
-  void process(double const* ref_excitation, double const* test_excitation);
+  template<typename EarModel>
+  LevelAdapter(EarModel const& ear_model)
+  {
+    static_assert(BANDCOUNT == EarModel::get_band_count());
+
+    /* see section 3.1 in [BS1387], section 4.1 in [Kabal03] */
+    for (std::size_t k = 0; k < BANDCOUNT; k++) {
+      ear_time_constants[k] = ear_model.calc_time_constant(k, 0.008, 0.05);
+    }
+#if 0
+    /* [Kabal03] suggests initialization to 1, although the standard does not
+     * mention it; there seems to be almost no difference on conformance, though
+     */
+    for (k = 0; k < BANDCOUNT; k++) {
+      pattcorr_ref[k] = 1.;
+      pattcorr_test[k] = 1.;
+    }
+#endif
+  }
+  void process(std::array<double, BANDCOUNT> const& ref_excitation,
+               std::array<double, BANDCOUNT> const& test_excitation)
+  {
+    using std::cbegin;
+    auto pattadapt_ref = std::array<double, BANDCOUNT>{};
+    auto pattadapt_test = std::array<double, BANDCOUNT>{};
+    auto levcorr_excitation = std::array<double, BANDCOUNT>{};
+
+    auto num = 0.0;
+    auto den = 0.0;
+    for (std::size_t k = 0; k < BANDCOUNT; k++) {
+      /* (42) in [BS1387], (56) in [Kabal03] */
+      ref_filtered_excitation[k] = ear_time_constants[k] * ref_filtered_excitation[k] +
+                                   (1 - ear_time_constants[k]) * ref_excitation[k];
+      /* (43) in [BS1387], (56) in [Kabal03] */
+      test_filtered_excitation[k] = ear_time_constants[k] * test_filtered_excitation[k] +
+                                    (1 - ear_time_constants[k]) * test_excitation[k];
+      /* (45) in [BS1387], (57) in [Kabal03] */
+      num += std::sqrt(ref_filtered_excitation[k] * test_filtered_excitation[k]);
+      den += test_filtered_excitation[k];
+    }
+    auto lev_corr = num * num / (den * den);
+    if (lev_corr > 1) {
+      /* (46) in [BS1387], (58) in [Kabal03] */
+      std::transform(cbegin(ref_excitation),
+                     cend(ref_excitation),
+                     begin(levcorr_excitation),
+                     [lev_corr](auto e) { return e / lev_corr; });
+    } else {
+      /* (47) in [BS1387], (58) in [Kabal03] */
+      std::transform(cbegin(test_excitation),
+                     cend(test_excitation),
+                     begin(levcorr_excitation),
+                     [lev_corr](auto e) { return e * lev_corr; });
+    }
+    std::array<double, BANDCOUNT> const& levcorr_ref_excitation =
+      lev_corr > 1 ? levcorr_excitation : ref_excitation;
+    std::array<double, BANDCOUNT> const& levcorr_test_excitation =
+      lev_corr > 1 ? test_excitation : levcorr_excitation;
+    for (std::size_t k = 0; k < BANDCOUNT; k++) {
+      /* (48) in [BS1387], (59) in [Kabal03] */
+      filtered_num[k] = ear_time_constants[k] * filtered_num[k] +
+                        levcorr_test_excitation[k] * levcorr_ref_excitation[k];
+      filtered_den[k] = ear_time_constants[k] * filtered_den[k] +
+                        levcorr_ref_excitation[k] * levcorr_ref_excitation[k];
+      /* (49) in [BS1387], (60) in [Kabal03] */
+      /* these values cannot be zero [Kabal03], so the special case desribed in
+       * [BS1387] is unnecessary */
+      if (filtered_num[k] >= filtered_den[k]) {
+        pattadapt_ref[k] = 1.;
+        pattadapt_test[k] = filtered_den[k] / filtered_num[k];
+      } else {
+        pattadapt_ref[k] = filtered_num[k] / filtered_den[k];
+        pattadapt_test[k] = 1.;
+      }
+    }
+    for (std::size_t k = 0; k < BANDCOUNT; k++) {
+      /* (51) in [BS1387], (63) in [Kabal03] */
+      /* dependence on BANDCOUNT is an ugly hack to avoid a nasty switch/case */
+      auto m1 = std::min(k, BANDCOUNT / 36); /* 109 -> 3, 55 -> 1, 40 -> 1  */
+      auto m2 =
+        std::min(BANDCOUNT - k - 1, BANDCOUNT / 25); /* 109 -> 4, 55 -> 2, 40 -> 1  */
+      /* (50) in [BS1387], (62) in [Kabal03] */
+      auto ra_ref = 0.0;
+      auto ra_test = 0.0;
+      for (auto l = k - m1; l <= k + m2; l++) {
+        ra_ref += pattadapt_ref[l];
+        ra_test += pattadapt_test[l];
+      }
+      ra_ref /= (m1 + m2 + 1);
+      ra_test /= (m1 + m2 + 1);
+      /* (50) in [BS1387], (61) in [Kabal03] */
+      pattcorr_ref[k] =
+        ear_time_constants[k] * pattcorr_ref[k] + (1 - ear_time_constants[k]) * ra_ref;
+      pattcorr_test[k] =
+        ear_time_constants[k] * pattcorr_test[k] + (1 - ear_time_constants[k]) * ra_test;
+      /* (52) in [BS1387], (64) in [Kabal03] */
+      spectrally_adapted_ref_patterns[k] = levcorr_ref_excitation[k] * pattcorr_ref[k];
+      /* (53) in [BS1387], (64) in [Kabal03] */
+      spectrally_adapted_test_patterns[k] = levcorr_test_excitation[k] * pattcorr_test[k];
+    }
+  }
   [[nodiscard]] auto const& get_adapted_ref() const
   {
     return spectrally_adapted_ref_patterns;
@@ -55,17 +154,20 @@ public:
   }
 
 private:
-  std::size_t band_count;
-  std::vector<double> ear_time_constants;
-  std::vector<double> ref_filtered_excitation;
-  std::vector<double> test_filtered_excitation;
-  std::vector<double> filtered_num;
-  std::vector<double> filtered_den;
-  std::vector<double> pattcorr_ref;
-  std::vector<double> pattcorr_test;
-  std::vector<double> spectrally_adapted_ref_patterns;
-  std::vector<double> spectrally_adapted_test_patterns;
+  std::array<double, BANDCOUNT> ear_time_constants;
+  std::array<double, BANDCOUNT> ref_filtered_excitation{};
+  std::array<double, BANDCOUNT> test_filtered_excitation{};
+  std::array<double, BANDCOUNT> filtered_num{};
+  std::array<double, BANDCOUNT> filtered_den{};
+  std::array<double, BANDCOUNT> pattcorr_ref{};
+  std::array<double, BANDCOUNT> pattcorr_test{};
+  std::array<double, BANDCOUNT> spectrally_adapted_ref_patterns{};
+  std::array<double, BANDCOUNT> spectrally_adapted_test_patterns{};
 };
+
+template<typename EarModel>
+LevelAdapter(EarModel const&) -> LevelAdapter<EarModel::get_band_count()>;
+
 } // namespace peaq
 
 /**

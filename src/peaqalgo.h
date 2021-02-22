@@ -52,7 +52,10 @@ public:
   [[nodiscard]] virtual auto calculate_odg(bool console_output = false) const -> double = 0;
 };
 
-template<unsigned int MOV_COUNT, typename Derived>
+template<unsigned int MOV_COUNT,
+         std::size_t FFT_BAND_COUNT,
+         std::size_t MAIN_BAND_COUNT,
+         typename Derived>
 class AlgoBase : public Algo
 {
 public:
@@ -60,10 +63,8 @@ public:
   void set_channels(unsigned int channel_count) override
   {
     this->channel_count = channel_count;
-    fft_earmodel_state_ref.resize(channel_count,
-                                  FFTEarModel::state_t{ Derived::FFT_BAND_COUNT });
-    fft_earmodel_state_test.resize(channel_count,
-                                   FFTEarModel::state_t{ Derived::FFT_BAND_COUNT });
+    fft_earmodel_state_ref.resize(channel_count);
+    fft_earmodel_state_test.resize(channel_count);
   }
   [[nodiscard]] auto calculate_odg(bool console_output = false) const -> double final
   {
@@ -102,15 +103,15 @@ protected:
   std::size_t buffer_valid_count{ 0 };
   std::size_t frame_counter{ 0 };
   std::size_t loudness_reached_frame{ std::numeric_limits<unsigned int>::max() };
-  std::vector<FFTEarModel::state_t> fft_earmodel_state_ref;
-  std::vector<FFTEarModel::state_t> fft_earmodel_state_test;
-  std::vector<LevelAdapter> level_adapters;
-  std::vector<ModulationProcessor> ref_modulation_processors;
-  std::vector<ModulationProcessor> test_modulation_processors;
+  std::vector<typename FFTEarModel<FFT_BAND_COUNT>::state_t> fft_earmodel_state_ref;
+  std::vector<typename FFTEarModel<FFT_BAND_COUNT>::state_t> fft_earmodel_state_test;
+  std::vector<LevelAdapter<MAIN_BAND_COUNT>> level_adapters;
+  std::vector<ModulationProcessor<MAIN_BAND_COUNT>> ref_modulation_processors;
+  std::vector<ModulationProcessor<MAIN_BAND_COUNT>> test_modulation_processors;
   std::array<std::unique_ptr<MovAccum>, MOV_COUNT> mov_accums;
 };
 
-class AlgoBasic : public AlgoBase<11, AlgoBasic>
+class AlgoBasic : public AlgoBase<11, 109, 109, AlgoBasic>
 {
 private:
   enum
@@ -132,12 +133,11 @@ private:
   void do_process();
 
 public:
-  static auto constexpr FRAME_SIZE = FFTEarModel::FRAME_SIZE;
   static auto constexpr FFT_BAND_COUNT = 109;
+  static auto constexpr FRAME_SIZE = FFTEarModel<FFT_BAND_COUNT>::FRAME_SIZE;
   static auto constexpr MOV_COUNT = COUNT_MOV_BASIC;
   AlgoBasic()
   {
-    fft_ear_model.set_bandcount(FFT_BAND_COUNT);
     mov_accums[MOV_BANDWIDTH_REF] = std::make_unique<movaccum_avg>();
     mov_accums[MOV_BANDWIDTH_TEST] = std::make_unique<movaccum_avg>();
     mov_accums[MOV_TOTAL_NMR] = std::make_unique<movaccum_avg_log>();
@@ -156,14 +156,8 @@ public:
     ref_buffers.resize(channel_count);
     test_buffers.resize(channel_count);
     level_adapters.resize(channel_count, LevelAdapter{ fft_ear_model });
-    ref_modulation_processors.resize(channel_count);
-    for (auto& modproc : ref_modulation_processors) {
-      modproc.set_ear_model(&fft_ear_model);
-    }
-    test_modulation_processors.resize(channel_count);
-    for (auto& modproc : test_modulation_processors) {
-      modproc.set_ear_model(&fft_ear_model);
-    }
+    ref_modulation_processors.resize(channel_count, ModulationProcessor{ fft_ear_model });
+    test_modulation_processors.resize(channel_count, ModulationProcessor{ fft_ear_model });
     for (auto i = 0; i < MOV_COUNT; i++) {
       if (i == MOV_ADB || i == MOV_MFPD) {
         mov_accums[i]->set_channels(1);
@@ -259,10 +253,10 @@ public:
 private:
   std::vector<std::array<float, FRAME_SIZE>> ref_buffers;
   std::vector<std::array<float, FRAME_SIZE>> test_buffers;
-  FFTEarModel fft_ear_model{};
+  FFTEarModel<FFT_BAND_COUNT> fft_ear_model{};
 };
 
-class AlgoAdvanced : public AlgoBase<5, AlgoAdvanced>
+class AlgoAdvanced : public AlgoBase<5, 55, 40, AlgoAdvanced>
 {
 private:
   enum
@@ -279,13 +273,12 @@ private:
   void do_process_fb();
 
 public:
-  static auto constexpr FFT_FRAME_SIZE = FFTEarModel::FRAME_SIZE;
+  static auto constexpr FFT_BAND_COUNT = 55;
+  static auto constexpr FFT_FRAME_SIZE = FFTEarModel<FFT_BAND_COUNT>::FRAME_SIZE;
   static auto constexpr FB_FRAME_SIZE = FilterbankEarModel::FRAME_SIZE;
   static auto constexpr BUFFER_SIZE = FFT_FRAME_SIZE + FB_FRAME_SIZE;
-  static auto constexpr FFT_BAND_COUNT = 55;
   AlgoAdvanced()
   {
-    fft_ear_model.set_bandcount(FFT_BAND_COUNT);
     mov_accums[MOV_RMS_MOD_DIFF] = std::make_unique<movaccum_rms>();
     mov_accums[MOV_SEGMENTAL_NMR] = std::make_unique<movaccum_avg>();
     mov_accums[MOV_EHS] = std::make_unique<movaccum_avg>();
@@ -300,14 +293,8 @@ public:
     fb_earmodel_state_ref.resize(channel_count);
     fb_earmodel_state_test.resize(channel_count);
     level_adapters.resize(channel_count, LevelAdapter{ fb_ear_model });
-    ref_modulation_processors.resize(channel_count);
-    for (auto& modproc : ref_modulation_processors) {
-      modproc.set_ear_model(&fb_ear_model);
-    }
-    test_modulation_processors.resize(channel_count);
-    for (auto& modproc : test_modulation_processors) {
-      modproc.set_ear_model(&fb_ear_model);
-    }
+    ref_modulation_processors.resize(channel_count, ModulationProcessor{ fb_ear_model });
+    test_modulation_processors.resize(channel_count, ModulationProcessor{ fb_ear_model });
     for (auto i = 0; i < COUNT_MOV_ADVANCED; i++) {
       mov_accums[i]->set_channels(channel_count);
     }
@@ -405,7 +392,7 @@ private:
   std::vector<std::array<float, BUFFER_SIZE>> test_buffers;
   std::vector<FilterbankEarModel::state_t> fb_earmodel_state_ref;
   std::vector<FilterbankEarModel::state_t> fb_earmodel_state_test;
-  FFTEarModel fft_ear_model{};
+  FFTEarModel<FFT_BAND_COUNT> fft_ear_model{};
   FilterbankEarModel fb_ear_model{};
 };
 

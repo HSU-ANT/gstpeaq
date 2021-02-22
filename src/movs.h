@@ -27,6 +27,7 @@
 #include "leveladapter.h"
 #include "modpatt.h"
 #include "movaccum.h"
+#include "settings.h"
 
 #include <numeric>
 
@@ -183,15 +184,15 @@ namespace peaq {
  * </math></inlineequation>
  * otherwise.
  */
-void mov_modulation_difference(FFTEarModel const& ear_model,
-                               std::vector<ModulationProcessor> const& ref_mod_proc,
-                               std::vector<ModulationProcessor> const& test_mod_proc,
+void mov_modulation_difference(FFTEarModel<> const& ear_model,
+                               std::vector<ModulationProcessor<109>> const& ref_mod_proc,
+                               std::vector<ModulationProcessor<109>> const& test_mod_proc,
                                MovAccum& mov_accum1,
                                MovAccum& mov_accum2,
                                MovAccum& mov_accum_win);
 void mov_modulation_difference(FilterbankEarModel const& ear_model,
-                               std::vector<ModulationProcessor> const& ref_mod_proc,
-                               std::vector<ModulationProcessor> const& test_mod_proc,
+                               std::vector<ModulationProcessor<40>> const& ref_mod_proc,
+                               std::vector<ModulationProcessor<40>> const& test_mod_proc,
                                MovAccum& mov_accum1);
 /**
  * peaq_mov_noise_loudness:
@@ -290,9 +291,10 @@ void mov_modulation_difference(FilterbankEarModel const& ear_model,
  * </math></inlineequation>.
  * If the resulting noise loudness is negative, it is set to zero.
  */
-void mov_noise_loudness(std::vector<ModulationProcessor> const& ref_mod_proc,
-                        std::vector<ModulationProcessor> const& test_mod_proc,
-                        std::vector<LevelAdapter> const& level,
+void mov_noise_loudness(FFTEarModel<> const& ear_model,
+                        std::vector<ModulationProcessor<109>> const& ref_mod_proc,
+                        std::vector<ModulationProcessor<109>> const& test_mod_proc,
+                        std::vector<LevelAdapter<109>> const& level,
                         MovAccum& mov_accum);
 
 /**
@@ -472,9 +474,10 @@ void mov_noise_loudness(std::vector<ModulationProcessor> const& ref_mod_proc,
  * and <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>Mod</mi><mi>ref</mi></msub><mfenced open="[" close="]"><mi>k</mi></mfenced>
  * </math></inlineequation> have to be exchanged in the calculation of MC.
  */
-void mov_noise_loud_asym(std::vector<ModulationProcessor> const& ref_mod_proc,
-                         std::vector<ModulationProcessor> const& test_mod_proc,
-                         std::vector<LevelAdapter> const& level,
+void mov_noise_loud_asym(FilterbankEarModel const& ear_model,
+                         std::vector<ModulationProcessor<40>> const& ref_mod_proc,
+                         std::vector<ModulationProcessor<40>> const& test_mod_proc,
+                         std::vector<LevelAdapter<40>> const& level,
                          MovAccum& mov_accum);
 
 /**
@@ -577,8 +580,8 @@ void mov_noise_loud_asym(std::vector<ModulationProcessor> const& ref_mod_proc,
  * </math></inlineequation>.
  */
 void mov_lin_dist(FilterbankEarModel const& ear_model,
-                  std::vector<ModulationProcessor> const& ref_mod_proc,
-                  std::vector<LevelAdapter> const& level,
+                  std::vector<ModulationProcessor<40>> const& ref_mod_proc,
+                  std::vector<LevelAdapter<40>> const& level,
                   std::vector<FilterbankEarModel::state_t> const& state,
                   MovAccum& mov_accum);
 
@@ -612,8 +615,8 @@ void mov_lin_dist(FilterbankEarModel const& ear_model,
  * are accumulated to @mov_accum_ref and @mov_accum_test only if the reference
  * bandwidth is greater than 346.
  */
-void mov_bandwidth(std::vector<FFTEarModel::state_t> const& ref_state,
-                   std::vector<FFTEarModel::state_t> const& test_state,
+void mov_bandwidth(std::vector<FFTEarModel<>::state_t> const& ref_state,
+                   std::vector<FFTEarModel<>::state_t> const& test_state,
                    MovAccum& mov_accum_ref,
                    MovAccum& mov_accum_test);
 
@@ -776,14 +779,14 @@ void mov_bandwidth(std::vector<FFTEarModel::state_t> const& ref_state,
  * accumlating one for frames that do exceed the threshold, a zero for those
  * that do not.
  */
-void mov_nmr(FFTEarModel const& ear_model,
-             std::vector<FFTEarModel::state_t> const& ref_state,
-             std::vector<FFTEarModel::state_t> const& test_state,
+void mov_nmr(FFTEarModel<> const& ear_model,
+             std::vector<FFTEarModel<>::state_t> const& ref_state,
+             std::vector<FFTEarModel<>::state_t> const& test_state,
              MovAccum& mov_accum_nmr,
              MovAccum& mov_accum_rel_dist_frames);
-void mov_nmr(FFTEarModel const& ear_model,
-             std::vector<FFTEarModel::state_t> const& ref_state,
-             std::vector<FFTEarModel::state_t> const& test_state,
+void mov_nmr(FFTEarModel<55> const& ear_model,
+             std::vector<FFTEarModel<55>::state_t> const& ref_state,
+             std::vector<FFTEarModel<55>::state_t> const& test_state,
              MovAccum& mov_accum_nmr);
 
 /**
@@ -984,9 +987,9 @@ void mov_nmr(FFTEarModel const& ear_model,
  * </math></inlineequation>, the total number of steps above the threshold is
  * accumulated in @mov_accum_adb, which should be set to #MODE_ADB.
  */
-void mov_prob_detect(FFTEarModel const& ear_model,
-                     std::vector<FFTEarModel::state_t> const& ref_state,
-                     std::vector<FFTEarModel::state_t> const& test_state,
+void mov_prob_detect(FFTEarModel<> const& ear_model,
+                     std::vector<FFTEarModel<>::state_t> const& ref_state,
+                     std::vector<FFTEarModel<>::state_t> const& test_state,
                      unsigned int channels,
                      MovAccum& mov_accum_adb,
                      MovAccum& mov_accum_mfpd);
@@ -1019,9 +1022,151 @@ void mov_prob_detect(FFTEarModel const& ear_model,
  * * #EHS_SUBTRACT_DC_BEFORE_WINDOW controls whether the average is subtracted
  *   before windowing as suggested in <xref linkend="Kabal03" /> or afterwards.
  */
-void mov_ehs(std::vector<FFTEarModel::state_t> const& ref_state,
-             std::vector<FFTEarModel::state_t> const& test_state,
-             MovAccum& mov_accum);
+namespace detail {
+template<std::size_t MAXLAG>
+static auto do_xcorr(std::array<double, 2 * MAXLAG> const& d)
+{
+  static GstFFTF64* correlator_fft = nullptr;
+  static GstFFTF64* correlator_inverse_fft = nullptr;
+  if (correlator_fft == nullptr) {
+    correlator_fft = gst_fft_f64_new(2 * MAXLAG, FALSE);
+  }
+  if (correlator_inverse_fft == nullptr) {
+    correlator_inverse_fft = gst_fft_f64_new(2 * MAXLAG, TRUE);
+  }
+  /*
+   * the follwing uses an equivalent computation in the frequency domain to
+   * determine the correlation like function:
+   * for (i = 0; i < MAXLAG; i++) {
+   *   c[i] = 0;
+   *   for (k = 0; k < MAXLAG; k++)
+   *     c[i] += d[k] * d[k + i];
+   * }
+   */
+  std::array<double, 2 * MAXLAG> timedata;
+  std::array<std::complex<double>, MAXLAG + 1> freqdata1;
+  std::array<std::complex<double>, MAXLAG + 1> freqdata2;
+  std::copy(cbegin(d), cend(d), begin(timedata));
+  gst_fft_f64_fft(
+    correlator_fft, timedata.data(), reinterpret_cast<GstFFTF64Complex*>(freqdata1.data()));
+  std::fill(begin(timedata) + MAXLAG, end(timedata), 0.0);
+  gst_fft_f64_fft(
+    correlator_fft, timedata.data(), reinterpret_cast<GstFFTF64Complex*>(freqdata2.data()));
+  /* multiply freqdata1 with the conjugate of freqdata2 and scale */
+  std::transform(cbegin(freqdata1),
+                 cend(freqdata1),
+                 cbegin(freqdata2),
+                 begin(freqdata1),
+                 [](auto X1, auto X2) { return X1 * std::conj(X2) / (2.0 * MAXLAG); });
+  gst_fft_f64_inverse_fft(correlator_inverse_fft,
+                          reinterpret_cast<GstFFTF64Complex*>(freqdata1.data()),
+                          timedata.data());
+  std::array<double, MAXLAG> c;
+  std::copy_n(cbegin(timedata), MAXLAG, begin(c));
+  return c;
+}
+} // namespace detail
+
+template<std::size_t BANDCOUNT>
+void mov_ehs(std::vector<typename FFTEarModel<BANDCOUNT>::state_t> const& ref_state,
+             std::vector<typename FFTEarModel<BANDCOUNT>::state_t> const& test_state,
+             MovAccum& mov_accum)
+{
+  auto constexpr MAXLAG = 256;
+  static GstFFTF64* correlation_fft = nullptr;
+  if (correlation_fft == nullptr) {
+    correlation_fft = gst_fft_f64_new(MAXLAG, FALSE);
+  }
+  static const auto correlation_window = []() {
+    std::array<double, MAXLAG> win;
+    /* centering the window of the correlation in the EHS computation at lag
+     * zero (as considered in [Kabal03] to be more reasonable) degrades
+     * conformance */
+    for (std::size_t i = 0; i < MAXLAG; i++) {
+#if defined(CENTER_EHS_CORRELATION_WINDOW) && CENTER_EHS_CORRELATION_WINDOW
+      win[i] = 0.81649658092773 * (1 + std::cos(2 * M_PI * i / (2 * MAXLAG - 1))) / MAXLAG;
+#else
+      win[i] = 0.81649658092773 * (1 - std::cos(2 * M_PI * i / (MAXLAG - 1))) / MAXLAG;
+#endif
+    }
+    return win;
+  }();
+
+  auto channels = mov_accum.get_channels();
+
+  if (std::none_of(cbegin(ref_state),
+                   cend(ref_state),
+                   [](auto state) {
+                     return FFTEarModel<BANDCOUNT>::is_energy_threshold_reached(state);
+                   }) &&
+      std::none_of(cbegin(test_state), cend(test_state), [](auto state) {
+        return FFTEarModel<BANDCOUNT>::is_energy_threshold_reached(state);
+      })) {
+    return;
+  }
+
+  for (std::size_t chan = 0; chan < channels; chan++) {
+    auto const& ref_power_spectrum =
+      FFTEarModel<BANDCOUNT>::get_weighted_power_spectrum(ref_state[chan]);
+    auto const& test_power_spectrum =
+      FFTEarModel<BANDCOUNT>::get_weighted_power_spectrum(test_state[chan]);
+
+    auto d = std::array<double, 2 * MAXLAG>{};
+    std::transform(cbegin(ref_power_spectrum),
+                   cbegin(ref_power_spectrum) + 2 * MAXLAG,
+                   cbegin(test_power_spectrum),
+                   begin(d),
+                   [](auto fref, auto ftest) {
+                     return fref == 0. && ftest == 0. ? 0.0 : std::log(ftest / fref);
+                   });
+
+    auto c = detail::do_xcorr<MAXLAG>(d);
+
+    std::array<std::complex<double>, MAXLAG / 2 + 1> c_fft;
+
+    auto const d0 = c[0];
+    auto dk = d0;
+#if defined(EHS_SUBTRACT_DC_BEFORE_WINDOW) && EHS_SUBTRACT_DC_BEFORE_WINDOW
+    /* in the following, the mean is subtracted before the window is applied as
+     * suggested by [Kabal03], although this contradicts [BS1387]; however, the
+     * results thus obtained are closer to the reference */
+    auto cavg = 0.0;
+    for (std::size_t i = 0; i < MAXLAG; i++) {
+      c[i] /= std::sqrt(d0 * dk);
+      cavg += c[i];
+      dk += d[i + MAXLAG] * d[i + MAXLAG] - d[i] * d[i];
+    }
+    cavg /= MAXLAG;
+    std::transform(
+      cbegin(c), cend(c), cbegin(correlation_window), begin(c), [cavg](auto ci, auto win) {
+        return (ci - cavg) * win;
+      });
+#else
+    for (std::size_t i = 0; i < MAXLAG; i++) {
+      c[i] *= correlation_window[i] / sqrt(d0 * dk);
+      dk += d[i + MAXLAG] * d[i + MAXLAG] - d[i] * d[i];
+    }
+#endif
+    gst_fft_f64_fft(
+      correlation_fft, c.data(), reinterpret_cast<GstFFTF64Complex*>(c_fft.data()));
+#if !defined(EHS_SUBTRACT_DC_BEFORE_WINDOW) || !EHS_SUBTRACT_DC_BEFORE_WINDOW
+    /* subtracting the average is equivalent to setting the DC component to
+     * zero */
+    c_fft[0] = 0.0;
+#endif
+
+    auto ehs = 0.0;
+    auto s = std::norm(c_fft[0]);
+    for (auto c_fft_i : c_fft) {
+      auto new_s = std::norm(c_fft_i);
+      if (new_s > s && new_s > ehs) {
+        ehs = new_s;
+      }
+      s = new_s;
+    }
+    mov_accum.accumulate(chan, 1000. * ehs, 1.);
+  }
+}
 
 } // namespace peaq
 

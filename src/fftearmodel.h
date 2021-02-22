@@ -27,38 +27,37 @@
 
 #include <gst/fft/gstfftf64.h>
 
-#ifdef __cplusplus
 #include <algorithm>
 #include <array>
+#include <cassert>
+#include <complex>
 #include <memory>
+#include <numeric>
 #include <vector>
 
 namespace peaq {
 
-struct FFTEarModel : EarModelBase<FFTEarModel>
+template<std::size_t BANDCOUNT = 109>
+class FFTEarModel : public EarModelBase<FFTEarModel<BANDCOUNT>>
 {
+public:
   static constexpr size_t FRAME_SIZE = 2048;
   static constexpr size_t STEP_SIZE = FRAME_SIZE / 2;
   static constexpr auto TAU_MIN = 0.008;
   static constexpr auto TAU_100 = 0.030;
-  static constexpr double GAMMA = 0.84971762641205;
   static constexpr double LOUDNESS_SCALE = 1.07664;
-  struct state_t : EarModel::state_t
+  struct state_t
   {
-    state_t(std::size_t band_count)
-      : filtered_excitation(band_count)
-      , unsmeared_excitation(band_count)
-      , excitation(band_count)
-    {}
-    std::vector<double> filtered_excitation;
-    std::vector<double> unsmeared_excitation;
-    std::vector<double> excitation;
+    std::array<double, BANDCOUNT> filtered_excitation{};
+    std::array<double, BANDCOUNT> unsmeared_excitation;
+    std::array<double, BANDCOUNT> excitation;
     std::array<double, FRAME_SIZE / 2 + 1> power_spectrum;
     std::array<double, FRAME_SIZE / 2 + 1> weighted_power_spectrum;
     bool energy_threshold_reached;
   };
+  static auto constexpr get_band_count() { return BANDCOUNT; }
   FFTEarModel();
-  [[nodiscard]] double get_playback_level() const override
+  [[nodiscard]] double get_playback_level() const
   {
     return 10.0 * std::log10(level_factor * 8. / 3. * (GAMMA / 4 * (FRAME_SIZE - 1)) *
                              (GAMMA / 4 * (FRAME_SIZE - 1)));
@@ -72,29 +71,30 @@ struct FFTEarModel : EarModelBase<FFTEarModel>
     level_factor = std::pow(10, level / 10.0) / (8. / 3. * (GAMMA / 4 * (FRAME_SIZE - 1)) *
                                                  (GAMMA / 4 * (FRAME_SIZE - 1)));
   }
-  virtual state_t* state_alloc() const override { return new state_t{ get_band_count() }; }
-  virtual void state_free(EarModel::state_t* state) const override { delete state; }
-  void set_bandcount(std::size_t bandcount);
   [[nodiscard]] auto const& get_masking_difference() const { return masking_difference; }
 
-  void process_block(state_t& state,
-                     std::array<float, FRAME_SIZE> const& sample_data) const;
-  virtual void process_block(EarModel::state_t* state, float const* samples) const override
+  template<typename InputIterator>
+  void process_block(state_t& state, InputIterator samples) const;
+  auto get_excitation(state_t const& state) const { return state.excitation; }
+  auto const& get_unsmeared_excitation(state_t const& state) const
   {
-    std::array<float, FRAME_SIZE> data;
-    std::copy_n(samples, FRAME_SIZE, begin(data));
-    process_block(*reinterpret_cast<state_t*>(state), data);
-  }
-  virtual double const* get_excitation(EarModel::state_t const* state) const
-  {
-    return reinterpret_cast<state_t const*>(state)->excitation.data();
-  }
-  virtual double const* get_unsmeared_excitation(EarModel::state_t const* state) const
-  {
-    return reinterpret_cast<state_t const*>(state)->unsmeared_excitation.data();
+    return state.unsmeared_excitation;
   }
   void group_into_bands(std::array<double, FRAME_SIZE / 2 + 1> const& spectrum,
-                        double* band_power) const;
+                        std::array<double, BANDCOUNT>& band_power) const
+  {
+    for (std::size_t i = 0; i < BANDCOUNT; i++) {
+      auto edge_power = band_lower_weight[i] * spectrum[band_lower_end[i]] +
+                        band_upper_weight[i] * spectrum[band_upper_end[i]];
+      band_power[i] = std::accumulate(cbegin(spectrum) + band_lower_end[i] + 1,
+                                      cbegin(spectrum) + band_upper_end[i],
+                                      edge_power);
+      if (band_power[i] < 1e-12) {
+        band_power[i] = 1e-12;
+      }
+    }
+  }
+
   static auto const& get_power_spectrum(state_t const& state)
   {
     return state.power_spectrum;
@@ -109,39 +109,255 @@ struct FFTEarModel : EarModelBase<FFTEarModel>
   }
 
 private:
-  void do_spreading(double const* Pp, double* E2) const;
+  static constexpr double DELTA_Z = 27. / (BANDCOUNT - 1);
+  static constexpr double GAMMA = 0.84971762641205;
+  static const double lower_spreading;
+  static const double lower_spreading_exponantiated;
   static const std::array<double, FRAME_SIZE> hann_window;
+  static const std::array<double, BANDCOUNT> masking_difference;
+
   std::unique_ptr<GstFFTF64, decltype(&gst_fft_f64_free)> gstfft{
     gst_fft_f64_new(FRAME_SIZE, FALSE),
     &gst_fft_f64_free
   };
   std::array<double, FRAME_SIZE / 2 + 1> outer_middle_ear_weight;
-  double deltaZ;
   double level_factor;
-  std::vector<std::size_t> band_lower_end;
-  std::vector<std::size_t> band_upper_end;
-  std::vector<double> band_lower_weight;
-  std::vector<double> band_upper_weight;
-  double lower_spreading;
-  double lower_spreading_exponantiated;
-  std::vector<double> spreading_normalization;
-  std::vector<double> aUC;
-  std::vector<double> gIL;
-  std::vector<double> masking_difference;
+  std::array<std::size_t, BANDCOUNT> band_lower_end;
+  std::array<std::size_t, BANDCOUNT> band_upper_end;
+  std::array<double, BANDCOUNT> band_lower_weight;
+  std::array<double, BANDCOUNT> band_upper_weight;
+  std::array<double, BANDCOUNT> spreading_normalization;
+  std::array<double, BANDCOUNT> aUC;
+  std::array<double, BANDCOUNT> gIL;
+  auto do_spreading(std::array<double, BANDCOUNT> const& Pp) const
+    -> std::array<double, BANDCOUNT>;
 };
+
+template<std::size_t BANDCOUNT>
+const double FFTEarModel<BANDCOUNT>::lower_spreading = std::pow(10.,
+                                                                -2.7 *
+                                                                  DELTA_Z); /* 1 / a_L */
+template<std::size_t BANDCOUNT>
+const double FFTEarModel<BANDCOUNT>::lower_spreading_exponantiated =
+  std::pow(lower_spreading, 0.4);
+
+template<std::size_t BANDCOUNT>
+const std::array<double, FFTEarModel<BANDCOUNT>::FRAME_SIZE>
+  FFTEarModel<BANDCOUNT>::hann_window = [] {
+    auto win = std::array<double, FRAME_SIZE>{};
+    for (std::size_t k = 0; k < win.size(); k++) {
+      win[k] = std::sqrt(8. / 3.) * 0.5 * (1. - std::cos(2 * M_PI * k / (win.size() - 1)));
+    }
+    return win;
+  }();
+
+template<std::size_t BANDCOUNT>
+const std::array<double, BANDCOUNT> FFTEarModel<BANDCOUNT>::masking_difference = [] {
+  auto masking_difference = std::array<double, BANDCOUNT>{};
+  for (std::size_t band = 0; band < masking_difference.size(); band++) {
+    /* masking weighting function; (25) in [BS1387], (112) in [Kabal03] */
+    masking_difference[band] =
+      pow(10., (band * DELTA_Z <= 12. ? 3. : 0.25 * band * DELTA_Z) / 10.);
+  }
+  return masking_difference;
+}();
+
+template<std::size_t BANDCOUNT>
+FFTEarModel<BANDCOUNT>::FFTEarModel()
+{
+  /* pre-compute weighting coefficients for outer and middle ear weighting
+   * function; (7) in [BS1387], (6) in [Kabal03], but taking the squared value
+   * for applying in the power domain */
+  auto sampling_rate = this->get_sampling_rate();
+  for (std::size_t k = 0; k <= FRAME_SIZE / 2; k++) {
+    outer_middle_ear_weight[k] =
+      std::pow(this->calc_ear_weight(double(k) * sampling_rate / FRAME_SIZE), 2);
+  }
+  set_playback_level(92);
+
+  auto zL = 7. * std::asinh(80. / 650.);
+  auto zU = 7. * std::asinh(18000. / 650.);
+  assert(BANDCOUNT == std::ceil((zU - zL) / DELTA_Z));
+
+  std::vector<double> fc(BANDCOUNT);
+  for (std::size_t band = 0; band < BANDCOUNT; band++) {
+    auto zl = zL + band * DELTA_Z;
+    auto zu = std::min(zU, zL + (band + 1) * DELTA_Z);
+    auto zc = (zu + zl) / 2.;
+    auto curr_fc = 650. * std::sinh(zc / 7.);
+    fc[band] = curr_fc;
+
+    /* pre-compute helper data for group_into_bands()
+     * The precomputed data is as proposed in [Kabal03], but the
+     * algorithm to compute is somewhat simplified */
+    auto fl = 650. * std::sinh(zl / 7.);
+    auto fu = 650. * std::sinh(zu / 7.);
+    band_lower_end[band] = std::lround(fl / sampling_rate * FRAME_SIZE);
+    band_upper_end[band] = std::lround(fu / sampling_rate * FRAME_SIZE);
+    auto upper_freq = (2 * band_lower_end[band] + 1) / 2. * sampling_rate / FRAME_SIZE;
+    if (upper_freq > fu) {
+      upper_freq = fu;
+    }
+    auto U = upper_freq - fl;
+    band_lower_weight[band] = U * FRAME_SIZE / sampling_rate;
+    if (band_lower_end[band] == band_upper_end[band]) {
+      band_upper_weight[band] = 0;
+    } else {
+      auto lower_freq = (2 * band_upper_end[band] - 1) / 2. * sampling_rate / FRAME_SIZE;
+      U = fu - lower_freq;
+      band_upper_weight[band] = U * FRAME_SIZE / sampling_rate;
+    }
+
+    /* pre-compute internal noise, time constants for time smearing,
+     * thresholds and helper data for spreading */
+    const auto aL = lower_spreading;
+    aUC[band] = std::pow(10., (-2.4 - 23. / curr_fc) * DELTA_Z);
+    gIL[band] = (1. - std::pow(aL, band + 1)) / (1. - aL);
+    spreading_normalization[band] = 1.;
+  }
+
+  this->set_bands(fc);
+
+  spreading_normalization = do_spreading(spreading_normalization);
 }
 
-using PeaqFFTEarModel = peaq::FFTEarModel;
+template<std::size_t BANDCOUNT>
+template<typename InputIterator>
+void FFTEarModel<BANDCOUNT>::process_block(state_t& state, InputIterator samples) const
+{
+  std::array<double, FRAME_SIZE> windowed_data;
+  std::array<std::complex<double>, FRAME_SIZE / 2 + 1> fftoutput;
+  auto band_power = std::array<double, BANDCOUNT>{};
+  auto noisy_band_power = std::array<double, BANDCOUNT>{};
 
-extern "C" {
-#else
-/**
- * PeaqFFTEarModel:
- *
- * The opaque PeaqFFTEarModel structure.
- */
-typedef struct _PeaqFFTEarModel PeaqFFTEarModel;
-#endif
+  /* apply a Hann window to the input data frame; (3) in [BS1387], part of (4)
+     * in [Kabal03] */
+  std::transform(cbegin(hann_window),
+                 cend(hann_window),
+                 samples,
+                 begin(windowed_data),
+                 std::multiplies<>());
+
+  /* apply FFT to windowed data; (4) in [BS1387] and part of (4) in [Kabal03],
+     * but without division by FRAME_SIZE, which is subsumed in the
+     * level_factor applied next */
+  gst_fft_f64_fft(gstfft.get(),
+                  windowed_data.data(),
+                  reinterpret_cast<GstFFTF64Complex*>(fftoutput.data()));
+
+  for (std::size_t k = 0; k < FRAME_SIZE / 2 + 1; k++) {
+    /* compute power spectrum and apply scaling depending on playback level; in
+       * [BS1387], the scaling is applied on the magnitudes, so the factor is
+       * squared when comparing to [BS1387] (and also includes the squared
+       * division by FRAME_SIZE) */
+    state.power_spectrum[k] = std::norm(fftoutput[k]) * level_factor;
+
+    /* apply outer and middle ear weighting; (9) in [BS1387] (but in the power
+       * domain), (8) in [Kabal03] */
+    state.weighted_power_spectrum[k] = state.power_spectrum[k] * outer_middle_ear_weight[k];
+  }
+
+  /* group the outer ear weighted FFT outputs into critical bands according to
+     * section 2.1.5 of [BS1387] / section 2.6 of [Kabal03] */
+  group_into_bands(state.weighted_power_spectrum, band_power);
+
+  /* add the internal noise to obtain the pitch patters; (14) in [BS1387], (17)
+     * in [Kabal03] */
+  for (std::size_t i = 0; i < BANDCOUNT; i++) {
+    noisy_band_power[i] = band_power[i] + this->get_internal_noise(i);
+  }
+
+  /* do (frequency) spreading according to section 2.1.7 in [BS1387] / section
+     * 2.8 in [Kabal03] */
+  state.unsmeared_excitation = do_spreading(noisy_band_power);
+
+  /* do time domain spreading according to section 2.1.8 of [BS1387] / section
+     * 2.9 of [Kabal03]
+     * NOTE: according to [BS1387], the filtered_excitation after processing the
+     * first frame should be all zero; we follow the interpretation of [Kabal03]
+     * and only initialize to zero before the first frame. */
+  for (std::size_t i = 0; i < BANDCOUNT; i++) {
+    auto a = this->get_ear_time_constant(i);
+    state.filtered_excitation[i] =
+      a * state.filtered_excitation[i] + (1. - a) * state.unsmeared_excitation[i];
+    state.excitation[i] =
+      std::max(state.filtered_excitation[i], state.unsmeared_excitation[i]);
+  }
+
+  /* check whether energy threshold has been reached, see section 5.2.4.3 in
+     * [BS1387] */
+  auto energy = std::accumulate(samples + FRAME_SIZE / 2,
+                                samples + FRAME_SIZE,
+                                0.0,
+                                [](auto e, auto x) { return e + x * x; });
+  if (energy >= 8000. / (32768. * 32768.)) {
+    state.energy_threshold_reached = true;
+  } else {
+    state.energy_threshold_reached = false;
+  }
+}
+
+template<std::size_t BANDCOUNT>
+auto FFTEarModel<BANDCOUNT>::do_spreading(std::array<double, BANDCOUNT> const& Pp) const
+  -> std::array<double, BANDCOUNT>
+{
+  /* this computation follows the algorithm in [Kabal03] where the
+   * correspondances between variables in the code and in [Kabal[03] are as
+   * follows:
+   *
+   *    code     | [Kabal03]
+   *    ---------+----------
+   *    aLe      | a_L^-0.4
+   *    aUCE     | a_Ua_C[l]a_E(E)
+   *    gIU      | (1-(a_Ua_C[l]a_E(E))^(N_c-l)) / (1-a_Ua_C[l]a_E(E))
+   *    En       | E[l] / A(l,E)
+   *    aUCEe    | (a_Ua_C[l]a_E(E))^0.4
+   *    Ene      | (E[l] / A(l,E))^0.4
+   *    E2       | Es[l]
+   */
+  auto aUCEe = std::array<double, BANDCOUNT>{};
+  auto Ene = std::array<double, BANDCOUNT>{};
+  const auto aLe = lower_spreading_exponantiated;
+
+  for (std::size_t i = 0; i < BANDCOUNT; i++) {
+    /* from (23) in [Kabal03] */
+    auto aUCE = aUC[i] * std::pow(Pp[i], 0.2 * DELTA_Z);
+    /* part of (24) in [Kabal03] */
+    auto gIU = (1. - std::pow(aUCE, BANDCOUNT - i)) / (1. - aUCE);
+    /* Note: (24) in [Kabal03] is wrong; indeed it gives A(l,E) instead of
+     * A(l,E)^-1 */
+    auto En = Pp[i] / (gIL[i] + gIU - 1.);
+    aUCEe[i] = std::pow(aUCE, 0.4);
+    Ene[i] = std::pow(En, 0.4);
+  }
+
+  auto E2 = std::array<double, BANDCOUNT>{};
+  /* first fill E2 with E_sL according to (28) in [Kabal03] */
+  E2[BANDCOUNT - 1] = Ene[BANDCOUNT - 1];
+  for (auto i = BANDCOUNT - 1; i > 0; i--) {
+    E2[i - 1] = aLe * E2[i] + Ene[i - 1];
+  }
+  /* now add E_sU to E2 according to (27) in [Kabal03] (with rearranged ordering) */
+  for (std::size_t i = 0; i < BANDCOUNT - 1; i++) {
+    std::transform(cbegin(E2) + i + 1,
+                   cend(E2),
+                   begin(E2) + i + 1,
+                   [&r = Ene[i], aUCEe_i = aUCEe[i]](auto E2j) {
+                     r *= aUCEe_i;
+                     return E2j + r;
+                   });
+  }
+  /* compute end result by normalizing according to (25) in [Kabal03] */
+  std::transform(
+    cbegin(E2),
+    cend(E2),
+    cbegin(spreading_normalization),
+    begin(E2),
+    [](auto E2i, auto spread_norm) { return std::pow(E2i, 1.0 / 0.4) / spread_norm; });
+  return E2;
+}
+
+} // namespace peaq
 
 /**
  * SECTION:fftearmodel
@@ -165,10 +381,103 @@ typedef struct _PeaqFFTEarModel PeaqFFTEarModel;
  * <xref linkend="Kabal03" />.
  */
 
-#define PEAQ_FFTEARMODEL(obj) ((PeaqFFTEarModel*)obj)
-
-PeaqEarModel* peaq_fftearmodel_new();
-void peaq_fftearmodel_set_bandcount(PeaqFFTEarModel* model, unsigned int band_count);
+/*
+ * process_block:
+ * @model: the #FFTEarModel instance structure.
+ * @state: the state data
+ * @sample_data: pointer to a frame of #FRAME_SIZE samples to be processed.
+ *
+ * Performs the computation described in section 2.1 of <xref linkend="BS1387"
+ * /> and section 2 of <xref linkend="Kabal03" /> for one single frame of
+ * single-channel data. The input is assumed to be sampled at 48 kHz. To follow
+ * the specification, the frames of successive invocations of
+ * peaq_ear_process() have to overlap by 50%.
+ *
+ * The first step is to apply a Hann window to the input frame and transform
+ * it to the frequency domain using FFT. The squared magnitude of the frequency
+ * coefficients
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msup>
+ *     <mfenced open="|" close="|"><mrow>
+ *       <mi>F</mi>
+ *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *     </mrow></mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ * </math></inlineequation>
+ * in <xref linkend="BS1387" />,
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msub><mi>G</mi><mi>L</mi></msub>
+ *   <mo>&InvisibleTimes;</mo>
+ *   <msup>
+ *     <mfenced open="|" close="|"><mrow>
+ *       <mi>X</mi>
+ *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *     </mrow></mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />) up to half the frame length are stored in
+ * <structfield>power_spectrum</structfield> of @output. Next, the outer and
+ * middle ear weights are applied in the frequency domain and the result
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msup>
+ *     <mfenced open="(" close=")">
+ *       <mrow>
+ *         <msub> <mi>F</mi> <mi>e</mi> </msub>
+ *         <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *       </mrow>
+ *     </mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ * </math></inlineequation>
+ * in <xref linkend="BS1387" />,
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <msup>
+ *     <mfenced open="|" close="|"><mrow>
+ *       <msub><mi>X</mi><mi>w</mi></msub>
+ *       <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *     </mrow></mfenced>
+ *     <mn>2</mn>
+ *   </msup>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />) is stored in
+ * <structfield>weighted_power_spectrum</structfield> of @output. These
+ * weighted spectral coefficients are then grouped into critical bands, the
+ * internal noise is added and the result is spread over frequecies to obtain
+ * the unsmeared excitation patterns
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mrow>
+ *     <msub> <mi>E</mi> <mn>2</mn> </msub>
+ *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   </mrow>
+ * </math></inlineequation>
+ * in <xref linkend="BS1387" />,
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mrow>
+ *     <msub> <mi>E</mi> <mn>s</mn> </msub>
+ *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   </mrow>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />), which are is stored in
+ * <structfield>unsmeared_excitation</structfield> of @output.
+ * Finally, further spreading over time yields the excitation patterns
+ * (<inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mrow>
+ *     <mi>E</mi>
+ *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   </mrow>
+ * </math></inlineequation>
+ * in <xref linkend="BS1387" />,
+ * <inlineequation><math xmlns="http://www.w3.org/1998/Math/MathML">
+ *   <mrow>
+ *     <msub> <mover accent="true"><mi>E</mi><mo>~</mo></mover> <mn>s</mn> </msub>
+ *     <mfenced open="[" close="]"><mi>k</mi></mfenced>
+ *   </mrow>
+ * </math></inlineequation>
+ * in <xref linkend="Kabal03" />), which are is stored in
+ * <structfield>excitation</structfield> of @output.
+ */
 
 /**
  * peaq_fftearmodel_get_power_spectrum:
@@ -185,9 +494,6 @@ void peaq_fftearmodel_set_bandcount(PeaqFFTEarModel* model, unsigned int band_co
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
  */
-void peaq_fftearmodel_group_into_bands(PeaqFFTEarModel const* model,
-                                       gdouble const* spectrum,
-                                       gdouble* band_power);
 
 /**
  * peaq_fftearmodel_get_masking_difference:
@@ -229,8 +535,6 @@ void peaq_fftearmodel_group_into_bands(PeaqFFTEarModel const* model,
  * The pointer points to internal data of the PeaqFFTEarModel and must not be
  * freed.
  */
-gdouble const* peaq_fftearmodel_get_masking_difference(PeaqFFTEarModel const* model);
-gdouble const* peaq_fftearmodel_get_power_spectrum(gpointer state);
 
 /**
  * peaq_fftearmodel_get_weighted_power_spectrum:
@@ -248,7 +552,6 @@ gdouble const* peaq_fftearmodel_get_power_spectrum(gpointer state);
  * </math></inlineequation>
  * in <xref linkend="Kabal03" />).
  */
-gdouble const* peaq_fftearmodel_get_weighted_power_spectrum(gpointer state);
 
 /**
  * peaq_fftearmodel_is_energy_threshold_reached:
@@ -261,10 +564,5 @@ gdouble const* peaq_fftearmodel_get_weighted_power_spectrum(gpointer state);
  *
  * Returns: TRUE if the energy threshold was reached, FALSE otherwise.
  */
-gboolean peaq_fftearmodel_is_energy_threshold_reached(gpointer state);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

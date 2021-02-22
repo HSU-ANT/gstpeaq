@@ -34,23 +34,43 @@
  * #PeaqEarModel:band-centers property.
  */
 
-#ifdef __cplusplus
 #include <cmath>
 #include <vector>
 
 namespace peaq {
-class EarModel
-{
-  static constexpr auto SAMPLINGRATE = 48000;
 
+template<typename Derived>
+class EarModelBase
+{
 public:
-  virtual ~EarModel() = default;
-  struct state_t
-  {};
   auto get_sampling_rate() const { return SAMPLINGRATE; };
-  double calc_loudness(state_t const* state) const;
+  auto get_step_size() const -> std::size_t { return Derived::STEP_SIZE; }
   auto get_internal_noise(std::size_t band) const { return internal_noise[band]; }
-  double calc_time_constant(std::size_t band, double tau_min, double tau_100) const;
+  template<typename T>
+  auto calc_loudness(T const* state) const
+  {
+    static_assert(std::is_same_v<T, typename Derived::state_t>);
+    auto overall_loudness = 0.;
+    auto const* excitation = state->excitation.data();
+    for (std::size_t i = 0; i < band_count; i++) {
+      auto loudness = loudness_factor[i] *
+                      (std::pow(1. - threshold[i] +
+                                  threshold[i] * excitation[i] / excitation_threshold[i],
+                                0.23) -
+                       1.);
+      overall_loudness += std::max(loudness, 0.);
+    }
+    overall_loudness *= 24. / band_count;
+    return overall_loudness;
+  }
+  auto calc_time_constant(std::size_t band, double tau_min, double tau_100) const
+  {
+    auto step_size = get_step_size();
+    /* (21), (38), (41), and (56) in [BS1387], (32) in [Kabal03] */
+    auto tau = tau_min + 100. / fc[band] * (tau_100 - tau_min);
+    /* (24), (40), and (44) in [BS1387], (33) in [Kabal03] */
+    return std::exp(step_size / (-48000. * tau));
+  }
   static auto calc_ear_weight(double frequency)
   {
     auto f_kHz = frequency / 1000.;
@@ -59,16 +79,6 @@ public:
                 1e-3 * std::pow(f_kHz, 3.6);
     return std::pow(10.0, W_dB / 20);
   }
-  auto get_band_count() const { return band_count; }
-  virtual auto get_frame_size() const -> std::size_t = 0;
-  virtual auto get_step_size() const -> std::size_t = 0;
-  virtual double get_playback_level() const = 0;
-  virtual void set_playback_level(double level) = 0;
-  virtual state_t* state_alloc() const = 0;
-  virtual void state_free(state_t* state) const = 0;
-  virtual void process_block(state_t* state, float const* samples) const = 0;
-  virtual double const* get_excitation(state_t const* state) const = 0;
-  virtual double const* get_unsmeared_excitation(state_t const* state) const = 0;
 
 protected:
   std::size_t band_count{ 0 };
@@ -77,15 +87,8 @@ protected:
   std::vector<double> excitation_threshold;
   std::vector<double> threshold;
   std::vector<double> loudness_factor;
-};
-
-template<typename Derived>
-class EarModelBase : public EarModel {
-public:
-  auto get_frame_size() const -> std::size_t override { return Derived::FRAME_SIZE; }
-  auto get_step_size() const -> std::size_t override { return Derived::STEP_SIZE; }
-protected:
-  void set_bands(std::vector<double> const& fc) {
+  void set_bands(std::vector<double> const& fc)
+  {
     this->fc = fc;
     band_count = fc.size();
     internal_noise.resize(band_count);
@@ -104,8 +107,9 @@ protected:
                             0.1 * (-2. - 2.05 * atan(curr_fc / 4000.) -
                                    0.75 * atan(curr_fc / 1600. * curr_fc / 1600.)));
       /* loudness scaling factor; part of (58) in [BS1387], (69) in [Kabal03] */
-      loudness_factor[band] = Derived::LOUDNESS_SCALE *
-                              pow(excitation_threshold[band] / (1e4 * threshold[band]), 0.23);
+      loudness_factor[band] =
+        Derived::LOUDNESS_SCALE *
+        pow(excitation_threshold[band] / (1e4 * threshold[band]), 0.23);
     }
     auto tau_min = Derived::TAU_MIN;
     auto tau_100 = Derived::TAU_100;
@@ -115,16 +119,14 @@ protected:
   }
   auto get_band_center_frequency(std::size_t band) const { return fc[band]; }
   auto get_ear_time_constant(std::size_t band) const { return ear_time_constants[band]; }
+
 private:
+  static constexpr auto SAMPLINGRATE = 48000;
   std::vector<double> ear_time_constants;
 };
 
 } // namespace peaq
 
-using PeaqEarModel = peaq::EarModel;
-using PeaqEarModelState = peaq::EarModel::state_t;
-extern "C" {
-#else
 /**
  * PeaqEarModel:
  * @parent: The parent #GObject.
@@ -168,8 +170,6 @@ extern "C" {
  * of bands is not changed after one of the pointers has been obtained. The
  * data should not be written to directly, though.
  */
-typedef struct _PeaqEarModel PeaqEarModel;
-typedef struct _PeaqEarModelState PeaqEarModelState;
 
 /**
  * PeaqEarModelClass:
@@ -211,54 +211,6 @@ typedef struct _PeaqEarModelState PeaqEarModelState;
  * Derived classes must provide values for all fields of #PeaqEarModelClass
  * (except for <structfield>parent</structfield>).
  */
-#endif
-
-void peaq_earmodel_delete(PeaqEarModel* model);
-double peaq_earmodel_get_playback_level(PeaqEarModel const* model);
-void peaq_earmodel_set_playback_level(PeaqEarModel* model, double level);
-
-/**
- * peaq_earmodel_state_alloc:
- * @model: The #PeaqEarModel instance to allocate state data for.
- *
- * The state data is allocated using the <structfield>state_alloc</structfield>
- * function provided by the derived class. When the state is no longer needed,
- * it should be freed with peaq_earmodel_state_free().
- *
- * Note that changing properties of the #PeaqEarModel may require obtaining a
- * new state data instance (of different size).
- *
- * Returns: Newly allocated state data for this #PeaqEarModel instance.
- */
-PeaqEarModelState* peaq_earmodel_state_alloc(PeaqEarModel const* model);
-
-/**
- * peaq_earmodel_state_free:
- * @model: The #PeaqEarModel instance to free state data for.
- * @state: The state data to free.
- *
- * Frees the state data allocated with peaq_earmodel_state_alloc().
- */
-void peaq_earmodel_state_free(PeaqEarModel const* model, PeaqEarModelState* state);
-
-/**
- * peaq_earmodel_process_block:
- * @model: The #PeaqEarModel instance to free state data for.
- * @state: The instance state data.
- * @samples: One frame of input data.
- *
- * Invokes the <structfield>process_block</structfield> function of the derived
- * class to process one frame of audio. The required length of the frame
- * differs between #PeaqFFTEarModel and #PeaqFilterbankEarModel; it may be
- * determined by calling peaq_earmodel_get_frame_size(). Similarly, the amount
- * by which to advance the data between successive invocations can be
- * determined by calling peaq_earmodel_get_step_size(). Any state
- * information required between successive invocations is kept in @state, which
- * has be allocated with peaq_earmodel_state_alloc() beforehand.
- */
-void peaq_earmodel_process_block(PeaqEarModel const* model,
-                                 PeaqEarModelState* state,
-                                 float const* samples);
 
 /**
  * peaq_earmodel_get_excitation:
@@ -273,8 +225,6 @@ void peaq_earmodel_process_block(PeaqEarModel const* model,
  *
  * Returns: The current excitation.
  */
-double const* peaq_earmodel_get_excitation(PeaqEarModel const* model,
-                                           PeaqEarModelState const* state);
 
 /**
  * peaq_earmodel_get_unsmeared_excitation:
@@ -290,29 +240,6 @@ double const* peaq_earmodel_get_excitation(PeaqEarModel const* model,
  *
  * Returns: The current excitation.
  */
-double const* peaq_earmodel_get_unsmeared_excitation(PeaqEarModel const* model,
-                                                     PeaqEarModelState const* state);
-
-/**
- * peaq_earmodel_get_frame_size:
- * @model: The #PeaqEarModel to obtain the frame size of.
- *
- * Returns the size of the frames needed by peaq_earmodel_process_block().
- *
- * Returns: The frame size required by @model.
- */
-unsigned int peaq_earmodel_get_frame_size(PeaqEarModel const* model);
-
-/**
- * peaq_earmodel_get_step_size:
- * @model: The #PeaqEarModel to obtain the step size of.
- *
- * Returns the step size with which the sample data has to advance between
- * successive calls to peaq_earmodel_process_block().
- *
- * Returns: The step size required by @model.
- */
-unsigned int peaq_earmodel_get_step_size(PeaqEarModel const* model);
 
 /**
  * peaq_earmodel_get_internal_noise:
@@ -735,10 +662,5 @@ unsigned int peaq_earmodel_get_step_size(PeaqEarModel const* model);
  *
  * Returns: The overall loudness.
  */
-double peaq_earmodel_calc_loudness(PeaqEarModel const* model,
-                                   PeaqEarModelState const* state);
-#ifdef __cplusplus
-}
-#endif
 
 #endif

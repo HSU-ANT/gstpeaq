@@ -20,7 +20,6 @@
  * Boston, MA 02111-1307, USA.
  */
 
-
 #ifndef __MODPATT_H__
 #define __MODPATT_H__ 1
 
@@ -34,82 +33,62 @@
  * modulation parameters.
  */
 
-
 #include "earmodel.h"
 
-#ifdef __cplusplus
-#include <memory>
-#include <vector>
+#include <array>
+#include <cmath>
 
 namespace peaq {
+template<std::size_t BANDCOUNT>
 class ModulationProcessor
 {
 public:
-  [[nodiscard]] auto get_ear_model() const { return ear_model; }
-  void set_ear_model(PeaqEarModel* ear_model);
-  void process(double const* unsmeared_excitation);
+  template<typename EarModel>
+  ModulationProcessor(EarModel const& ear_model)
+  {
+    static_assert(BANDCOUNT == EarModel::get_band_count());
+    auto step_size = ear_model.get_step_size();
+    auto sampling_rate = ear_model.get_sampling_rate();
+    derivative_factor = static_cast<double>(sampling_rate) / step_size;
+
+    for (size_t k = 0; k < BANDCOUNT; k++) {
+      /* (56) in [BS1387] */
+      ear_time_constants[k] = ear_model.calc_time_constant(k, 0.008, 0.05);
+    }
+  }
+  void process(std::array<double, BANDCOUNT> const& unsmeared_excitation)
+  {
+    for (std::size_t k = 0; k < BANDCOUNT; k++) {
+      /* (54) in [BS1387] */
+      auto loudness = std::pow(unsmeared_excitation[k], 0.3);
+      auto loudness_derivative =
+        derivative_factor * std::abs(loudness - previous_loudness[k]);
+      filtered_loudness_derivative[k] =
+        ear_time_constants[k] * filtered_loudness_derivative[k] +
+        (1 - ear_time_constants[k]) * loudness_derivative;
+      /* (55) in [BS1387] */
+      filtered_loudness[k] = ear_time_constants[k] * filtered_loudness[k] +
+                             (1. - ear_time_constants[k]) * loudness;
+      /* (57) in [BS1387] */
+      modulation[k] = filtered_loudness_derivative[k] / (1. + filtered_loudness[k] / 0.3);
+      previous_loudness[k] = loudness;
+    }
+  }
   [[nodiscard]] const auto& get_average_loudness() const { return filtered_loudness; }
   [[nodiscard]] const auto& get_modulation() const { return modulation; }
 
 private:
-  PeaqEarModel* ear_model{};
-
-  std::vector<double> ear_time_constants;
-  std::vector<double> previous_loudness;
-  std::vector<double> filtered_loudness;
-  std::vector<double> filtered_loudness_derivative;
-  std::vector<double> modulation;
+  double derivative_factor;
+  std::array<double, BANDCOUNT> ear_time_constants;
+  std::array<double, BANDCOUNT> previous_loudness{};
+  std::array<double, BANDCOUNT> filtered_loudness{};
+  std::array<double, BANDCOUNT> filtered_loudness_derivative{};
+  std::array<double, BANDCOUNT> modulation{};
 };
+
+template<typename EarModel>
+ModulationProcessor(EarModel const&) -> ModulationProcessor<EarModel::get_band_count()>;
 } // namespace peaq
-
-using PeaqModulationProcessor = peaq::ModulationProcessor;
-
-extern "C" {
-#else
-/**
- * PeaqModulationProcessor:
- *
- * The opaque PeaqModulationProcessor structure.
- */
-typedef struct _PeaqModulationProcessor PeaqModulationProcessor;
-#endif
-
-
-/**
- * peaq_modulationprocessor_new:
- * @ear_model: The #PeaqEarModel to get the band information from.
- *
- * Constructs a new #PeaqModulationProcessor, using the given @ear_model to
- * obtain information about the number of frequency bands used and their center
- * frequencies.
- *
- * Returns: The newly constructed #PeaqModulationProcessor.
- */
-PeaqModulationProcessor *peaq_modulationprocessor_new (PeaqEarModel *ear_model);
-void peaq_modulationprocessor_delete(PeaqModulationProcessor *modproc);
-
-/**
- * peaq_modulationprocessor_set_ear_model:
- * @modproc: The #PeaqModulationProcessor to set the #PeaqEarModel of.
- * @ear_model: The #PeaqEarModel to get the band information from.
- *
- * Sets the #PeaqEarModel from which the frequency band information is used and
- * precomputes time constants that depend on the band center frequencies.
- */
-void peaq_modulationprocessor_set_ear_model (PeaqModulationProcessor *modproc,
-                                             PeaqEarModel *ear_model);
-
-/**
- * peaq_modulationprocessor_get_ear_model:
- * @modproc: The #PeaqModulationProcessor to get the #PeaqEarModel of.
- *
- * Returns the #PeaqEarModel used by the @modproc to get the frequency band
- * information.
- *
- * Returns: The #PeaqEarModel as set with
- * peaq_modulationprocessor_set_ear_model().
- */
-PeaqEarModel *peaq_modulationprocessor_get_ear_model (PeaqModulationProcessor const *modproc);
 
 /**
  * peaq_modulationprocessor_process:
@@ -128,8 +107,6 @@ PeaqEarModel *peaq_modulationprocessor_get_ear_model (PeaqModulationProcessor co
  * with peaq_modulationprocessor_set_ear_model() or upon construction with
  * peaq_modulationprocessor_new().
  */
-void peaq_modulationprocessor_process (PeaqModulationProcessor *modproc,
-				      double const* unsmeared_excitation);
 
 /**
  * peaq_modulationprocessor_get_average_loudness:
@@ -144,7 +121,6 @@ void peaq_modulationprocessor_process (PeaqModulationProcessor *modproc,
  * The pointer points to internal data of the #PeaqModulationProcessor and must
  * not be freed.
  */
-double const *peaq_modulationprocessor_get_average_loudness (PeaqModulationProcessor const *modproc);
 
 /**
  * peaq_modulationprocessor_get_modulation:
@@ -159,10 +135,5 @@ double const *peaq_modulationprocessor_get_average_loudness (PeaqModulationProce
  * The pointer points to internal data of the #PeaqModulationProcessor and must
  * not be freed.
  */
-double const *peaq_modulationprocessor_get_modulation (PeaqModulationProcessor const *modproc);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif
