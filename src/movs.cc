@@ -117,9 +117,9 @@ auto calc_modulation_difference(
 void mov_modulation_difference(FFTEarModel<> const& ear_model,
                                std::vector<ModulationProcessor<109>> const& ref_mod_proc,
                                std::vector<ModulationProcessor<109>> const& test_mod_proc,
-                               MovAccum& mov_accum1,
-                               MovAccum& mov_accum2,
-                               MovAccum& mov_accum_win)
+                               movaccum_avg& mov_accum1,
+                               movaccum_avg& mov_accum2,
+                               movaccum_avg_window& mov_accum_win)
 {
   auto band_count = ear_model.get_band_count();
 
@@ -137,7 +137,7 @@ void mov_modulation_difference(FFTEarModel<> const& ear_model,
 void mov_modulation_difference(FilterbankEarModel const& ear_model,
                                std::vector<ModulationProcessor<40>> const& ref_mod_proc,
                                std::vector<ModulationProcessor<40>> const& test_mod_proc,
-                               MovAccum& mov_accum1)
+                               movaccum_rms& mov_accum1)
 {
   auto band_count = ear_model.get_band_count();
 
@@ -154,7 +154,7 @@ void mov_noise_loudness(FFTEarModel<> const& ear_model,
                         std::vector<ModulationProcessor<109>> const& ref_mod_proc,
                         std::vector<ModulationProcessor<109>> const& test_mod_proc,
                         std::vector<LevelAdapter<109>> const& level,
-                        MovAccum& mov_accum)
+                        movaccum_rms& mov_accum)
 {
   for (std::size_t c = 0; c < mov_accum.get_channels(); c++) {
     auto const& ref_excitation = level[c].get_adapted_ref();
@@ -176,7 +176,7 @@ void mov_noise_loud_asym(FilterbankEarModel const& ear_model,
                          std::vector<ModulationProcessor<40>> const& ref_mod_proc,
                          std::vector<ModulationProcessor<40>> const& test_mod_proc,
                          std::vector<LevelAdapter<40>> const& level,
-                         MovAccum& mov_accum)
+                         movaccum_rms_asym& mov_accum)
 {
   for (std::size_t c = 0; c < mov_accum.get_channels(); c++) {
     auto const& ref_excitation = level[c].get_adapted_ref();
@@ -220,7 +220,7 @@ void mov_lin_dist(FilterbankEarModel const& ear_model,
                   std::vector<ModulationProcessor<40>> const& ref_mod_proc,
                   std::vector<LevelAdapter<40>> const& level,
                   std::vector<FilterbankEarModel::state_t> const& state,
-                  MovAccum& mov_accum)
+                  movaccum_avg& mov_accum)
 {
   for (std::size_t c = 0; c < mov_accum.get_channels(); c++) {
     auto const& ref_adapted_excitation = level[c].get_adapted_ref();
@@ -252,8 +252,8 @@ void mov_lin_dist(FilterbankEarModel const& ear_model,
 
 void mov_bandwidth(std::vector<FFTEarModel<>::state_t> const& ref_state,
                    std::vector<FFTEarModel<>::state_t> const& test_state,
-                   MovAccum& mov_accum_ref,
-                   MovAccum& mov_accum_test)
+                   movaccum_avg& mov_accum_ref,
+                   movaccum_avg& mov_accum_test)
 {
   auto constexpr FIVE_DB_POWER_FACTOR = 3.16227766016838;
   for (std::size_t c = 0; c < mov_accum_ref.get_channels(); c++) {
@@ -328,8 +328,8 @@ static auto calc_nmr(EarModel const& ear_model,
 void mov_nmr(FFTEarModel<> const& ear_model,
              std::vector<FFTEarModel<>::state_t> const& ref_state,
              std::vector<FFTEarModel<>::state_t> const& test_state,
-             MovAccum& mov_accum_nmr,
-             MovAccum& mov_accum_rel_dist_frames)
+             movaccum_avg_log& mov_accum_nmr,
+             movaccum_avg& mov_accum_rel_dist_frames)
 {
   for (std::size_t c = 0; c < mov_accum_nmr.get_channels(); c++) {
     auto [nmr, nmr_max] = calc_nmr(ear_model, ref_state[c], test_state[c]);
@@ -342,7 +342,7 @@ void mov_nmr(FFTEarModel<> const& ear_model,
 void mov_nmr(FFTEarModel<55> const& ear_model,
              std::vector<FFTEarModel<55>::state_t> const& ref_state,
              std::vector<FFTEarModel<55>::state_t> const& test_state,
-             MovAccum& mov_accum_nmr)
+             movaccum_avg& mov_accum_nmr)
 {
   for (std::size_t c = 0; c < mov_accum_nmr.get_channels(); c++) {
     auto [nmr, nmr_max] = calc_nmr(ear_model, ref_state[c], test_state[c]);
@@ -353,9 +353,8 @@ void mov_nmr(FFTEarModel<55> const& ear_model,
 void mov_prob_detect(FFTEarModel<> const& ear_model,
                      std::vector<FFTEarModel<>::state_t> const& ref_state,
                      std::vector<FFTEarModel<>::state_t> const& test_state,
-                     unsigned int channels,
-                     MovAccum& mov_accum_adb,
-                     MovAccum& mov_accum_mfpd)
+                     movaccum_adb& mov_accum_adb,
+                     movaccum_filtered_max& mov_accum_mfpd)
 {
   auto band_count = ear_model.get_band_count();
   auto binaural_detection_probability = 1.;
@@ -363,7 +362,7 @@ void mov_prob_detect(FFTEarModel<> const& ear_model,
   for (std::size_t i = 0; i < band_count; i++) {
     auto detection_probability = 0.;
     auto detection_steps = 0.;
-    for (std::size_t c = 0; c < channels; c++) {
+    for (std::size_t c = 0; c < ref_state.size(); c++) {
       auto const& ref_excitation = ear_model.get_excitation(ref_state[c]);
       auto const& test_excitation = ear_model.get_excitation(test_state[c]);
       auto eref_db = 10. * std::log10(ref_excitation[i]);

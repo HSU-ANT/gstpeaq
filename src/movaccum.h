@@ -51,30 +51,19 @@
 
 namespace peaq {
 
-class MovAccum
-{
-public:
-  virtual ~MovAccum() = default;
-  virtual void set_channels(std::size_t channels) = 0;
-  [[nodiscard]] virtual auto get_channels() const -> std::size_t = 0;
-  virtual void set_tentative(bool tentative) = 0;
-  virtual void accumulate(std::size_t c, double val, double weight) = 0;
-  [[nodiscard]] virtual auto get_value() const -> double = 0;
-};
-
 namespace detail {
 template<typename Strategy>
-class movaccumimpl : public MovAccum
+class movaccumimpl
 {
 public:
-  void set_channels(std::size_t channels) final
+  void set_channels(std::size_t channels)
   {
     this->channels = channels;
     data.resize(channels);
     data_saved.resize(channels);
   }
-  [[nodiscard]] auto get_channels() const -> std::size_t final { return channels; }
-  void set_tentative(bool tentative) final
+  [[nodiscard]] auto get_channels() const -> std::size_t { return channels; }
+  void set_tentative(bool tentative)
   {
     if (tentative) {
       if (status == Status::NORMAL) {
@@ -90,14 +79,14 @@ public:
   {
     std::transform(cbegin(data), cend(data), begin(data_saved), Strategy::save_data);
   }
-  void accumulate(std::size_t c, double val, double weight) final
+  void accumulate(std::size_t c, double val, double weight)
   {
     if (status != Status::INIT) {
       Strategy::accumulate(data[c], val, weight);
     }
   }
 
-  [[nodiscard]] auto get_value() const -> double final
+  [[nodiscard]] auto get_value() const -> double
   {
     return status == Status::TENTATIVE ? get_value(data_saved) : get_value(data);
   }

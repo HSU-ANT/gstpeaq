@@ -187,13 +187,13 @@ namespace peaq {
 void mov_modulation_difference(FFTEarModel<> const& ear_model,
                                std::vector<ModulationProcessor<109>> const& ref_mod_proc,
                                std::vector<ModulationProcessor<109>> const& test_mod_proc,
-                               MovAccum& mov_accum1,
-                               MovAccum& mov_accum2,
-                               MovAccum& mov_accum_win);
+                               movaccum_avg& mov_accum1,
+                               movaccum_avg& mov_accum2,
+                               movaccum_avg_window& mov_accum_win);
 void mov_modulation_difference(FilterbankEarModel const& ear_model,
                                std::vector<ModulationProcessor<40>> const& ref_mod_proc,
                                std::vector<ModulationProcessor<40>> const& test_mod_proc,
-                               MovAccum& mov_accum1);
+                               movaccum_rms& mov_accum1);
 /**
  * peaq_mov_noise_loudness:
  * @ref_mod_proc: Modulation processors of the reference signal (one per
@@ -295,7 +295,7 @@ void mov_noise_loudness(FFTEarModel<> const& ear_model,
                         std::vector<ModulationProcessor<109>> const& ref_mod_proc,
                         std::vector<ModulationProcessor<109>> const& test_mod_proc,
                         std::vector<LevelAdapter<109>> const& level,
-                        MovAccum& mov_accum);
+                        movaccum_rms& mov_accum);
 
 /**
  * peaq_mov_noise_loud_asym:
@@ -478,7 +478,7 @@ void mov_noise_loud_asym(FilterbankEarModel const& ear_model,
                          std::vector<ModulationProcessor<40>> const& ref_mod_proc,
                          std::vector<ModulationProcessor<40>> const& test_mod_proc,
                          std::vector<LevelAdapter<40>> const& level,
-                         MovAccum& mov_accum);
+                         movaccum_rms_asym& mov_accum);
 
 /**
  * peaq_mov_lin_dist:
@@ -583,7 +583,7 @@ void mov_lin_dist(FilterbankEarModel const& ear_model,
                   std::vector<ModulationProcessor<40>> const& ref_mod_proc,
                   std::vector<LevelAdapter<40>> const& level,
                   std::vector<FilterbankEarModel::state_t> const& state,
-                  MovAccum& mov_accum);
+                  movaccum_avg& mov_accum);
 
 /**
  * peaq_mov_bandwidth:
@@ -617,8 +617,8 @@ void mov_lin_dist(FilterbankEarModel const& ear_model,
  */
 void mov_bandwidth(std::vector<FFTEarModel<>::state_t> const& ref_state,
                    std::vector<FFTEarModel<>::state_t> const& test_state,
-                   MovAccum& mov_accum_ref,
-                   MovAccum& mov_accum_test);
+                   movaccum_avg& mov_accum_ref,
+                   movaccum_avg& mov_accum_test);
 
 /**
  * peaq_mov_nmr:
@@ -782,12 +782,12 @@ void mov_bandwidth(std::vector<FFTEarModel<>::state_t> const& ref_state,
 void mov_nmr(FFTEarModel<> const& ear_model,
              std::vector<FFTEarModel<>::state_t> const& ref_state,
              std::vector<FFTEarModel<>::state_t> const& test_state,
-             MovAccum& mov_accum_nmr,
-             MovAccum& mov_accum_rel_dist_frames);
+             movaccum_avg_log& mov_accum_nmr,
+             movaccum_avg& mov_accum_rel_dist_frames);
 void mov_nmr(FFTEarModel<55> const& ear_model,
              std::vector<FFTEarModel<55>::state_t> const& ref_state,
              std::vector<FFTEarModel<55>::state_t> const& test_state,
-             MovAccum& mov_accum_nmr);
+             movaccum_avg& mov_accum_nmr);
 
 /**
  * peaq_mov_prob_detect:
@@ -990,9 +990,8 @@ void mov_nmr(FFTEarModel<55> const& ear_model,
 void mov_prob_detect(FFTEarModel<> const& ear_model,
                      std::vector<FFTEarModel<>::state_t> const& ref_state,
                      std::vector<FFTEarModel<>::state_t> const& test_state,
-                     unsigned int channels,
-                     MovAccum& mov_accum_adb,
-                     MovAccum& mov_accum_mfpd);
+                     movaccum_adb& mov_accum_adb,
+                     movaccum_filtered_max& mov_accum_mfpd);
 
 /**
  * peaq_mov_ehs:
@@ -1070,7 +1069,7 @@ static auto do_xcorr(std::array<double, 2 * MAXLAG> const& d)
 template<std::size_t BANDCOUNT>
 void mov_ehs(std::vector<typename FFTEarModel<BANDCOUNT>::state_t> const& ref_state,
              std::vector<typename FFTEarModel<BANDCOUNT>::state_t> const& test_state,
-             MovAccum& mov_accum)
+             movaccum_avg& mov_accum)
 {
   auto constexpr MAXLAG = 256;
   static GstFFTF64* correlation_fft = nullptr;

@@ -52,10 +52,7 @@ public:
   [[nodiscard]] virtual auto calculate_odg(bool console_output = false) const -> double = 0;
 };
 
-template<unsigned int MOV_COUNT,
-         std::size_t FFT_BAND_COUNT,
-         std::size_t MAIN_BAND_COUNT,
-         typename Derived>
+template<std::size_t FFT_BAND_COUNT, std::size_t MAIN_BAND_COUNT, typename Derived>
 class AlgoBase : public Algo
 {
 public:
@@ -108,10 +105,9 @@ protected:
   std::vector<LevelAdapter<MAIN_BAND_COUNT>> level_adapters;
   std::vector<ModulationProcessor<MAIN_BAND_COUNT>> ref_modulation_processors;
   std::vector<ModulationProcessor<MAIN_BAND_COUNT>> test_modulation_processors;
-  std::array<std::unique_ptr<MovAccum>, MOV_COUNT> mov_accums;
 };
 
-class AlgoBasic : public AlgoBase<11, 109, 109, AlgoBasic>
+class AlgoBasic : public AlgoBase<109, 109, AlgoBasic>
 {
 private:
   enum
@@ -127,7 +123,6 @@ private:
     MOV_RMS_NOISE_LOUD,
     MOV_MFPD,
     MOV_REL_DIST_FRAMES,
-    COUNT_MOV_BASIC
   };
 
   void do_process();
@@ -135,21 +130,6 @@ private:
 public:
   static auto constexpr FFT_BAND_COUNT = 109;
   static auto constexpr FRAME_SIZE = FFTEarModel<FFT_BAND_COUNT>::FRAME_SIZE;
-  static auto constexpr MOV_COUNT = COUNT_MOV_BASIC;
-  AlgoBasic()
-  {
-    mov_accums[MOV_BANDWIDTH_REF] = std::make_unique<movaccum_avg>();
-    mov_accums[MOV_BANDWIDTH_TEST] = std::make_unique<movaccum_avg>();
-    mov_accums[MOV_TOTAL_NMR] = std::make_unique<movaccum_avg_log>();
-    mov_accums[MOV_WIN_MOD_DIFF] = std::make_unique<movaccum_avg_window>();
-    mov_accums[MOV_ADB] = std::make_unique<movaccum_adb>();
-    mov_accums[MOV_EHS] = std::make_unique<movaccum_avg>();
-    mov_accums[MOV_AVG_MOD_DIFF_1] = std::make_unique<movaccum_avg>();
-    mov_accums[MOV_AVG_MOD_DIFF_2] = std::make_unique<movaccum_avg>();
-    mov_accums[MOV_RMS_NOISE_LOUD] = std::make_unique<movaccum_rms>();
-    mov_accums[MOV_MFPD] = std::make_unique<movaccum_filtered_max>();
-    mov_accums[MOV_REL_DIST_FRAMES] = std::make_unique<movaccum_avg>();
-  }
   void set_channels(unsigned int channel_count) final
   {
     AlgoBase::set_channels(channel_count);
@@ -158,13 +138,12 @@ public:
     level_adapters.resize(channel_count, LevelAdapter{ fft_ear_model });
     ref_modulation_processors.resize(channel_count, ModulationProcessor{ fft_ear_model });
     test_modulation_processors.resize(channel_count, ModulationProcessor{ fft_ear_model });
-    for (auto i = 0; i < MOV_COUNT; i++) {
-      if (i == MOV_ADB || i == MOV_MFPD) {
-        mov_accums[i]->set_channels(1);
-      } else {
-        mov_accums[i]->set_channels(channel_count);
-      }
-    }
+    int i = 0;
+    std::apply(
+      [channel_count, &i](auto&... accum) {
+        ((accum.set_channels(i == MOV_ADB || i == MOV_MFPD ? 1 : channel_count), i++), ...);
+      },
+      mov_accums);
   }
   [[nodiscard]] auto get_playback_level() const -> double final
   {
@@ -219,16 +198,14 @@ public:
         std::fill(begin(test_buffers[c]) + buffer_valid_count, end(test_buffers[c]), 0.0);
       }
       buffer_valid_count = FRAME_SIZE;
-      do_process(/*accums*/);
+      do_process();
       buffer_valid_count = 0;
     }
   }
   [[nodiscard]] auto calculate_di(bool console_output = false) const -> double final
   {
-    auto movs = std::array<double, COUNT_MOV_BASIC>{};
-    for (auto i = 0; i < COUNT_MOV_BASIC; i++) {
-      movs[i] = mov_accums[i]->get_value();
-    }
+    auto movs = std::apply(
+      [](auto&... accum) { return std::array{ accum.get_value()... }; }, mov_accums);
     auto distortion_index = peaq_calculate_di_basic(movs.data());
 
     if (console_output) {
@@ -254,9 +231,21 @@ private:
   std::vector<std::array<float, FRAME_SIZE>> ref_buffers;
   std::vector<std::array<float, FRAME_SIZE>> test_buffers;
   FFTEarModel<FFT_BAND_COUNT> fft_ear_model{};
+  std::tuple<movaccum_avg,
+             movaccum_avg,
+             movaccum_avg_log,
+             movaccum_avg_window,
+             movaccum_adb,
+             movaccum_avg,
+             movaccum_avg,
+             movaccum_avg,
+             movaccum_rms,
+             movaccum_filtered_max,
+             movaccum_avg>
+    mov_accums;
 };
 
-class AlgoAdvanced : public AlgoBase<5, 55, 40, AlgoAdvanced>
+class AlgoAdvanced : public AlgoBase<55, 40, AlgoAdvanced>
 {
 private:
   enum
@@ -266,7 +255,6 @@ private:
     MOV_SEGMENTAL_NMR,
     MOV_EHS,
     MOV_AVG_LIN_DIST,
-    COUNT_MOV_ADVANCED
   };
 
   void do_process_fft();
@@ -277,14 +265,6 @@ public:
   static auto constexpr FFT_FRAME_SIZE = FFTEarModel<FFT_BAND_COUNT>::FRAME_SIZE;
   static auto constexpr FB_FRAME_SIZE = FilterbankEarModel::FRAME_SIZE;
   static auto constexpr BUFFER_SIZE = FFT_FRAME_SIZE + FB_FRAME_SIZE;
-  AlgoAdvanced()
-  {
-    mov_accums[MOV_RMS_MOD_DIFF] = std::make_unique<movaccum_rms>();
-    mov_accums[MOV_SEGMENTAL_NMR] = std::make_unique<movaccum_avg>();
-    mov_accums[MOV_EHS] = std::make_unique<movaccum_avg>();
-    mov_accums[MOV_AVG_LIN_DIST] = std::make_unique<movaccum_avg>();
-    mov_accums[MOV_RMS_NOISE_LOUD_ASYM] = std::make_unique<movaccum_rms_asym>();
-  }
   void set_channels(unsigned int channel_count) final
   {
     AlgoBase::set_channels(channel_count);
@@ -295,9 +275,9 @@ public:
     level_adapters.resize(channel_count, LevelAdapter{ fb_ear_model });
     ref_modulation_processors.resize(channel_count, ModulationProcessor{ fb_ear_model });
     test_modulation_processors.resize(channel_count, ModulationProcessor{ fb_ear_model });
-    for (auto i = 0; i < COUNT_MOV_ADVANCED; i++) {
-      mov_accums[i]->set_channels(channel_count);
-    }
+    std::apply(
+      [channel_count](auto&... accum) { (accum.set_channels(channel_count), ...); },
+      mov_accums);
   }
   [[nodiscard]] auto get_playback_level() const -> double final
   {
@@ -367,10 +347,8 @@ public:
 
   [[nodiscard]] auto calculate_di(bool console_output = false) const -> double final
   {
-    auto movs = std::array<double, COUNT_MOV_ADVANCED>{};
-    for (auto i = 0; i < COUNT_MOV_ADVANCED; i++) {
-      movs[i] = mov_accums[i]->get_value();
-    }
+    auto movs = std::apply(
+      [](auto&... accum) { return std::array{ accum.get_value()... }; }, mov_accums);
     auto distortion_index = peaq_calculate_di_advanced(movs.data());
 
     if (console_output) {
@@ -394,6 +372,8 @@ private:
   std::vector<FilterbankEarModel::state_t> fb_earmodel_state_test;
   FFTEarModel<FFT_BAND_COUNT> fft_ear_model{};
   FilterbankEarModel fb_ear_model{};
+  std::tuple<movaccum_rms, movaccum_rms_asym, movaccum_avg, movaccum_avg, movaccum_avg>
+    mov_accums;
 };
 
 } // namespace peaq
