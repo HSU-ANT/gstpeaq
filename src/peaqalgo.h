@@ -66,11 +66,9 @@ public:
                states_ref);
     std::apply([channel_count](auto&... state) { (state.resize(channel_count), ...); },
                states_test);
-    level_adapters.resize(channel_count, LevelAdapter{ std::get<0>(ear_models) });
-    ref_modulation_processors.resize(channel_count,
-                                     ModulationProcessor{ std::get<0>(ear_models) });
-    test_modulation_processors.resize(channel_count,
-                                      ModulationProcessor{ std::get<0>(ear_models) });
+    level_state.resize(channel_count);
+    ref_modproc_state.resize(channel_count);
+    test_modproc_state.resize(channel_count);
   }
   [[nodiscard]] auto get_playback_level() const -> double final
   {
@@ -162,6 +160,7 @@ private:
   };
 
   static auto constexpr BUFFER_SIZE = EarModelsTrait<>::buffer_size;
+  static auto constexpr BANDCOUNT_0 = std::tuple_element_t<0, EarModels>::get_band_count();
 
   unsigned int channel_count;
   std::size_t buffer_valid_count{ 0 };
@@ -172,18 +171,16 @@ private:
   void preprocess()
   {
     for (auto chan = 0U; chan < channel_count; chan++) {
-      auto const& ref_excitation =
-        std::get<0>(ear_models).get_excitation(std::get<0>(states_ref)[chan]);
-      auto const& test_excitation =
-        std::get<0>(ear_models).get_excitation(std::get<0>(states_test)[chan]);
+      auto const& ref_excitation = std::get<0>(states_ref)[chan].get_excitation();
+      auto const& test_excitation = std::get<0>(states_test)[chan].get_excitation();
       auto const& ref_unsmeared_excitation =
-        std::get<0>(ear_models).get_unsmeared_excitation(std::get<0>(states_ref)[chan]);
+        std::get<0>(states_ref)[chan].get_unsmeared_excitation();
       auto const& test_unsmeared_excitation =
-        std::get<0>(ear_models).get_unsmeared_excitation(std::get<0>(states_test)[chan]);
+        std::get<0>(states_test)[chan].get_unsmeared_excitation();
 
-      level_adapters[chan].process(ref_excitation, test_excitation);
-      ref_modulation_processors[chan].process(ref_unsmeared_excitation);
-      test_modulation_processors[chan].process(test_unsmeared_excitation);
+      level_adapter.process(ref_excitation, test_excitation, level_state[chan]);
+      modulation_processor.process(ref_unsmeared_excitation, ref_modproc_state[chan]);
+      modulation_processor.process(test_unsmeared_excitation, test_modproc_state[chan]);
       if (loudness_reached_frame == std::numeric_limits<unsigned int>::max()) {
         if (std::get<0>(ear_models).calc_loudness(&std::get<0>(states_ref)[chan]) > 0.1 &&
             std::get<0>(ear_models).calc_loudness(&std::get<0>(states_test)[chan]) > 0.1) {
@@ -273,12 +270,13 @@ protected:
   std::size_t loudness_reached_frame{ std::numeric_limits<unsigned int>::max() };
   typename EarModelsTrait<>::states_t states_ref;
   typename EarModelsTrait<>::states_t states_test;
-  std::vector<LevelAdapter<std::tuple_element_t<0, EarModels>::get_band_count()>>
-    level_adapters;
-  std::vector<ModulationProcessor<std::tuple_element_t<0, EarModels>::get_band_count()>>
-    ref_modulation_processors;
-  std::vector<ModulationProcessor<std::tuple_element_t<0, EarModels>::get_band_count()>>
-    test_modulation_processors;
+  std::vector<typename LevelAdapter<BANDCOUNT_0>::state_t> level_state;
+  std::vector<typename ModulationProcessor<BANDCOUNT_0>::state_t> ref_modproc_state;
+  std::vector<typename ModulationProcessor<BANDCOUNT_0>::state_t> test_modproc_state;
+
+private:
+  LevelAdapter<BANDCOUNT_0> level_adapter{ std::get<0>(ear_models) };
+  ModulationProcessor<BANDCOUNT_0> modulation_processor{ std::get<0>(ear_models) };
 };
 
 class AlgoBasic

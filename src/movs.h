@@ -184,16 +184,18 @@ namespace peaq {
  * </math></inlineequation>
  * otherwise.
  */
-void mov_modulation_difference(FFTEarModel<> const& ear_model,
-                               std::vector<ModulationProcessor<109>> const& ref_mod_proc,
-                               std::vector<ModulationProcessor<109>> const& test_mod_proc,
-                               movaccum_avg& mov_accum1,
-                               movaccum_avg& mov_accum2,
-                               movaccum_avg_window& mov_accum_win);
-void mov_modulation_difference(FilterbankEarModel const& ear_model,
-                               std::vector<ModulationProcessor<40>> const& ref_mod_proc,
-                               std::vector<ModulationProcessor<40>> const& test_mod_proc,
-                               movaccum_rms& mov_accum1);
+void mov_modulation_difference(
+  FFTEarModel<> const& ear_model,
+  std::vector<ModulationProcessor<109>::state_t> const& ref_mod_proc,
+  std::vector<ModulationProcessor<109>::state_t> const& test_mod_proc,
+  movaccum_avg& mov_accum1,
+  movaccum_avg& mov_accum2,
+  movaccum_avg_window& mov_accum_win);
+void mov_modulation_difference(
+  FilterbankEarModel const& ear_model,
+  std::vector<ModulationProcessor<40>::state_t> const& ref_mod_proc,
+  std::vector<ModulationProcessor<40>::state_t> const& test_mod_proc,
+  movaccum_rms& mov_accum1);
 /**
  * peaq_mov_noise_loudness:
  * @ref_mod_proc: Modulation processors of the reference signal (one per
@@ -292,9 +294,9 @@ void mov_modulation_difference(FilterbankEarModel const& ear_model,
  * If the resulting noise loudness is negative, it is set to zero.
  */
 void mov_noise_loudness(FFTEarModel<> const& ear_model,
-                        std::vector<ModulationProcessor<109>> const& ref_mod_proc,
-                        std::vector<ModulationProcessor<109>> const& test_mod_proc,
-                        std::vector<LevelAdapter<109>> const& level,
+                        std::vector<ModulationProcessor<109>::state_t> const& ref_mod_proc,
+                        std::vector<ModulationProcessor<109>::state_t> const& test_mod_proc,
+                        std::vector<LevelAdapter<109>::state_t> const& level_state,
                         movaccum_rms& mov_accum);
 
 /**
@@ -475,9 +477,9 @@ void mov_noise_loudness(FFTEarModel<> const& ear_model,
  * </math></inlineequation> have to be exchanged in the calculation of MC.
  */
 void mov_noise_loud_asym(FilterbankEarModel const& ear_model,
-                         std::vector<ModulationProcessor<40>> const& ref_mod_proc,
-                         std::vector<ModulationProcessor<40>> const& test_mod_proc,
-                         std::vector<LevelAdapter<40>> const& level,
+                         std::vector<ModulationProcessor<40>::state_t> const& ref_mod_proc,
+                         std::vector<ModulationProcessor<40>::state_t> const& test_mod_proc,
+                         std::vector<LevelAdapter<40>::state_t> const& level_state,
                          movaccum_rms_asym& mov_accum);
 
 /**
@@ -580,8 +582,8 @@ void mov_noise_loud_asym(FilterbankEarModel const& ear_model,
  * </math></inlineequation>.
  */
 void mov_lin_dist(FilterbankEarModel const& ear_model,
-                  std::vector<ModulationProcessor<40>> const& ref_mod_proc,
-                  std::vector<LevelAdapter<40>> const& level,
+                  std::vector<ModulationProcessor<40>::state_t> const& ref_mod_proc,
+                  std::vector<LevelAdapter<40>::state_t> const& level_state,
                   std::vector<FilterbankEarModel::state_t> const& state,
                   movaccum_avg& mov_accum);
 
@@ -1071,7 +1073,6 @@ void mov_ehs(std::vector<State> const& ref_state,
              std::vector<State> const& test_state,
              movaccum_avg& mov_accum)
 {
-  using EarModel = FFTEarModel<std::tuple_size_v<decltype(State::excitation)>>;
   auto constexpr MAXLAG = 256;
   static GstFFTF64* correlation_fft = nullptr;
   if (correlation_fft == nullptr) {
@@ -1094,20 +1095,18 @@ void mov_ehs(std::vector<State> const& ref_state,
 
   auto channels = mov_accum.get_channels();
 
-  if (std::none_of(
-        cbegin(ref_state),
-        cend(ref_state),
-        [](auto state) { return EarModel::is_energy_threshold_reached(state); }) &&
+  if (std::none_of(cbegin(ref_state),
+                   cend(ref_state),
+                   [](auto state) { return state.is_energy_threshold_reached(); }) &&
       std::none_of(cbegin(test_state), cend(test_state), [](auto state) {
-        return EarModel::is_energy_threshold_reached(state);
+        return state.is_energy_threshold_reached();
       })) {
     return;
   }
 
   for (std::size_t chan = 0; chan < channels; chan++) {
-    auto const& ref_power_spectrum = EarModel::get_weighted_power_spectrum(ref_state[chan]);
-    auto const& test_power_spectrum =
-      EarModel::get_weighted_power_spectrum(test_state[chan]);
+    auto const& ref_power_spectrum = ref_state[chan].get_weighted_power_spectrum();
+    auto const& test_power_spectrum = test_state[chan].get_weighted_power_spectrum();
 
     auto d = std::array<double, 2 * MAXLAG>{};
     std::transform(cbegin(ref_power_spectrum),

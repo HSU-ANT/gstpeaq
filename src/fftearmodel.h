@@ -48,6 +48,23 @@ public:
   static constexpr double LOUDNESS_SCALE = 1.07664;
   struct state_t
   {
+    [[nodiscard]] auto const& get_excitation() const { return excitation; }
+    [[nodiscard]] auto const& get_unsmeared_excitation() const
+    {
+      return unsmeared_excitation;
+    }
+    [[nodiscard]] auto const& get_power_spectrum() const { return power_spectrum; }
+    [[nodiscard]] auto const& get_weighted_power_spectrum() const
+    {
+      return weighted_power_spectrum;
+    }
+    [[nodiscard]] auto is_energy_threshold_reached() const
+    {
+      return energy_threshold_reached;
+    }
+
+  private:
+    friend class FFTEarModel;
     std::array<double, BANDCOUNT> filtered_excitation{};
     std::array<double, BANDCOUNT> unsmeared_excitation;
     std::array<double, BANDCOUNT> excitation;
@@ -75,11 +92,6 @@ public:
 
   template<typename InputIterator>
   void process_block(state_t& state, InputIterator samples) const;
-  auto get_excitation(state_t const& state) const { return state.excitation; }
-  auto const& get_unsmeared_excitation(state_t const& state) const
-  {
-    return state.unsmeared_excitation;
-  }
   void group_into_bands(std::array<double, FRAME_SIZE / 2 + 1> const& spectrum,
                         std::array<double, BANDCOUNT>& band_power) const
   {
@@ -93,19 +105,6 @@ public:
         band_power[i] = 1e-12;
       }
     }
-  }
-
-  static auto const& get_power_spectrum(state_t const& state)
-  {
-    return state.power_spectrum;
-  }
-  static auto const& get_weighted_power_spectrum(state_t const& state)
-  {
-    return state.weighted_power_spectrum;
-  }
-  static auto is_energy_threshold_reached(state_t const& state)
-  {
-    return state.energy_threshold_reached;
   }
 
 private:

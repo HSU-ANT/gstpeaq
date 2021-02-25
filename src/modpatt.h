@@ -43,6 +43,18 @@ template<std::size_t BANDCOUNT>
 class ModulationProcessor
 {
 public:
+  struct state_t
+  {
+    [[nodiscard]] const auto& get_average_loudness() const { return filtered_loudness; }
+    [[nodiscard]] const auto& get_modulation() const { return modulation; }
+
+  private:
+    friend class ModulationProcessor;
+    std::array<double, BANDCOUNT> previous_loudness{};
+    std::array<double, BANDCOUNT> filtered_loudness{};
+    std::array<double, BANDCOUNT> filtered_loudness_derivative{};
+    std::array<double, BANDCOUNT> modulation{};
+  };
   template<typename EarModel>
   ModulationProcessor(EarModel const& ear_model)
   {
@@ -56,34 +68,30 @@ public:
       ear_time_constants[k] = ear_model.calc_time_constant(k, 0.008, 0.05);
     }
   }
-  void process(std::array<double, BANDCOUNT> const& unsmeared_excitation)
+  void process(std::array<double, BANDCOUNT> const& unsmeared_excitation,
+               state_t& state) const
   {
     for (std::size_t k = 0; k < BANDCOUNT; k++) {
       /* (54) in [BS1387] */
       auto loudness = std::pow(unsmeared_excitation[k], 0.3);
       auto loudness_derivative =
-        derivative_factor * std::abs(loudness - previous_loudness[k]);
-      filtered_loudness_derivative[k] =
-        ear_time_constants[k] * filtered_loudness_derivative[k] +
+        derivative_factor * std::abs(loudness - state.previous_loudness[k]);
+      state.filtered_loudness_derivative[k] =
+        ear_time_constants[k] * state.filtered_loudness_derivative[k] +
         (1 - ear_time_constants[k]) * loudness_derivative;
       /* (55) in [BS1387] */
-      filtered_loudness[k] = ear_time_constants[k] * filtered_loudness[k] +
-                             (1. - ear_time_constants[k]) * loudness;
+      state.filtered_loudness[k] = ear_time_constants[k] * state.filtered_loudness[k] +
+                                   (1. - ear_time_constants[k]) * loudness;
       /* (57) in [BS1387] */
-      modulation[k] = filtered_loudness_derivative[k] / (1. + filtered_loudness[k] / 0.3);
-      previous_loudness[k] = loudness;
+      state.modulation[k] =
+        state.filtered_loudness_derivative[k] / (1. + state.filtered_loudness[k] / 0.3);
+      state.previous_loudness[k] = loudness;
     }
   }
-  [[nodiscard]] const auto& get_average_loudness() const { return filtered_loudness; }
-  [[nodiscard]] const auto& get_modulation() const { return modulation; }
 
 private:
   double derivative_factor;
   std::array<double, BANDCOUNT> ear_time_constants;
-  std::array<double, BANDCOUNT> previous_loudness{};
-  std::array<double, BANDCOUNT> filtered_loudness{};
-  std::array<double, BANDCOUNT> filtered_loudness_derivative{};
-  std::array<double, BANDCOUNT> modulation{};
 };
 
 template<typename EarModel>

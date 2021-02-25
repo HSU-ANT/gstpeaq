@@ -56,6 +56,14 @@ public:
   static constexpr auto TAU_100 = 0.020;
   struct state_t
   {
+    [[nodiscard]] auto const& get_excitation() const { return excitation; }
+    [[nodiscard]] auto const& get_unsmeared_excitation() const
+    {
+      return unsmeared_excitation;
+    }
+
+  private:
+    friend class FilterbankEarModel;
     double hpfilter1_x1{};
     double hpfilter1_x2{};
     double hpfilter1_y1{};
@@ -171,11 +179,6 @@ public:
       state.excitation[band] =
         a * state.excitation[band] + (1. - a) * state.unsmeared_excitation[band];
     }
-  }
-  auto const& get_excitation(state_t const& state) const { return state.excitation; }
-  auto const& get_unsmeared_excitation(state_t const& state) const
-  {
-    return state.unsmeared_excitation;
   }
 
 private:

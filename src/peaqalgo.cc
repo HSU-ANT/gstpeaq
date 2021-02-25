@@ -31,8 +31,8 @@ void AlgoBasic::do_process(bool above_thres)
   /* modulation difference */
   if (frame_counter >= 24) {
     mov_modulation_difference(std::get<0>(ear_models),
-                              ref_modulation_processors,
-                              test_modulation_processors,
+                              ref_modproc_state,
+                              test_modproc_state,
                               std::get<MOV_AVG_MOD_DIFF_1>(mov_accums),
                               std::get<MOV_AVG_MOD_DIFF_2>(mov_accums),
                               std::get<MOV_WIN_MOD_DIFF>(mov_accums));
@@ -41,9 +41,9 @@ void AlgoBasic::do_process(bool above_thres)
   /* noise loudness */
   if (frame_counter >= 24 && frame_counter - 3 >= loudness_reached_frame) {
     mov_noise_loudness(std::get<0>(ear_models),
-                       ref_modulation_processors,
-                       test_modulation_processors,
-                       level_adapters,
+                       ref_modproc_state,
+                       test_modproc_state,
+                       level_state,
                        std::get<MOV_RMS_NOISE_LOUD>(mov_accums));
   }
 
@@ -95,21 +95,21 @@ void AlgoAdvanced::do_process_fb(bool above_thres)
   /* modulation difference */
   if (frame_counter >= 125) {
     mov_modulation_difference(std::get<0>(ear_models),
-                              ref_modulation_processors,
-                              test_modulation_processors,
+                              ref_modproc_state,
+                              test_modproc_state,
                               std::get<MOV_RMS_MOD_DIFF>(mov_accums));
   }
 
   /* noise loudness */
   if (frame_counter >= 125 && frame_counter - 13 >= loudness_reached_frame) {
     mov_noise_loud_asym(std::get<0>(ear_models),
-                        ref_modulation_processors,
-                        test_modulation_processors,
-                        level_adapters,
+                        ref_modproc_state,
+                        test_modproc_state,
+                        level_state,
                         std::get<MOV_RMS_NOISE_LOUD_ASYM>(mov_accums));
     mov_lin_dist(std::get<0>(ear_models),
-                 ref_modulation_processors,
-                 level_adapters,
+                 ref_modproc_state,
+                 level_state,
                  std::get<0>(states_ref),
                  std::get<MOV_AVG_LIN_DIST>(mov_accums));
   }

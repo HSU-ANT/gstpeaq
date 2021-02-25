@@ -549,24 +549,22 @@ static void test_ear()
   }
   ear.process_block(state, cbegin(input_data));
 
-  assertArrayEqualsSq(
-    peaq::FFTEarModel<>::get_power_spectrum(state), fft_ref_data, "absolute_spectrum");
+  assertArrayEqualsSq(state.get_power_spectrum(), fft_ref_data, "absolute_spectrum");
 
-  assertArrayEqualsSq(peaq::FFTEarModel<>::get_weighted_power_spectrum(state),
-                      weighted_fft_ref_data,
-                      "weighted_fft");
+  assertArrayEqualsSq(
+    state.get_weighted_power_spectrum(), weighted_fft_ref_data, "weighted_fft");
 
   assertArrayEquals(
-    ear.get_unsmeared_excitation(state), unsmeared_excitation_ref, "unsmeared_excitation");
+    state.get_unsmeared_excitation(), unsmeared_excitation_ref, "unsmeared_excitation");
 
-  assertArrayEquals(ear.get_excitation(state), excitation_ref, "excitation");
+  assertArrayEquals(state.get_excitation(), excitation_ref, "excitation");
 
   for (auto frame = 0; frame < 10; frame++) {
     for (std::size_t i = 0; i < input_data.size(); i++) {
       input_data[i] = sin(2 * M_PI * 1019.5 / 48000. * (i + frame * 1024));
     }
     ear.process_block(state, cbegin(input_data));
-    auto SPL = 10.0 * std::log10(peaq::FFTEarModel<>::get_power_spectrum(state)[43]);
+    auto SPL = 10.0 * std::log10(state.get_power_spectrum()[43]);
     if (SPL > 92.0001 || SPL < 91.9999) {
       std::cerr << "SPL == " << SPL << " != 92\n";
       exit(1);
@@ -628,22 +626,23 @@ static void test_leveladapt()
 
   auto band_count = ear.get_band_count();
   auto level = peaq::LevelAdapter(ear);
+  auto level_state = decltype(level)::state_t{};
   for (std::size_t i = 0; i < band_count; i++) {
     input_data_ref[i] = i + 1;
     input_data_test[i] = band_count - i;
   }
-  level.process(input_data_ref, input_data_test);
-  auto spectrally_adapted_ref_patterns = level.get_adapted_ref();
-  auto spectrally_adapted_test_patterns = level.get_adapted_test();
+  level.process(input_data_ref, input_data_test, level_state);
+  auto spectrally_adapted_ref_patterns = level_state.get_adapted_ref();
+  auto spectrally_adapted_test_patterns = level_state.get_adapted_test();
   assertArrayEquals(spectrally_adapted_ref_patterns,
                     spectrally_adapted_ref_patterns1_ref,
                     "spectrally_adapted_ref_patterns1");
   assertArrayEquals(spectrally_adapted_test_patterns,
                     spectrally_adapted_test_patterns1_ref,
                     "spectrally_adapted_test_patterns1");
-  level.process(input_data_ref, input_data_test);
-  spectrally_adapted_ref_patterns = level.get_adapted_ref();
-  spectrally_adapted_test_patterns = level.get_adapted_test();
+  level.process(input_data_ref, input_data_test, level_state);
+  spectrally_adapted_ref_patterns = level_state.get_adapted_ref();
+  spectrally_adapted_test_patterns = level_state.get_adapted_test();
   assertArrayEquals(spectrally_adapted_ref_patterns,
                     spectrally_adapted_ref_patterns2_ref,
                     "spectrally_adapted_ref_patterns2");
@@ -656,14 +655,17 @@ static void test_modulationproc()
 {
   auto ear = peaq::FFTEarModel{};
   auto modproc = peaq::ModulationProcessor{ ear };
+  auto modproc_state = decltype(modproc)::state_t{};
   auto input_data = std::array<double, 109>{};
   for (std::size_t i = 0; i < input_data.size(); i++) {
     input_data[i] = i + 1;
   }
-  modproc.process(input_data);
-  assertArrayEquals(modproc.get_modulation(), modulation1_ref, "modulation1");
-  assertArrayEquals(modproc.get_average_loudness(), loudness1_ref, "average_loudness1");
-  modproc.process(input_data);
-  assertArrayEquals(modproc.get_modulation(), modulation2_ref, "modulation2");
-  assertArrayEquals(modproc.get_average_loudness(), loudness2_ref, "average_loudness2");
+  modproc.process(input_data, modproc_state);
+  assertArrayEquals(modproc_state.get_modulation(), modulation1_ref, "modulation1");
+  assertArrayEquals(
+    modproc_state.get_average_loudness(), loudness1_ref, "average_loudness1");
+  modproc.process(input_data, modproc_state);
+  assertArrayEquals(modproc_state.get_modulation(), modulation2_ref, "modulation2");
+  assertArrayEquals(
+    modproc_state.get_average_loudness(), loudness2_ref, "average_loudness2");
 }

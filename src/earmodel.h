@@ -51,7 +51,7 @@ public:
   {
     static_assert(std::is_same_v<T, typename Derived::state_t>);
     auto overall_loudness = 0.;
-    auto const* excitation = state->excitation.data();
+    auto const& excitation = state->get_excitation();
     for (std::size_t i = 0; i < band_count; i++) {
       auto loudness = loudness_factor[i] *
                       (std::pow(1. - threshold[i] +

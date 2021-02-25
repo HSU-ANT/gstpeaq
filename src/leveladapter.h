@@ -43,6 +43,37 @@ template<std::size_t BANDCOUNT>
 class LevelAdapter
 {
 public:
+  struct state_t
+  {
+#if 0
+    state_t() {
+      /* [Kabal03] suggests initialization to 1, although the standard does not
+       * mention it; there seems to be almost no difference on conformance, though
+       */
+      std::fill(begin(pattcorr_ref), end(pattcorr_ref), 1.0);
+      std::fill(begin(pattcorr_test), end(pattcorr_test), 1.0);
+    }
+#endif
+    [[nodiscard]] auto const& get_adapted_ref() const
+    {
+      return spectrally_adapted_ref_patterns;
+    }
+    [[nodiscard]] auto const& get_adapted_test() const
+    {
+      return spectrally_adapted_test_patterns;
+    }
+
+  private:
+    friend class LevelAdapter;
+    std::array<double, BANDCOUNT> ref_filtered_excitation{};
+    std::array<double, BANDCOUNT> test_filtered_excitation{};
+    std::array<double, BANDCOUNT> filtered_num{};
+    std::array<double, BANDCOUNT> filtered_den{};
+    std::array<double, BANDCOUNT> pattcorr_ref{};
+    std::array<double, BANDCOUNT> pattcorr_test{};
+    std::array<double, BANDCOUNT> spectrally_adapted_ref_patterns{};
+    std::array<double, BANDCOUNT> spectrally_adapted_test_patterns{};
+  };
   template<typename EarModel>
   LevelAdapter(EarModel const& ear_model)
   {
@@ -52,18 +83,10 @@ public:
     for (std::size_t k = 0; k < BANDCOUNT; k++) {
       ear_time_constants[k] = ear_model.calc_time_constant(k, 0.008, 0.05);
     }
-#if 0
-    /* [Kabal03] suggests initialization to 1, although the standard does not
-     * mention it; there seems to be almost no difference on conformance, though
-     */
-    for (k = 0; k < BANDCOUNT; k++) {
-      pattcorr_ref[k] = 1.;
-      pattcorr_test[k] = 1.;
-    }
-#endif
   }
   void process(std::array<double, BANDCOUNT> const& ref_excitation,
-               std::array<double, BANDCOUNT> const& test_excitation)
+               std::array<double, BANDCOUNT> const& test_excitation,
+               state_t& state) const
   {
     using std::cbegin;
     auto pattadapt_ref = std::array<double, BANDCOUNT>{};
@@ -74,14 +97,17 @@ public:
     auto den = 0.0;
     for (std::size_t k = 0; k < BANDCOUNT; k++) {
       /* (42) in [BS1387], (56) in [Kabal03] */
-      ref_filtered_excitation[k] = ear_time_constants[k] * ref_filtered_excitation[k] +
-                                   (1 - ear_time_constants[k]) * ref_excitation[k];
+      state.ref_filtered_excitation[k] =
+        ear_time_constants[k] * state.ref_filtered_excitation[k] +
+        (1 - ear_time_constants[k]) * ref_excitation[k];
       /* (43) in [BS1387], (56) in [Kabal03] */
-      test_filtered_excitation[k] = ear_time_constants[k] * test_filtered_excitation[k] +
-                                    (1 - ear_time_constants[k]) * test_excitation[k];
+      state.test_filtered_excitation[k] =
+        ear_time_constants[k] * state.test_filtered_excitation[k] +
+        (1 - ear_time_constants[k]) * test_excitation[k];
       /* (45) in [BS1387], (57) in [Kabal03] */
-      num += std::sqrt(ref_filtered_excitation[k] * test_filtered_excitation[k]);
-      den += test_filtered_excitation[k];
+      num +=
+        std::sqrt(state.ref_filtered_excitation[k] * state.test_filtered_excitation[k]);
+      den += state.test_filtered_excitation[k];
     }
     auto lev_corr = num * num / (den * den);
     if (lev_corr > 1) {
@@ -103,18 +129,18 @@ public:
       lev_corr > 1 ? test_excitation : levcorr_excitation;
     for (std::size_t k = 0; k < BANDCOUNT; k++) {
       /* (48) in [BS1387], (59) in [Kabal03] */
-      filtered_num[k] = ear_time_constants[k] * filtered_num[k] +
-                        levcorr_test_excitation[k] * levcorr_ref_excitation[k];
-      filtered_den[k] = ear_time_constants[k] * filtered_den[k] +
-                        levcorr_ref_excitation[k] * levcorr_ref_excitation[k];
+      state.filtered_num[k] = ear_time_constants[k] * state.filtered_num[k] +
+                              levcorr_test_excitation[k] * levcorr_ref_excitation[k];
+      state.filtered_den[k] = ear_time_constants[k] * state.filtered_den[k] +
+                              levcorr_ref_excitation[k] * levcorr_ref_excitation[k];
       /* (49) in [BS1387], (60) in [Kabal03] */
       /* these values cannot be zero [Kabal03], so the special case desribed in
        * [BS1387] is unnecessary */
-      if (filtered_num[k] >= filtered_den[k]) {
+      if (state.filtered_num[k] >= state.filtered_den[k]) {
         pattadapt_ref[k] = 1.;
-        pattadapt_test[k] = filtered_den[k] / filtered_num[k];
+        pattadapt_test[k] = state.filtered_den[k] / state.filtered_num[k];
       } else {
-        pattadapt_ref[k] = filtered_num[k] / filtered_den[k];
+        pattadapt_ref[k] = state.filtered_num[k] / state.filtered_den[k];
         pattadapt_test[k] = 1.;
       }
     }
@@ -134,35 +160,21 @@ public:
       ra_ref /= (m1 + m2 + 1);
       ra_test /= (m1 + m2 + 1);
       /* (50) in [BS1387], (61) in [Kabal03] */
-      pattcorr_ref[k] =
-        ear_time_constants[k] * pattcorr_ref[k] + (1 - ear_time_constants[k]) * ra_ref;
-      pattcorr_test[k] =
-        ear_time_constants[k] * pattcorr_test[k] + (1 - ear_time_constants[k]) * ra_test;
+      state.pattcorr_ref[k] = ear_time_constants[k] * state.pattcorr_ref[k] +
+                              (1 - ear_time_constants[k]) * ra_ref;
+      state.pattcorr_test[k] = ear_time_constants[k] * state.pattcorr_test[k] +
+                               (1 - ear_time_constants[k]) * ra_test;
       /* (52) in [BS1387], (64) in [Kabal03] */
-      spectrally_adapted_ref_patterns[k] = levcorr_ref_excitation[k] * pattcorr_ref[k];
+      state.spectrally_adapted_ref_patterns[k] =
+        levcorr_ref_excitation[k] * state.pattcorr_ref[k];
       /* (53) in [BS1387], (64) in [Kabal03] */
-      spectrally_adapted_test_patterns[k] = levcorr_test_excitation[k] * pattcorr_test[k];
+      state.spectrally_adapted_test_patterns[k] =
+        levcorr_test_excitation[k] * state.pattcorr_test[k];
     }
-  }
-  [[nodiscard]] auto const& get_adapted_ref() const
-  {
-    return spectrally_adapted_ref_patterns;
-  }
-  [[nodiscard]] auto const& get_adapted_test() const
-  {
-    return spectrally_adapted_test_patterns;
   }
 
 private:
   std::array<double, BANDCOUNT> ear_time_constants;
-  std::array<double, BANDCOUNT> ref_filtered_excitation{};
-  std::array<double, BANDCOUNT> test_filtered_excitation{};
-  std::array<double, BANDCOUNT> filtered_num{};
-  std::array<double, BANDCOUNT> filtered_den{};
-  std::array<double, BANDCOUNT> pattcorr_ref{};
-  std::array<double, BANDCOUNT> pattcorr_test{};
-  std::array<double, BANDCOUNT> spectrally_adapted_ref_patterns{};
-  std::array<double, BANDCOUNT> spectrally_adapted_test_patterns{};
 };
 
 template<typename EarModel>
