@@ -23,40 +23,14 @@
 #include "peaqalgo.h"
 
 namespace peaq {
-void AlgoBasic::do_process()
+void AlgoBasic::do_process(bool above_thres)
 {
-  auto above_thres =
-    std::any_of(cbegin(ref_buffers), cend(ref_buffers), [](auto const& chandata) {
-      return is_frame_above_threshold(cbegin(chandata), cbegin(chandata) + FRAME_SIZE);
-    });
   std::apply([above_thres](auto&... accum) { (accum.set_tentative(!above_thres), ...); },
              mov_accums);
 
-  for (auto chan = 0U; chan < channel_count; chan++) {
-    fft_ear_model.process_block(fft_earmodel_state_ref[chan], cbegin(ref_buffers[chan]));
-    fft_ear_model.process_block(fft_earmodel_state_test[chan], cbegin(test_buffers[chan]));
-    auto const& ref_excitation = fft_ear_model.get_excitation(fft_earmodel_state_ref[chan]);
-    auto const& test_excitation =
-      fft_ear_model.get_excitation(fft_earmodel_state_test[chan]);
-    auto const& ref_unsmeared_excitation =
-      fft_ear_model.get_unsmeared_excitation(fft_earmodel_state_ref[chan]);
-    auto const& test_unsmeared_excitation =
-      fft_ear_model.get_unsmeared_excitation(fft_earmodel_state_test[chan]);
-
-    level_adapters[chan].process(ref_excitation, test_excitation);
-    ref_modulation_processors[chan].process(ref_unsmeared_excitation);
-    test_modulation_processors[chan].process(test_unsmeared_excitation);
-    if (loudness_reached_frame == std::numeric_limits<unsigned int>::max()) {
-      if (fft_ear_model.calc_loudness(&fft_earmodel_state_ref[chan]) > 0.1 &&
-          fft_ear_model.calc_loudness(&fft_earmodel_state_test[chan]) > 0.1) {
-        loudness_reached_frame = frame_counter;
-      }
-    }
-  }
-
   /* modulation difference */
   if (frame_counter >= 24) {
-    mov_modulation_difference(fft_ear_model,
+    mov_modulation_difference(std::get<0>(ear_models),
                               ref_modulation_processors,
                               test_modulation_processors,
                               std::get<MOV_AVG_MOD_DIFF_1>(mov_accums),
@@ -66,7 +40,7 @@ void AlgoBasic::do_process()
 
   /* noise loudness */
   if (frame_counter >= 24 && frame_counter - 3 >= loudness_reached_frame) {
-    mov_noise_loudness(fft_ear_model,
+    mov_noise_loudness(std::get<0>(ear_models),
                        ref_modulation_processors,
                        test_modulation_processors,
                        level_adapters,
@@ -74,106 +48,53 @@ void AlgoBasic::do_process()
   }
 
   /* bandwidth */
-  mov_bandwidth(fft_earmodel_state_ref,
-                fft_earmodel_state_test,
+  mov_bandwidth(std::get<0>(states_ref),
+                std::get<0>(states_test),
                 std::get<MOV_BANDWIDTH_REF>(mov_accums),
                 std::get<MOV_BANDWIDTH_TEST>(mov_accums));
 
   /* noise-to-mask ratio */
-  mov_nmr(fft_ear_model,
-          fft_earmodel_state_ref,
-          fft_earmodel_state_test,
+  mov_nmr(std::get<0>(ear_models),
+          std::get<0>(states_ref),
+          std::get<0>(states_test),
           std::get<MOV_TOTAL_NMR>(mov_accums),
           std::get<MOV_REL_DIST_FRAMES>(mov_accums));
 
   /* probability of detection */
-  mov_prob_detect(fft_ear_model,
-                  fft_earmodel_state_ref,
-                  fft_earmodel_state_test,
+  mov_prob_detect(std::get<0>(ear_models),
+                  std::get<0>(states_ref),
+                  std::get<0>(states_test),
                   std::get<MOV_ADB>(mov_accums),
                   std::get<MOV_MFPD>(mov_accums));
 
   /* error harmonic structure */
-  mov_ehs<FFT_BAND_COUNT>(
-    fft_earmodel_state_ref, fft_earmodel_state_test, std::get<MOV_EHS>(mov_accums));
-
-  frame_counter++;
+  mov_ehs(std::get<0>(states_ref), std::get<0>(states_test), std::get<MOV_EHS>(mov_accums));
 }
 
-void AlgoAdvanced::do_process_fft()
+void AlgoAdvanced::do_process_fft(bool above_thres)
 {
-  auto above_thres =
-    std::any_of(cbegin(ref_buffers),
-                cend(ref_buffers),
-                [start_offset = buffer_fft_offset,
-                 end_offset = buffer_fft_offset + FFT_FRAME_SIZE](auto const& chandata) {
-                  return is_frame_above_threshold(cbegin(chandata) + start_offset,
-                                                  cbegin(chandata) + end_offset);
-                });
-
   std::get<MOV_SEGMENTAL_NMR>(mov_accums).set_tentative(!above_thres);
   std::get<MOV_EHS>(mov_accums).set_tentative(!above_thres);
 
-  for (auto c = 0U; c < channel_count; c++) {
-    fft_ear_model.process_block(fft_earmodel_state_ref[c],
-                                cbegin(ref_buffers[c]) + buffer_fft_offset);
-    fft_ear_model.process_block(fft_earmodel_state_test[c],
-                                cbegin(test_buffers[c]) + buffer_fft_offset);
-  }
-
   /* noise-to-mask ratio */
-  mov_nmr(fft_ear_model,
-          fft_earmodel_state_ref,
-          fft_earmodel_state_test,
+  mov_nmr(std::get<1>(ear_models),
+          std::get<1>(states_ref),
+          std::get<1>(states_test),
           std::get<MOV_SEGMENTAL_NMR>(mov_accums));
 
   /* error harmonic structure */
-  mov_ehs<FFT_BAND_COUNT>(
-    fft_earmodel_state_ref, fft_earmodel_state_test, std::get<MOV_EHS>(mov_accums));
+  mov_ehs(std::get<1>(states_ref), std::get<1>(states_test), std::get<MOV_EHS>(mov_accums));
 }
 
-void AlgoAdvanced::do_process_fb()
+void AlgoAdvanced::do_process_fb(bool above_thres)
 {
-  auto above_thres =
-    std::any_of(cbegin(ref_buffers),
-                cend(ref_buffers),
-                [start_offset = buffer_fb_offset,
-                 end_offset = buffer_fb_offset + FB_FRAME_SIZE](auto const& chandata) {
-                  return is_frame_above_threshold(cbegin(chandata) + start_offset,
-                                                  cbegin(chandata) + end_offset);
-                });
   std::get<MOV_RMS_MOD_DIFF>(mov_accums).set_tentative(!above_thres);
   std::get<MOV_RMS_NOISE_LOUD_ASYM>(mov_accums).set_tentative(!above_thres);
   std::get<MOV_AVG_LIN_DIST>(mov_accums).set_tentative(!above_thres);
 
-  for (auto c = 0U; c < channel_count; c++) {
-    fb_ear_model.process_block(fb_earmodel_state_ref[c],
-                               cbegin(ref_buffers[c]) + buffer_fb_offset);
-    fb_ear_model.process_block(fb_earmodel_state_test[c],
-                               cbegin(test_buffers[c]) + buffer_fb_offset);
-  }
-  for (auto chan = 0U; chan < channel_count; chan++) {
-    auto const& ref_excitation = fb_ear_model.get_excitation(fb_earmodel_state_ref[chan]);
-    auto const& test_excitation = fb_ear_model.get_excitation(fb_earmodel_state_test[chan]);
-    auto const& ref_unsmeared_excitation =
-      fb_ear_model.get_unsmeared_excitation(fb_earmodel_state_ref[chan]);
-    auto const& test_unsmeared_excitation =
-      fb_ear_model.get_unsmeared_excitation(fb_earmodel_state_test[chan]);
-
-    level_adapters[chan].process(ref_excitation, test_excitation);
-    ref_modulation_processors[chan].process(ref_unsmeared_excitation);
-    test_modulation_processors[chan].process(test_unsmeared_excitation);
-    if (loudness_reached_frame == std::numeric_limits<unsigned int>::max()) {
-      if (fb_ear_model.calc_loudness(&fb_earmodel_state_ref[chan]) > 0.1 &&
-          fb_ear_model.calc_loudness(&fb_earmodel_state_test[chan]) > 0.1) {
-        loudness_reached_frame = frame_counter;
-      }
-    }
-  }
-
   /* modulation difference */
   if (frame_counter >= 125) {
-    mov_modulation_difference(fb_ear_model,
+    mov_modulation_difference(std::get<0>(ear_models),
                               ref_modulation_processors,
                               test_modulation_processors,
                               std::get<MOV_RMS_MOD_DIFF>(mov_accums));
@@ -181,19 +102,17 @@ void AlgoAdvanced::do_process_fb()
 
   /* noise loudness */
   if (frame_counter >= 125 && frame_counter - 13 >= loudness_reached_frame) {
-    mov_noise_loud_asym(fb_ear_model,
+    mov_noise_loud_asym(std::get<0>(ear_models),
                         ref_modulation_processors,
                         test_modulation_processors,
                         level_adapters,
                         std::get<MOV_RMS_NOISE_LOUD_ASYM>(mov_accums));
-    mov_lin_dist(fb_ear_model,
+    mov_lin_dist(std::get<0>(ear_models),
                  ref_modulation_processors,
                  level_adapters,
-                 fb_earmodel_state_ref,
+                 std::get<0>(states_ref),
                  std::get<MOV_AVG_LIN_DIST>(mov_accums));
   }
-
-  frame_counter++;
 }
 
 } // namespace peaq

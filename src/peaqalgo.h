@@ -52,7 +52,7 @@ public:
   [[nodiscard]] virtual auto calculate_odg(bool console_output = false) const -> double = 0;
 };
 
-template<std::size_t FFT_BAND_COUNT, std::size_t MAIN_BAND_COUNT, typename Derived>
+template<typename MovAccums, typename EarModels, typename Derived>
 class AlgoBase : public Algo
 {
 public:
@@ -60,8 +60,79 @@ public:
   void set_channels(unsigned int channel_count) override
   {
     this->channel_count = channel_count;
-    fft_earmodel_state_ref.resize(channel_count);
-    fft_earmodel_state_test.resize(channel_count);
+    ref_buffers.resize(channel_count);
+    test_buffers.resize(channel_count);
+    std::apply([channel_count](auto&... state) { (state.resize(channel_count), ...); },
+               states_ref);
+    std::apply([channel_count](auto&... state) { (state.resize(channel_count), ...); },
+               states_test);
+    level_adapters.resize(channel_count, LevelAdapter{ std::get<0>(ear_models) });
+    ref_modulation_processors.resize(channel_count,
+                                     ModulationProcessor{ std::get<0>(ear_models) });
+    test_modulation_processors.resize(channel_count,
+                                      ModulationProcessor{ std::get<0>(ear_models) });
+  }
+  [[nodiscard]] auto get_playback_level() const -> double final
+  {
+    return std::get<0>(ear_models).get_playback_level();
+  }
+  void set_playback_level(double playback_level) final
+  {
+    std::apply(
+      [playback_level](auto&... ear_model) {
+        (ear_model.set_playback_level(playback_level), ...);
+      },
+      ear_models);
+  }
+  void process_block(float const* refdata,
+                     float const* testdata,
+                     std::size_t num_samples) final
+  {
+
+    while (num_samples > 0) {
+      auto insert_count = std::min(num_samples, BUFFER_SIZE - buffer_valid_count);
+      for (auto c = 0U; c < channel_count; c++) {
+        for (std::size_t i = 0; i < insert_count; i++) {
+          ref_buffers[c][buffer_valid_count + i] = refdata[channel_count * i + c];
+          test_buffers[c][buffer_valid_count + i] = testdata[channel_count * i + c];
+        }
+      }
+
+      num_samples -= insert_count;
+      refdata += channel_count * insert_count;
+      testdata += channel_count * insert_count;
+      buffer_valid_count += insert_count;
+
+      per_earmodel<process_all_frames_f>();
+
+      auto step_size =
+        std::apply([](auto&... off) { return std::min({ off... }); }, buffer_offsets);
+      for (auto c = 0U; c < channel_count; c++) {
+        std::copy(
+          cbegin(ref_buffers[c]) + step_size, cend(ref_buffers[c]), begin(ref_buffers[c]));
+        std::copy(cbegin(test_buffers[c]) + step_size,
+                  cend(test_buffers[c]),
+                  begin(test_buffers[c]));
+      }
+      buffer_valid_count -= step_size;
+      std::transform(cbegin(buffer_offsets),
+                     cend(buffer_offsets),
+                     begin(buffer_offsets),
+                     [step_size](auto off) { return off - step_size; });
+    }
+  }
+  void flush() final
+  {
+    if (buffer_valid_count > 0) {
+      for (auto c = 0U; c < channel_count; c++) {
+        std::fill(begin(ref_buffers[c]) + buffer_valid_count, end(ref_buffers[c]), 0.0);
+        std::fill(begin(test_buffers[c]) + buffer_valid_count, end(test_buffers[c]), 0.0);
+      }
+      buffer_valid_count = BUFFER_SIZE;
+      per_earmodel<process_one_frame_f>();
+      buffer_valid_count = 0;
+      std::fill(begin(buffer_offsets), end(buffer_offsets), 0);
+    }
   }
   [[nodiscard]] auto calculate_odg(bool console_output = false) const -> double final
   {
@@ -80,11 +151,110 @@ public:
     return odg;
   }
 
-protected:
-  template<typename InputIt>
-  static auto is_frame_above_threshold(InputIt first, InputIt last)
+private:
+  template<typename E = EarModels>
+  struct EarModelsTrait;
+  template<typename... T>
+  struct EarModelsTrait<std::tuple<T...>>
   {
-    InputIt five_ahead = first + 5;
+    using states_t = std::tuple<std::vector<typename T::state_t>...>;
+    static constexpr auto buffer_size = (T::FRAME_SIZE + ...);
+  };
+
+  static auto constexpr BUFFER_SIZE = EarModelsTrait<>::buffer_size;
+
+  unsigned int channel_count;
+  std::size_t buffer_valid_count{ 0 };
+  std::array<std::size_t, std::tuple_size_v<EarModels>> buffer_offsets{};
+  std::vector<std::array<float, BUFFER_SIZE>> ref_buffers;
+  std::vector<std::array<float, BUFFER_SIZE>> test_buffers;
+
+  void preprocess()
+  {
+    for (auto chan = 0U; chan < channel_count; chan++) {
+      auto const& ref_excitation =
+        std::get<0>(ear_models).get_excitation(std::get<0>(states_ref)[chan]);
+      auto const& test_excitation =
+        std::get<0>(ear_models).get_excitation(std::get<0>(states_test)[chan]);
+      auto const& ref_unsmeared_excitation =
+        std::get<0>(ear_models).get_unsmeared_excitation(std::get<0>(states_ref)[chan]);
+      auto const& test_unsmeared_excitation =
+        std::get<0>(ear_models).get_unsmeared_excitation(std::get<0>(states_test)[chan]);
+
+      level_adapters[chan].process(ref_excitation, test_excitation);
+      ref_modulation_processors[chan].process(ref_unsmeared_excitation);
+      test_modulation_processors[chan].process(test_unsmeared_excitation);
+      if (loudness_reached_frame == std::numeric_limits<unsigned int>::max()) {
+        if (std::get<0>(ear_models).calc_loudness(&std::get<0>(states_ref)[chan]) > 0.1 &&
+            std::get<0>(ear_models).calc_loudness(&std::get<0>(states_test)[chan]) > 0.1) {
+          loudness_reached_frame = frame_counter;
+        }
+      }
+    }
+  }
+
+  template<int n>
+  void process_one_frame()
+  {
+    auto start_offset = std::get<n>(buffer_offsets);
+    auto above_thres = std::any_of(
+      cbegin(ref_buffers), cend(ref_buffers), [start_offset](auto const& refbuf) {
+        return is_frame_above_threshold<n>(cbegin(refbuf) + start_offset);
+      });
+
+    for (auto c = 0U; c < channel_count; c++) {
+      std::get<n>(ear_models)
+        .process_block(std::get<n>(states_ref)[c], cbegin(ref_buffers[c]) + start_offset);
+      std::get<n>(ear_models)
+        .process_block(std::get<n>(states_test)[c], cbegin(test_buffers[c]) + start_offset);
+    }
+    if (n == 0) {
+      preprocess();
+    }
+    dynamic_cast<Derived*>(this)->template do_process<n>(above_thres);
+    if (n == 0) {
+      frame_counter++;
+    }
+
+    std::get<n>(buffer_offsets) += std::get<n>(ear_models).get_step_size();
+  }
+  template<int n>
+  void process_all_frames()
+  {
+    while (buffer_valid_count >=
+           std::get<n>(ear_models).FRAME_SIZE + std::get<n>(buffer_offsets)) {
+      process_one_frame<n>();
+    }
+  }
+  template<std::size_t n>
+  struct process_one_frame_f
+  {
+    void operator()(AlgoBase* instance) { instance->process_one_frame<n>(); }
+  };
+
+  template<std::size_t n>
+  struct process_all_frames_f
+  {
+    void operator()(AlgoBase* instance) { instance->process_all_frames<n>(); }
+  };
+
+  template<template<std::size_t> typename func, size_t... I>
+  void per_earmodel(std::index_sequence<I...>)
+  {
+    (func<I>{}(this), ...);
+  }
+
+  template<template<std::size_t> typename func>
+  void per_earmodel()
+  {
+    per_earmodel<func>(std::make_index_sequence<std::tuple_size_v<EarModels>>{});
+  }
+
+  template<std::size_t n, typename InputIt>
+  static auto is_frame_above_threshold(InputIt first)
+  {
+    auto last = first + std::tuple_element_t<n, EarModels>::FRAME_SIZE;
+    auto five_ahead = first + 5;
     auto sum = std::accumulate(
       first, five_ahead, 0.0F, [](auto s, auto x) { return s + std::abs(x); });
     while (five_ahead < last) {
@@ -96,18 +266,35 @@ protected:
     return false;
   }
 
-  unsigned int channel_count;
-  std::size_t buffer_valid_count{ 0 };
+protected:
+  MovAccums mov_accums;
+  EarModels ear_models;
   std::size_t frame_counter{ 0 };
   std::size_t loudness_reached_frame{ std::numeric_limits<unsigned int>::max() };
-  std::vector<typename FFTEarModel<FFT_BAND_COUNT>::state_t> fft_earmodel_state_ref;
-  std::vector<typename FFTEarModel<FFT_BAND_COUNT>::state_t> fft_earmodel_state_test;
-  std::vector<LevelAdapter<MAIN_BAND_COUNT>> level_adapters;
-  std::vector<ModulationProcessor<MAIN_BAND_COUNT>> ref_modulation_processors;
-  std::vector<ModulationProcessor<MAIN_BAND_COUNT>> test_modulation_processors;
+  typename EarModelsTrait<>::states_t states_ref;
+  typename EarModelsTrait<>::states_t states_test;
+  std::vector<LevelAdapter<std::tuple_element_t<0, EarModels>::get_band_count()>>
+    level_adapters;
+  std::vector<ModulationProcessor<std::tuple_element_t<0, EarModels>::get_band_count()>>
+    ref_modulation_processors;
+  std::vector<ModulationProcessor<std::tuple_element_t<0, EarModels>::get_band_count()>>
+    test_modulation_processors;
 };
 
-class AlgoBasic : public AlgoBase<109, 109, AlgoBasic>
+class AlgoBasic
+  : public AlgoBase<std::tuple<movaccum_avg,
+                               movaccum_avg,
+                               movaccum_avg_log,
+                               movaccum_avg_window,
+                               movaccum_adb,
+                               movaccum_avg,
+                               movaccum_avg,
+                               movaccum_avg,
+                               movaccum_rms,
+                               movaccum_filtered_max,
+                               movaccum_avg>,
+                    std::tuple<FFTEarModel<109>>,
+                    AlgoBasic>
 {
 private:
   enum
@@ -125,82 +312,22 @@ private:
     MOV_REL_DIST_FRAMES,
   };
 
-  void do_process();
+  void do_process(bool above_thres);
 
 public:
-  static auto constexpr FFT_BAND_COUNT = 109;
-  static auto constexpr FRAME_SIZE = FFTEarModel<FFT_BAND_COUNT>::FRAME_SIZE;
+  template<int n, std::enable_if_t<n == 0, bool> = true>
+  void do_process(bool above_thres)
+  {
+    do_process(above_thres);
+  }
   void set_channels(unsigned int channel_count) final
   {
     AlgoBase::set_channels(channel_count);
-    ref_buffers.resize(channel_count);
-    test_buffers.resize(channel_count);
-    level_adapters.resize(channel_count, LevelAdapter{ fft_ear_model });
-    ref_modulation_processors.resize(channel_count, ModulationProcessor{ fft_ear_model });
-    test_modulation_processors.resize(channel_count, ModulationProcessor{ fft_ear_model });
-    int i = 0;
     std::apply(
-      [channel_count, &i](auto&... accum) {
+      [channel_count, i = 0](auto&... accum) mutable {
         ((accum.set_channels(i == MOV_ADB || i == MOV_MFPD ? 1 : channel_count), i++), ...);
       },
       mov_accums);
-  }
-  [[nodiscard]] auto get_playback_level() const -> double final
-  {
-    return fft_ear_model.get_playback_level();
-  }
-  void set_playback_level(double playback_level) final
-  {
-    fft_ear_model.set_playback_level(playback_level);
-  }
-  void process_block(float const* refdata,
-                     float const* testdata,
-                     std::size_t num_samples) final
-  {
-
-    while (num_samples > 0) {
-      auto insert_count = std::min(num_samples, FRAME_SIZE - buffer_valid_count);
-      for (auto c = 0U; c < channel_count; c++) {
-        for (std::size_t i = 0; i < insert_count; i++) {
-          ref_buffers[c][buffer_valid_count + i] = refdata[channel_count * i + c];
-          test_buffers[c][buffer_valid_count + i] = testdata[channel_count * i + c];
-        }
-      }
-
-      num_samples -= insert_count;
-      refdata += channel_count * insert_count;
-      testdata += channel_count * insert_count;
-      buffer_valid_count += insert_count;
-      if (buffer_valid_count < FRAME_SIZE) {
-        assert(num_samples == 0);
-        break;
-      }
-
-      do_process();
-
-      auto step_size = FRAME_SIZE / 2;
-      for (auto c = 0U; c < channel_count; c++) {
-        std::copy(
-          cbegin(ref_buffers[c]) + step_size, cend(ref_buffers[c]), begin(ref_buffers[c]));
-        std::copy(cbegin(test_buffers[c]) + step_size,
-                  cend(test_buffers[c]),
-                  begin(test_buffers[c]));
-      }
-      buffer_valid_count -= step_size;
-    }
-  }
-
-  void flush() final
-  {
-    if (buffer_valid_count > 0) {
-      for (auto c = 0U; c < channel_count; c++) {
-        std::fill(begin(ref_buffers[c]) + buffer_valid_count, end(ref_buffers[c]), 0.0);
-        std::fill(begin(test_buffers[c]) + buffer_valid_count, end(test_buffers[c]), 0.0);
-      }
-      buffer_valid_count = FRAME_SIZE;
-      do_process();
-      buffer_valid_count = 0;
-    }
   }
   [[nodiscard]] auto calculate_di(bool console_output = false) const -> double final
   {
@@ -226,26 +353,13 @@ public:
 
     return distortion_index;
   }
-
-private:
-  std::vector<std::array<float, FRAME_SIZE>> ref_buffers;
-  std::vector<std::array<float, FRAME_SIZE>> test_buffers;
-  FFTEarModel<FFT_BAND_COUNT> fft_ear_model{};
-  std::tuple<movaccum_avg,
-             movaccum_avg,
-             movaccum_avg_log,
-             movaccum_avg_window,
-             movaccum_adb,
-             movaccum_avg,
-             movaccum_avg,
-             movaccum_avg,
-             movaccum_rms,
-             movaccum_filtered_max,
-             movaccum_avg>
-    mov_accums;
 };
 
-class AlgoAdvanced : public AlgoBase<55, 40, AlgoAdvanced>
+class AlgoAdvanced
+  : public AlgoBase<
+      std::tuple<movaccum_rms, movaccum_rms_asym, movaccum_avg, movaccum_avg, movaccum_avg>,
+      std::tuple<FilterbankEarModel, FFTEarModel<55>>,
+      AlgoAdvanced>
 {
 private:
   enum
@@ -257,94 +371,27 @@ private:
     MOV_AVG_LIN_DIST,
   };
 
-  void do_process_fft();
-  void do_process_fb();
+  void do_process_fb(bool above_thres);
+  void do_process_fft(bool above_thres);
 
 public:
-  static auto constexpr FFT_BAND_COUNT = 55;
-  static auto constexpr FFT_FRAME_SIZE = FFTEarModel<FFT_BAND_COUNT>::FRAME_SIZE;
-  static auto constexpr FB_FRAME_SIZE = FilterbankEarModel::FRAME_SIZE;
-  static auto constexpr BUFFER_SIZE = FFT_FRAME_SIZE + FB_FRAME_SIZE;
+  template<int n, std::enable_if_t<n == 0, bool> = true>
+  void do_process(bool above_thres)
+  {
+    do_process_fb(above_thres);
+  }
+  template<int n, std::enable_if_t<n == 1, bool> = true>
+  void do_process(bool above_thres)
+  {
+    do_process_fft(above_thres);
+  }
   void set_channels(unsigned int channel_count) final
   {
     AlgoBase::set_channels(channel_count);
-    ref_buffers.resize(channel_count);
-    test_buffers.resize(channel_count);
-    fb_earmodel_state_ref.resize(channel_count);
-    fb_earmodel_state_test.resize(channel_count);
-    level_adapters.resize(channel_count, LevelAdapter{ fb_ear_model });
-    ref_modulation_processors.resize(channel_count, ModulationProcessor{ fb_ear_model });
-    test_modulation_processors.resize(channel_count, ModulationProcessor{ fb_ear_model });
     std::apply(
       [channel_count](auto&... accum) { (accum.set_channels(channel_count), ...); },
       mov_accums);
   }
-  [[nodiscard]] auto get_playback_level() const -> double final
-  {
-    return fft_ear_model.get_playback_level();
-  }
-  void set_playback_level(double playback_level) final
-  {
-    fft_ear_model.set_playback_level(playback_level);
-    fb_ear_model.set_playback_level(playback_level);
-  }
-  void process_block(float const* refdata,
-                     float const* testdata,
-                     std::size_t num_samples) final
-  {
-
-    while (num_samples > 0) {
-      auto insert_count = std::min(num_samples, BUFFER_SIZE - buffer_valid_count);
-      for (auto c = 0U; c < channel_count; c++) {
-        for (std::size_t i = 0; i < insert_count; i++) {
-          ref_buffers[c][buffer_valid_count + i] = refdata[channel_count * i + c];
-          test_buffers[c][buffer_valid_count + i] = testdata[channel_count * i + c];
-        }
-      }
-
-      num_samples -= insert_count;
-      refdata += channel_count * insert_count;
-      testdata += channel_count * insert_count;
-      buffer_valid_count += insert_count;
-
-      while (buffer_valid_count >= FFT_FRAME_SIZE + buffer_fft_offset) {
-        do_process_fft();
-        buffer_fft_offset += FFT_FRAME_SIZE / 2;
-      }
-      while (buffer_valid_count >= FB_FRAME_SIZE + buffer_fb_offset) {
-        do_process_fb();
-        buffer_fb_offset += FB_FRAME_SIZE;
-      }
-      auto step_size = std::min(buffer_fft_offset, buffer_fb_offset);
-      for (auto c = 0U; c < channel_count; c++) {
-        std::copy(
-          cbegin(ref_buffers[c]) + step_size, cend(ref_buffers[c]), begin(ref_buffers[c]));
-        std::copy(cbegin(test_buffers[c]) + step_size,
-                  cend(test_buffers[c]),
-                  begin(test_buffers[c]));
-      }
-      buffer_valid_count -= step_size;
-      buffer_fft_offset -= step_size;
-      buffer_fb_offset -= step_size;
-    }
-  }
-
-  void flush() final
-  {
-    if (buffer_valid_count > 0) {
-      for (auto c = 0U; c < channel_count; c++) {
-        std::fill(begin(ref_buffers[c]) + buffer_valid_count, end(ref_buffers[c]), 0.0);
-        std::fill(begin(test_buffers[c]) + buffer_valid_count, end(test_buffers[c]), 0.0);
-      }
-      buffer_valid_count = BUFFER_SIZE;
-      do_process_fft();
-      do_process_fb();
-      buffer_valid_count = 0;
-      buffer_fft_offset = 0;
-      buffer_fb_offset = 0;
-    }
-  }
-
   [[nodiscard]] auto calculate_di(bool console_output = false) const -> double final
   {
     auto movs = std::apply(
@@ -362,18 +409,6 @@ public:
 
     return distortion_index;
   }
-
-private:
-  std::size_t buffer_fft_offset{ 0 };
-  std::size_t buffer_fb_offset{ 0 };
-  std::vector<std::array<float, BUFFER_SIZE>> ref_buffers;
-  std::vector<std::array<float, BUFFER_SIZE>> test_buffers;
-  std::vector<FilterbankEarModel::state_t> fb_earmodel_state_ref;
-  std::vector<FilterbankEarModel::state_t> fb_earmodel_state_test;
-  FFTEarModel<FFT_BAND_COUNT> fft_ear_model{};
-  FilterbankEarModel fb_ear_model{};
-  std::tuple<movaccum_rms, movaccum_rms_asym, movaccum_avg, movaccum_avg, movaccum_avg>
-    mov_accums;
 };
 
 } // namespace peaq

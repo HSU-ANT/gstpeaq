@@ -1066,11 +1066,12 @@ static auto do_xcorr(std::array<double, 2 * MAXLAG> const& d)
 }
 } // namespace detail
 
-template<std::size_t BANDCOUNT>
-void mov_ehs(std::vector<typename FFTEarModel<BANDCOUNT>::state_t> const& ref_state,
-             std::vector<typename FFTEarModel<BANDCOUNT>::state_t> const& test_state,
+template<typename State>
+void mov_ehs(std::vector<State> const& ref_state,
+             std::vector<State> const& test_state,
              movaccum_avg& mov_accum)
 {
+  using EarModel = FFTEarModel<std::tuple_size_v<decltype(State::excitation)>>;
   auto constexpr MAXLAG = 256;
   static GstFFTF64* correlation_fft = nullptr;
   if (correlation_fft == nullptr) {
@@ -1093,22 +1094,20 @@ void mov_ehs(std::vector<typename FFTEarModel<BANDCOUNT>::state_t> const& ref_st
 
   auto channels = mov_accum.get_channels();
 
-  if (std::none_of(cbegin(ref_state),
-                   cend(ref_state),
-                   [](auto state) {
-                     return FFTEarModel<BANDCOUNT>::is_energy_threshold_reached(state);
-                   }) &&
+  if (std::none_of(
+        cbegin(ref_state),
+        cend(ref_state),
+        [](auto state) { return EarModel::is_energy_threshold_reached(state); }) &&
       std::none_of(cbegin(test_state), cend(test_state), [](auto state) {
-        return FFTEarModel<BANDCOUNT>::is_energy_threshold_reached(state);
+        return EarModel::is_energy_threshold_reached(state);
       })) {
     return;
   }
 
   for (std::size_t chan = 0; chan < channels; chan++) {
-    auto const& ref_power_spectrum =
-      FFTEarModel<BANDCOUNT>::get_weighted_power_spectrum(ref_state[chan]);
+    auto const& ref_power_spectrum = EarModel::get_weighted_power_spectrum(ref_state[chan]);
     auto const& test_power_spectrum =
-      FFTEarModel<BANDCOUNT>::get_weighted_power_spectrum(test_state[chan]);
+      EarModel::get_weighted_power_spectrum(test_state[chan]);
 
     auto d = std::array<double, 2 * MAXLAG>{};
     std::transform(cbegin(ref_power_spectrum),
