@@ -38,7 +38,7 @@
 namespace peaq {
 
 template<std::size_t BANDCOUNT = 109>
-class FFTEarModel : public EarModelBase<FFTEarModel<BANDCOUNT>>
+class FFTEarModel : public EarModelBase<BANDCOUNT>
 {
 public:
   static constexpr size_t FRAME_SIZE = 2048;
@@ -48,6 +48,7 @@ public:
   static constexpr double LOUDNESS_SCALE = 1.07664;
   struct state_t
   {
+    using earmodel_t = FFTEarModel;
     [[nodiscard]] auto const& get_excitation() const { return excitation; }
     [[nodiscard]] auto const& get_unsmeared_excitation() const
     {
@@ -74,7 +75,7 @@ public:
   };
   static auto constexpr get_band_count() { return BANDCOUNT; }
   FFTEarModel();
-  [[nodiscard]] double get_playback_level() const
+  [[nodiscard]] auto get_playback_level() const
   {
     return 10.0 * std::log10(level_factor * 8. / 3. * (GAMMA / 4 * (FRAME_SIZE - 1)) *
                              (GAMMA / 4 * (FRAME_SIZE - 1)));
@@ -106,6 +107,12 @@ public:
       }
     }
   }
+  [[nodiscard]] auto calc_time_constant(std::size_t band,
+                                        double tau_min,
+                                        double tau_100) const
+  {
+    return EarModelBase<BANDCOUNT>::calc_time_constant(band, tau_min, tau_100, STEP_SIZE);
+  }
 
 private:
   static constexpr double DELTA_Z = 27. / (BANDCOUNT - 1);
@@ -128,7 +135,7 @@ private:
   std::array<double, BANDCOUNT> spreading_normalization;
   std::array<double, BANDCOUNT> aUC;
   std::array<double, BANDCOUNT> gIL;
-  auto do_spreading(std::array<double, BANDCOUNT> const& Pp) const
+  [[nodiscard]] auto do_spreading(std::array<double, BANDCOUNT> const& Pp) const
     -> std::array<double, BANDCOUNT>;
 };
 
@@ -178,10 +185,10 @@ FFTEarModel<BANDCOUNT>::FFTEarModel()
   auto zU = 7. * std::asinh(18000. / 650.);
   assert(BANDCOUNT == std::ceil((zU - zL) / DELTA_Z));
 
-  std::vector<double> fc(BANDCOUNT);
+  auto fc = std::array<double, BANDCOUNT>{};
   for (std::size_t band = 0; band < BANDCOUNT; band++) {
     auto zl = zL + band * DELTA_Z;
-    auto zu = std::min(zU, zL + (band + 1) * DELTA_Z);
+    auto zu = std::min(zU, zL + double(band + 1) * DELTA_Z);
     auto zc = (zu + zl) / 2.;
     auto curr_fc = 650. * std::sinh(zc / 7.);
     fc[band] = curr_fc;
@@ -215,7 +222,7 @@ FFTEarModel<BANDCOUNT>::FFTEarModel()
     spreading_normalization[band] = 1.;
   }
 
-  this->set_bands(fc);
+  this->precompute_constants(fc, LOUDNESS_SCALE, TAU_MIN, TAU_100, STEP_SIZE);
 
   spreading_normalization = do_spreading(spreading_normalization);
 }

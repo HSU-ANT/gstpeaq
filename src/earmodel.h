@@ -34,25 +34,27 @@
  * #PeaqEarModel:band-centers property.
  */
 
+#include <array>
 #include <cmath>
-#include <vector>
 
 namespace peaq {
 
-template<typename Derived>
+template<std::size_t BANDCOUNT>
 class EarModelBase
 {
 public:
-  auto get_sampling_rate() const { return SAMPLINGRATE; };
-  auto get_step_size() const -> std::size_t { return Derived::STEP_SIZE; }
-  auto get_internal_noise(std::size_t band) const { return internal_noise[band]; }
-  template<typename T>
-  auto calc_loudness(T const* state) const
+  [[nodiscard]] auto get_sampling_rate() const { return SAMPLINGRATE; };
+  [[nodiscard]] auto get_internal_noise(std::size_t band) const
   {
-    static_assert(std::is_same_v<T, typename Derived::state_t>);
+    return internal_noise[band];
+  }
+  template<typename T>
+  [[nodiscard]] auto calc_loudness(T const* state) const
+  {
+    static_assert(std::is_base_of_v<EarModelBase, typename T::earmodel_t>);
     auto overall_loudness = 0.;
     auto const& excitation = state->get_excitation();
-    for (std::size_t i = 0; i < band_count; i++) {
+    for (std::size_t i = 0; i < BANDCOUNT; i++) {
       auto loudness = loudness_factor[i] *
                       (std::pow(1. - threshold[i] +
                                   threshold[i] * excitation[i] / excitation_threshold[i],
@@ -60,18 +62,20 @@ public:
                        1.);
       overall_loudness += std::max(loudness, 0.);
     }
-    overall_loudness *= 24. / band_count;
+    overall_loudness *= 24. / BANDCOUNT;
     return overall_loudness;
   }
-  auto calc_time_constant(std::size_t band, double tau_min, double tau_100) const
+  [[nodiscard]] auto calc_time_constant(std::size_t band,
+                                        double tau_min,
+                                        double tau_100,
+                                        std::size_t step_size) const
   {
-    auto step_size = get_step_size();
     /* (21), (38), (41), and (56) in [BS1387], (32) in [Kabal03] */
     auto tau = tau_min + 100. / fc[band] * (tau_100 - tau_min);
     /* (24), (40), and (44) in [BS1387], (33) in [Kabal03] */
-    return std::exp(step_size / (-48000. * tau));
+    return std::exp(step_size / (-get_sampling_rate() * tau));
   }
-  static auto calc_ear_weight(double frequency)
+  [[nodiscard]] static auto calc_ear_weight(double frequency)
   {
     auto f_kHz = frequency / 1000.;
     auto W_dB = -0.6 * 3.64 * std::pow(f_kHz, -0.8) +
@@ -81,22 +85,14 @@ public:
   }
 
 protected:
-  std::size_t band_count{ 0 };
-  std::vector<double> fc;
-  std::vector<double> internal_noise;
-  std::vector<double> excitation_threshold;
-  std::vector<double> threshold;
-  std::vector<double> loudness_factor;
-  void set_bands(std::vector<double> const& fc)
+  void precompute_constants(std::array<double, BANDCOUNT> const& fc,
+                            double loudness_scale,
+                            double tau_min,
+                            double tau_100,
+                            std::size_t step_size)
   {
     this->fc = fc;
-    band_count = fc.size();
-    internal_noise.resize(band_count);
-    ear_time_constants.resize(band_count);
-    excitation_threshold.resize(band_count);
-    threshold.resize(band_count);
-    loudness_factor.resize(band_count);
-    for (std::size_t band = 0; band < band_count; band++) {
+    for (std::size_t band = 0; band < BANDCOUNT; band++) {
       auto curr_fc = fc[band];
       /* internal noise; (13) in [BS1387] (18) in [Kabal03] */
       internal_noise[band] = pow(10., 0.4 * 0.364 * pow(curr_fc / 1000., -0.8));
@@ -108,21 +104,25 @@ protected:
                                    0.75 * atan(curr_fc / 1600. * curr_fc / 1600.)));
       /* loudness scaling factor; part of (58) in [BS1387], (69) in [Kabal03] */
       loudness_factor[band] =
-        Derived::LOUDNESS_SCALE *
-        pow(excitation_threshold[band] / (1e4 * threshold[band]), 0.23);
-    }
-    auto tau_min = Derived::TAU_MIN;
-    auto tau_100 = Derived::TAU_100;
-    for (std::size_t band = 0; band < band_count; band++) {
-      ear_time_constants[band] = calc_time_constant(band, tau_min, tau_100);
+        loudness_scale * pow(excitation_threshold[band] / (1e4 * threshold[band]), 0.23);
+
+      ear_time_constants[band] = calc_time_constant(band, tau_min, tau_100, step_size);
     }
   }
-  auto get_band_center_frequency(std::size_t band) const { return fc[band]; }
-  auto get_ear_time_constant(std::size_t band) const { return ear_time_constants[band]; }
+  [[nodiscard]] auto get_band_center_frequency(std::size_t band) const { return fc[band]; }
+  [[nodiscard]] auto get_ear_time_constant(std::size_t band) const
+  {
+    return ear_time_constants[band];
+  }
 
 private:
   static constexpr auto SAMPLINGRATE = 48000;
-  std::vector<double> ear_time_constants;
+  std::array<double, BANDCOUNT> ear_time_constants;
+  std::array<double, BANDCOUNT> fc;
+  std::array<double, BANDCOUNT> internal_noise;
+  std::array<double, BANDCOUNT> excitation_threshold;
+  std::array<double, BANDCOUNT> threshold;
+  std::array<double, BANDCOUNT> loudness_factor;
 };
 
 } // namespace peaq

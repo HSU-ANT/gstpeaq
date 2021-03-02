@@ -31,7 +31,7 @@
 
 namespace peaq {
 
-class FilterbankEarModel : public EarModelBase<FilterbankEarModel>
+class FilterbankEarModel : public EarModelBase<40>
 {
 private:
   static constexpr std::size_t BUFFER_LENGTH = 1456;
@@ -56,6 +56,7 @@ public:
   static constexpr auto TAU_100 = 0.020;
   struct state_t
   {
+    using earmodel_t = FilterbankEarModel;
     [[nodiscard]] auto const& get_excitation() const { return excitation; }
     [[nodiscard]] auto const& get_unsmeared_excitation() const
     {
@@ -77,9 +78,10 @@ public:
     std::array<double, FB_NUMBANDS> excitation{};
     std::array<double, FB_NUMBANDS> unsmeared_excitation{};
   };
+  static auto constexpr get_step_size() { return STEP_SIZE; }
   static auto constexpr get_band_count() { return FB_NUMBANDS; }
   FilterbankEarModel();
-  [[nodiscard]] double get_playback_level() const { return 20. * std::log10(level_factor); }
+  [[nodiscard]] auto get_playback_level() const { return 20. * std::log10(level_factor); }
   void set_playback_level(double level)
   {
     /* scale factor for playback level; (27) in [BS1387], (34) in [Kabal03] */
@@ -179,6 +181,12 @@ public:
       state.excitation[band] =
         a * state.excitation[band] + (1. - a) * state.unsmeared_excitation[band];
     }
+  }
+  [[nodiscard]] auto calc_time_constant(std::size_t band,
+                                        double tau_min,
+                                        double tau_100) const
+  {
+    return EarModelBase<FB_NUMBANDS>::calc_time_constant(band, tau_min, tau_100, STEP_SIZE);
   }
 
 private:

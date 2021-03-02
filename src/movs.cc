@@ -126,7 +126,7 @@ void mov_modulation_difference(
   movaccum_avg& mov_accum2,
   movaccum_avg_window& mov_accum_win)
 {
-  auto band_count = ear_model.get_band_count();
+  auto band_count = FFTEarModel<>::get_band_count();
 
   for (std::size_t c = 0; c < mov_accum1.get_channels(); c++) {
     auto [mod_diff_1b, mod_diff_2b, temp_wt] = calc_modulation_difference(
@@ -145,7 +145,7 @@ void mov_modulation_difference(
   std::vector<ModulationProcessor<40>::state_t> const& test_mod_proc_state,
   movaccum_rms& mov_accum1)
 {
-  auto band_count = ear_model.get_band_count();
+  auto band_count = FilterbankEarModel::get_band_count();
 
   for (std::size_t c = 0; c < mov_accum1.get_channels(); c++) {
     auto [mod_diff_1b, mod_diff_2b, temp_wt] = calc_modulation_difference(
@@ -356,13 +356,12 @@ void mov_nmr(FFTEarModel<55> const& ear_model,
   }
 }
 
-void mov_prob_detect(FFTEarModel<> const& ear_model,
-                     std::vector<FFTEarModel<>::state_t> const& ref_state,
+void mov_prob_detect(std::vector<FFTEarModel<>::state_t> const& ref_state,
                      std::vector<FFTEarModel<>::state_t> const& test_state,
                      movaccum_adb& mov_accum_adb,
                      movaccum_filtered_max& mov_accum_mfpd)
 {
-  auto band_count = ear_model.get_band_count();
+  auto band_count = FFTEarModel<>::get_band_count();
   auto binaural_detection_probability = 1.;
   auto binaural_detection_steps = 0.;
   for (std::size_t i = 0; i < band_count; i++) {

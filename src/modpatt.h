@@ -59,7 +59,7 @@ public:
   ModulationProcessor(EarModel const& ear_model)
   {
     static_assert(BANDCOUNT == EarModel::get_band_count());
-    auto step_size = ear_model.get_step_size();
+    auto step_size = EarModel::STEP_SIZE;
     auto sampling_rate = ear_model.get_sampling_rate();
     derivative_factor = static_cast<double>(sampling_rate) / step_size;
 

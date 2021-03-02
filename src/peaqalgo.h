@@ -213,7 +213,7 @@ private:
       frame_counter++;
     }
 
-    std::get<n>(buffer_offsets) += std::get<n>(ear_models).get_step_size();
+    std::get<n>(buffer_offsets) += std::tuple_element_t<n, EarModels>::STEP_SIZE;
   }
   template<int n>
   void process_all_frames()

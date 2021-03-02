@@ -43,7 +43,7 @@ const std::array<double, 6> FilterbankEarModel::back_mask_h = [] {
 
 FilterbankEarModel::FilterbankEarModel()
 {
-  auto fc_array = std::vector<double>(FB_NUMBANDS);
+  auto fc_array = std::array<double, FB_NUMBANDS>{};
 
   /* precompute filter bank impulse responses */
   for (std::size_t band = 0; band < FB_NUMBANDS; band++) {
@@ -68,7 +68,7 @@ FilterbankEarModel::FilterbankEarModel()
     }
   }
 
-  set_bands(fc_array);
+  precompute_constants(fc_array, LOUDNESS_SCALE, TAU_MIN, TAU_100, STEP_SIZE);
   set_playback_level(92);
 }
 

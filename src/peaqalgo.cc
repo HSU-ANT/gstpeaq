@@ -61,8 +61,7 @@ void AlgoBasic::do_process(bool above_thres)
           std::get<MOV_REL_DIST_FRAMES>(mov_accums));
 
   /* probability of detection */
-  mov_prob_detect(std::get<0>(ear_models),
-                  std::get<0>(states_ref),
+  mov_prob_detect(std::get<0>(states_ref),
                   std::get<0>(states_test),
                   std::get<MOV_ADB>(mov_accums),
                   std::get<MOV_MFPD>(mov_accums));

@@ -989,8 +989,7 @@ void mov_nmr(FFTEarModel<55> const& ear_model,
  * </math></inlineequation>, the total number of steps above the threshold is
  * accumulated in @mov_accum_adb, which should be set to #MODE_ADB.
  */
-void mov_prob_detect(FFTEarModel<> const& ear_model,
-                     std::vector<FFTEarModel<>::state_t> const& ref_state,
+void mov_prob_detect(std::vector<FFTEarModel<>::state_t> const& ref_state,
                      std::vector<FFTEarModel<>::state_t> const& test_state,
                      movaccum_adb& mov_accum_adb,
                      movaccum_filtered_max& mov_accum_mfpd);
