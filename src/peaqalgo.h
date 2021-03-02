@@ -140,7 +140,7 @@ public:
   }
   static auto calculate_odg(double distortion_index, bool console_output = false)
   {
-    auto odg = peaq_calculate_odg(distortion_index);
+    auto odg = peaq::calculate_odg(distortion_index);
     if (console_output) {
       std::cout.imbue(std::locale(""));
       std::cout << std::fixed << std::setprecision(3)
@@ -331,7 +331,7 @@ public:
   {
     auto movs = std::apply(
       [](auto&... accum) { return std::array{ accum.get_value()... }; }, mov_accums);
-    auto distortion_index = peaq_calculate_di_basic(movs.data());
+    auto distortion_index = calculate_di_basic(movs);
 
     if (console_output) {
       std::cout.imbue(std::locale(""));
@@ -394,7 +394,7 @@ public:
   {
     auto movs = std::apply(
       [](auto&... accum) { return std::array{ accum.get_value()... }; }, mov_accums);
-    auto distortion_index = peaq_calculate_di_advanced(movs.data());
+    auto distortion_index = calculate_di_advanced(movs);
 
     if (console_output) {
       std::cout.imbue(std::locale(""));

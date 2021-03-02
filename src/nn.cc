@@ -23,7 +23,6 @@
 #include "settings.h"
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <numeric>
 
@@ -139,38 +138,19 @@ static auto calculate_di(nn_coeffs<Nmovs, N2> const& nn,
   return sum;
 }
 
-auto calculate_di_basic(std::array<double, 11> const& movs)
+auto calculate_di_basic(std::array<double, 11> const& movs) -> double
 {
   return calculate_di(nn_basic, movs);
 }
 
-auto calculate_di_advanced(std::array<double, 5> const& movs)
+auto calculate_di_advanced(std::array<double, 5> const& movs) -> double
 {
   return calculate_di(nn_advanced, movs);
 }
 
-auto calculate_odg(double distortion_index)
+auto calculate_odg(double distortion_index) -> double
 {
   return bmin + (bmax - bmin) / (1 + std::exp(-distortion_index));
 }
 
 } // namespace peaq
-
-double peaq_calculate_di_basic(double const* movs)
-{
-  std::array<double, peaq::nn_basic.amin.size()> _movs;
-  std::copy_n(movs, _movs.size(), begin(_movs));
-  return peaq::calculate_di_basic(_movs);
-}
-
-double peaq_calculate_di_advanced(double const* movs)
-{
-  std::array<double, peaq::nn_advanced.amin.size()> _movs;
-  std::copy_n(movs, _movs.size(), begin(_movs));
-  return peaq::calculate_di_advanced(_movs);
-}
-
-double peaq_calculate_odg(double distortion_index)
-{
-  return peaq::calculate_odg(distortion_index);
-}

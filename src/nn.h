@@ -22,9 +22,7 @@
 #ifndef __NN_H_
 #define __NN_H_ 1
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <array>
 
 /**
  * SECTION:nn
@@ -39,6 +37,7 @@ extern "C" {
  * grade is the same.
  */
 
+namespace peaq {
 /**
  * peaq_calculate_di_basic:
  * @movs: Array of model output variables to calculate the distortion index
@@ -130,7 +129,7 @@ extern "C" {
  *
  * Returns: The calculated distortion index.
  */
-double peaq_calculate_di_basic (double const *movs);
+auto calculate_di_basic (std::array<double, 11> const& movs) -> double;
 
 /**
  * peaq_calculate_di_advanced:
@@ -217,7 +216,7 @@ double peaq_calculate_di_basic (double const *movs);
  *
  * Returns: The calculated distortion index.
  */
-double peaq_calculate_di_advanced (double const *movs);
+auto calculate_di_advanced (std::array<double, 5> const& movs) -> double;
 
 /**
  * peaq_calculate_odg:
@@ -253,10 +252,8 @@ double peaq_calculate_di_advanced (double const *movs);
  *
  * Returns: The calculated objective difference grade.
  */
-double peaq_calculate_odg (double distortion_index);
+auto calculate_odg (double distortion_index) -> double;
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+} // namepsace peaq
 
 #endif /* __NN_H__ */
