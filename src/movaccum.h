@@ -79,10 +79,10 @@ public:
   {
     std::transform(cbegin(data), cend(data), begin(data_saved), Strategy::save_data);
   }
-  void accumulate(std::size_t c, double val, double weight)
-  {
+  template<typename... Args>
+  void accumulate(std::size_t c, Args... args) {
     if (status != Status::INIT) {
-      Strategy::accumulate(data[c], val, weight);
+      Strategy::accumulate(data[c], args...);
     }
   }
 
@@ -170,16 +170,14 @@ struct winavgdata
 
 struct movaccum_avg_window_strategy : base_strategy<winavgdata, fraction>
 {
-  static void accumulate(Tdata& data, double val, double /*weight*/)
+  static void accumulate(Tdata& data, double val)
   {
     auto val_sqrt = std::sqrt(val);
     if (!std::isnan(data.past_sqrts[0])) {
       auto winsum =
-        std::accumulate(cbegin(data.past_sqrts), cend(data.past_sqrts), val_sqrt);
-      winsum /= 4.;
-      winsum *= winsum;
-      winsum *= winsum;
-      data.frac.num += winsum;
+        std::accumulate(cbegin(data.past_sqrts), cend(data.past_sqrts), val_sqrt) / 4.0;
+      auto winsum_squared = winsum * winsum;
+      data.frac.num += winsum_squared * winsum_squared;
       data.frac.den += 1.;
     }
     for (auto i = 0; i < 2; i++) {
@@ -200,7 +198,7 @@ struct filtmaxdata
 
 struct movaccum_filtered_max_strategy : base_strategy<filtmaxdata, double>
 {
-  static void accumulate(Tdata& data, double val, double /*weight*/)
+  static void accumulate(Tdata& data, double val)
   {
     data.filt_state = 0.9 * data.filt_state + 0.1 * val;
     if (data.filt_state > data.max) {
@@ -216,9 +214,9 @@ struct movaccum_rms_strategy : base_strategy<fraction>
 {
   static void accumulate(fraction& data, double val, double weight)
   {
-    weight *= weight;
-    data.num += weight * val * val;
-    data.den += weight;
+    auto squared_weight = weight * weight;
+    data.num += squared_weight * val * val;
+    data.den += squared_weight;
   }
   static auto get_value(fraction const& frac) { return std::sqrt(frac.num / frac.den); }
 };

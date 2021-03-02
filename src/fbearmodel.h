@@ -36,11 +36,11 @@ class FilterbankEarModel : public EarModelBase<40>
 private:
   static constexpr std::size_t BUFFER_LENGTH = 1456;
   static constexpr std::size_t FB_NUMBANDS = 40;
-  static constexpr double SLOPE_FILTER_A = 0.99335550625034; /* exp(-32 / (48000 * 0.1)) */
-  static constexpr double DIST = 0.921851456499719; /* pow(0.1,(z[39]-z[0])/(39*20)) */
-  static constexpr double CL = 0.0802581846102741;  /* pow(DIST, 31) */
+  static constexpr auto SLOPE_FILTER_A = 0.99335550625034; /* exp(-32 / (48000 * 0.1)) */
+  static constexpr auto DIST = 0.921851456499719; /* pow(0.1,(z[39]-z[0])/(39*20)) */
+  static constexpr auto CL = 0.0802581846102741;  /* pow(DIST, 31) */
   /* taken from Table 8 in [BS1387] */
-  static constexpr std::array<std::size_t, FB_NUMBANDS> filter_length{
+  static constexpr auto filter_length = std::array<std::size_t, FB_NUMBANDS>{
     1456, 1438, 1406, 1362, 1308, 1244, 1176, 1104, 1030, 956, 884, 814, 748, 686,
     626,  570,  520,  472,  430,  390,  354,  320,  290,  262, 238, 214, 194, 176,
     158,  144,  130,  118,  106,  96,   86,   78,   70,   64,  58,  52
@@ -145,10 +145,7 @@ public:
 
         /* rectification; 2.2.8. in [BS1387], part of 3.4 in [Kabal03] */
         std::array<double, FB_NUMBANDS> E0;
-        std::transform(cbegin(A),
-                       cend(A),
-                       begin(E0),
-                       static_cast<double (*)(const std::complex<double>&)>(std::norm));
+        std::transform(cbegin(A), cend(A), begin(E0), [](auto x) { return std::norm(x); });
 
         /* time domain smearing (1) - backward masking; 2.2.9 in [BS1387], 3.5 in
          * [Kabal03] */
@@ -191,7 +188,7 @@ public:
 
 private:
   double level_factor;
-  std::array<std::vector<std::complex<double>>, 40> fbh;
+  std::array<std::vector<std::complex<double>>, FB_NUMBANDS> fbh;
 
   static const std::array<double, 6> back_mask_h;
   [[nodiscard]] auto apply_filter_bank(state_t const& state) const

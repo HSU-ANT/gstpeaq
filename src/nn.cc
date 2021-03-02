@@ -110,9 +110,6 @@ template<std::size_t Nmovs, std::size_t N2>
 static auto calculate_di(nn_coeffs<Nmovs, N2> const& nn,
                          std::array<double, Nmovs> const& movs)
 {
-  using std::begin;
-  using std::end;
-
   auto x = nn.wxb;
 
   for (std::size_t i = 0; i < Nmovs; i++) {
@@ -127,7 +124,7 @@ static auto calculate_di(nn_coeffs<Nmovs, N2> const& nn,
     if (m > 1.)
       m = 1.;
 #endif
-    std::transform(begin(x), end(x), begin(nn.wx[i]), begin(x), [m](auto xj, auto wxj) {
+    std::transform(cbegin(x), cend(x), cbegin(nn.wx[i]), begin(x), [m](auto xj, auto wxj) {
       return xj + wxj * m;
     });
   }

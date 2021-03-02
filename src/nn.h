@@ -129,7 +129,7 @@ namespace peaq {
  *
  * Returns: The calculated distortion index.
  */
-auto calculate_di_basic (std::array<double, 11> const& movs) -> double;
+auto calculate_di_basic(std::array<double, 11> const& movs) -> double;
 
 /**
  * peaq_calculate_di_advanced:
@@ -216,7 +216,7 @@ auto calculate_di_basic (std::array<double, 11> const& movs) -> double;
  *
  * Returns: The calculated distortion index.
  */
-auto calculate_di_advanced (std::array<double, 5> const& movs) -> double;
+auto calculate_di_advanced(std::array<double, 5> const& movs) -> double;
 
 /**
  * peaq_calculate_odg:
@@ -252,7 +252,7 @@ auto calculate_di_advanced (std::array<double, 5> const& movs) -> double;
  *
  * Returns: The calculated objective difference grade.
  */
-auto calculate_odg (double distortion_index) -> double;
+auto calculate_odg(double distortion_index) -> double;
 
 } // namepsace peaq
 

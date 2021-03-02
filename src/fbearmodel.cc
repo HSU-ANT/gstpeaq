@@ -81,22 +81,16 @@ auto FilterbankEarModel::apply_filter_bank(FilterbankEarModel::state_t const& st
     /* additional delay, (31) in [BS1387] */
     auto D = 1 + (filter_length[0] - N) / 2;
     auto out = std::complex<double>{};
-    /* exploit symmetry in filter responses */
-    auto N_2 = N / 2;
-    const auto* in1 = cbegin(state.fb_buf) + D + state.fb_buf_offset;
-    const auto* in2 = cbegin(state.fb_buf) + D + N + state.fb_buf_offset;
-    auto h = cbegin(fbh[band]);
-    /* first filter coefficient is zero, so skip it */
-    for (size_t n = 1; n < N_2; n++) {
-      h++;
-      in1++;
-      in2--;
+    /* exploit symmetry in filter responses and skip first filter coefficient as it is
+       zero */
+    const auto* in1 = cbegin(state.fb_buf) + D + state.fb_buf_offset + 1;
+    const auto* in2 = cbegin(state.fb_buf) + D + N + state.fb_buf_offset - 1;
+    auto h = cbegin(fbh[band]) + 1;
+    for (; in1 < in2; h++, in1++, in2--) {
       out += std::complex<double>{ (*in1 + *in2) * std::real(*h),   /* even symmetry */
                                    (*in1 - *in2) * std::imag(*h) }; /* odd symmetry */
     }
     /* include term for n=N/2 only once */
-    in1++;
-    h++;
     out += *in1 * *h;
     fb_out[band] = out;
   }

@@ -1043,13 +1043,12 @@ static auto do_xcorr(std::array<double, 2 * MAXLAG> const& d)
    *     c[i] += d[k] * d[k + i];
    * }
    */
-  std::array<double, 2 * MAXLAG> timedata;
+  auto timedata = d;
   std::array<std::complex<double>, MAXLAG + 1> freqdata1;
-  std::array<std::complex<double>, MAXLAG + 1> freqdata2;
-  std::copy(cbegin(d), cend(d), begin(timedata));
   gst_fft_f64_fft(
     correlator_fft, timedata.data(), reinterpret_cast<GstFFTF64Complex*>(freqdata1.data()));
   std::fill(begin(timedata) + MAXLAG, end(timedata), 0.0);
+  std::array<std::complex<double>, MAXLAG + 1> freqdata2;
   gst_fft_f64_fft(
     correlator_fft, timedata.data(), reinterpret_cast<GstFFTF64Complex*>(freqdata2.data()));
   /* multiply freqdata1 with the conjugate of freqdata2 and scale */
@@ -1092,8 +1091,6 @@ void mov_ehs(std::vector<State> const& ref_state,
     return win;
   }();
 
-  auto channels = mov_accum.get_channels();
-
   if (std::none_of(cbegin(ref_state),
                    cend(ref_state),
                    [](auto state) { return state.is_energy_threshold_reached(); }) &&
@@ -1102,6 +1099,8 @@ void mov_ehs(std::vector<State> const& ref_state,
       })) {
     return;
   }
+
+  auto channels = mov_accum.get_channels();
 
   for (std::size_t chan = 0; chan < channels; chan++) {
     auto const& ref_power_spectrum = ref_state[chan].get_weighted_power_spectrum();
@@ -1113,7 +1112,7 @@ void mov_ehs(std::vector<State> const& ref_state,
                    cbegin(test_power_spectrum),
                    begin(d),
                    [](auto fref, auto ftest) {
-                     return fref == 0. && ftest == 0. ? 0.0 : std::log(ftest / fref);
+                     return fref == 0.0 && ftest == 0.0 ? 0.0 : std::log(ftest / fref);
                    });
 
     auto c = detail::do_xcorr<MAXLAG>(d);

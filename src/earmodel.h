@@ -56,14 +56,13 @@ public:
     auto const& excitation = state->get_excitation();
     for (std::size_t i = 0; i < BANDCOUNT; i++) {
       auto loudness = loudness_factor[i] *
-                      (std::pow(1. - threshold[i] +
+                      (std::pow(1.0 - threshold[i] +
                                   threshold[i] * excitation[i] / excitation_threshold[i],
                                 0.23) -
-                       1.);
+                       1.0);
       overall_loudness += std::max(loudness, 0.);
     }
-    overall_loudness *= 24. / BANDCOUNT;
-    return overall_loudness;
+    return overall_loudness * (24.0 / BANDCOUNT);
   }
   [[nodiscard]] auto calc_time_constant(std::size_t band,
                                         double tau_min,

@@ -89,9 +89,6 @@ public:
                state_t& state) const
   {
     using std::cbegin;
-    auto pattadapt_ref = std::array<double, BANDCOUNT>{};
-    auto pattadapt_test = std::array<double, BANDCOUNT>{};
-    auto levcorr_excitation = std::array<double, BANDCOUNT>{};
 
     auto num = 0.0;
     auto den = 0.0;
@@ -110,6 +107,7 @@ public:
       den += state.test_filtered_excitation[k];
     }
     auto lev_corr = num * num / (den * den);
+    auto levcorr_excitation = std::array<double, BANDCOUNT>{};
     if (lev_corr > 1) {
       /* (46) in [BS1387], (58) in [Kabal03] */
       std::transform(cbegin(ref_excitation),
@@ -123,10 +121,11 @@ public:
                      begin(levcorr_excitation),
                      [lev_corr](auto e) { return e * lev_corr; });
     }
-    std::array<double, BANDCOUNT> const& levcorr_ref_excitation =
-      lev_corr > 1 ? levcorr_excitation : ref_excitation;
-    std::array<double, BANDCOUNT> const& levcorr_test_excitation =
+    auto const& levcorr_ref_excitation = lev_corr > 1 ? levcorr_excitation : ref_excitation;
+    auto const& levcorr_test_excitation =
       lev_corr > 1 ? test_excitation : levcorr_excitation;
+    auto pattadapt_ref = std::array<double, BANDCOUNT>{};
+    auto pattadapt_test = std::array<double, BANDCOUNT>{};
     for (std::size_t k = 0; k < BANDCOUNT; k++) {
       /* (48) in [BS1387], (59) in [Kabal03] */
       state.filtered_num[k] = ear_time_constants[k] * state.filtered_num[k] +
@@ -151,14 +150,15 @@ public:
       auto m2 =
         std::min(BANDCOUNT - k - 1, BANDCOUNT / 25); /* 109 -> 4, 55 -> 2, 40 -> 1  */
       /* (50) in [BS1387], (62) in [Kabal03] */
-      auto ra_ref = 0.0;
-      auto ra_test = 0.0;
-      for (auto l = k - m1; l <= k + m2; l++) {
-        ra_ref += pattadapt_ref[l];
-        ra_test += pattadapt_test[l];
-      }
-      ra_ref /= (m1 + m2 + 1);
-      ra_test /= (m1 + m2 + 1);
+      auto ra_scale = double(m1 + m2 + 1);
+      auto ra_ref = std::accumulate(cbegin(pattadapt_ref) + k - m1,
+                                    cbegin(pattadapt_ref) + k + m2 + 1,
+                                    0.0) /
+                    ra_scale;
+      auto ra_test = std::accumulate(cbegin(pattadapt_test) + k - m1,
+                                     cbegin(pattadapt_test) + k + m2 + 1,
+                                     0.0) /
+                     ra_scale;
       /* (50) in [BS1387], (61) in [Kabal03] */
       state.pattcorr_ref[k] = ear_time_constants[k] * state.pattcorr_ref[k] +
                               (1 - ear_time_constants[k]) * ra_ref;

@@ -103,20 +103,20 @@ public:
 
       per_earmodel<process_all_frames_f>();
 
-      auto step_size =
+      auto shift_size =
         std::apply([](auto&... off) { return std::min({ off... }); }, buffer_offsets);
       for (auto c = 0U; c < channel_count; c++) {
         std::copy(
-          cbegin(ref_buffers[c]) + step_size, cend(ref_buffers[c]), begin(ref_buffers[c]));
-        std::copy(cbegin(test_buffers[c]) + step_size,
+          cbegin(ref_buffers[c]) + shift_size, cend(ref_buffers[c]), begin(ref_buffers[c]));
+        std::copy(cbegin(test_buffers[c]) + shift_size,
                   cend(test_buffers[c]),
                   begin(test_buffers[c]));
       }
-      buffer_valid_count -= step_size;
+      buffer_valid_count -= shift_size;
       std::transform(cbegin(buffer_offsets),
                      cend(buffer_offsets),
                      begin(buffer_offsets),
-                     [step_size](auto off) { return off - step_size; });
+                     [shift_size](auto off) { return off - shift_size; });
     }
   }
   void flush() final
@@ -129,7 +129,7 @@ public:
       buffer_valid_count = BUFFER_SIZE;
       per_earmodel<process_one_frame_f>();
       buffer_valid_count = 0;
-      std::fill(begin(buffer_offsets), end(buffer_offsets), 0);
+      buffer_offsets = {};
     }
   }
   [[nodiscard]] auto calculate_odg(bool console_output = false) const -> double final
@@ -181,11 +181,10 @@ private:
       level_adapter.process(ref_excitation, test_excitation, level_state[chan]);
       modulation_processor.process(ref_unsmeared_excitation, ref_modproc_state[chan]);
       modulation_processor.process(test_unsmeared_excitation, test_modproc_state[chan]);
-      if (loudness_reached_frame == std::numeric_limits<unsigned int>::max()) {
-        if (std::get<0>(ear_models).calc_loudness(&std::get<0>(states_ref)[chan]) > 0.1 &&
-            std::get<0>(ear_models).calc_loudness(&std::get<0>(states_test)[chan]) > 0.1) {
-          loudness_reached_frame = frame_counter;
-        }
+      if (frame_counter < loudness_reached_frame &&
+          std::get<0>(ear_models).calc_loudness(&std::get<0>(states_ref)[chan]) > 0.1 &&
+          std::get<0>(ear_models).calc_loudness(&std::get<0>(states_test)[chan]) > 0.1) {
+        loudness_reached_frame = frame_counter;
       }
     }
   }
@@ -236,7 +235,7 @@ private:
   };
 
   template<template<std::size_t> typename func, size_t... I>
-  void per_earmodel(std::index_sequence<I...>)
+  void per_earmodel(std::index_sequence<I...> /*unused*/)
   {
     (func<I>{}(this), ...);
   }

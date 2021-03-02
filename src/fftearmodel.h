@@ -33,7 +33,6 @@
 #include <complex>
 #include <memory>
 #include <numeric>
-#include <vector>
 
 namespace peaq {
 
@@ -43,9 +42,6 @@ class FFTEarModel : public EarModelBase<BANDCOUNT>
 public:
   static constexpr size_t FRAME_SIZE = 2048;
   static constexpr size_t STEP_SIZE = FRAME_SIZE / 2;
-  static constexpr auto TAU_MIN = 0.008;
-  static constexpr auto TAU_100 = 0.030;
-  static constexpr double LOUDNESS_SCALE = 1.07664;
   struct state_t
   {
     using earmodel_t = FFTEarModel;
@@ -73,7 +69,7 @@ public:
     std::array<double, FRAME_SIZE / 2 + 1> weighted_power_spectrum;
     bool energy_threshold_reached;
   };
-  static auto constexpr get_band_count() { return BANDCOUNT; }
+  [[nodiscard]] static auto constexpr get_band_count() { return BANDCOUNT; }
   FFTEarModel();
   [[nodiscard]] auto get_playback_level() const
   {
@@ -93,19 +89,19 @@ public:
 
   template<typename InputIterator>
   void process_block(state_t& state, InputIterator samples) const;
-  void group_into_bands(std::array<double, FRAME_SIZE / 2 + 1> const& spectrum,
-                        std::array<double, BANDCOUNT>& band_power) const
+  [[nodiscard]] auto group_into_bands(
+    std::array<double, FRAME_SIZE / 2 + 1> const& spectrum) const
   {
+    auto band_power = std::array<double, BANDCOUNT>{};
     for (std::size_t i = 0; i < BANDCOUNT; i++) {
       auto edge_power = band_lower_weight[i] * spectrum[band_lower_end[i]] +
                         band_upper_weight[i] * spectrum[band_upper_end[i]];
-      band_power[i] = std::accumulate(cbegin(spectrum) + band_lower_end[i] + 1,
-                                      cbegin(spectrum) + band_upper_end[i],
-                                      edge_power);
-      if (band_power[i] < 1e-12) {
-        band_power[i] = 1e-12;
-      }
+      auto power = std::accumulate(cbegin(spectrum) + band_lower_end[i] + 1,
+                                   cbegin(spectrum) + band_upper_end[i],
+                                   edge_power);
+      band_power[i] = std::max(power, 1e-12);
     }
+    return band_power;
   }
   [[nodiscard]] auto calc_time_constant(std::size_t band,
                                         double tau_min,
@@ -115,10 +111,13 @@ public:
   }
 
 private:
+  static constexpr auto TAU_MIN = 0.008;
+  static constexpr auto TAU_100 = 0.030;
+  static constexpr double LOUDNESS_SCALE = 1.07664;
   static constexpr double DELTA_Z = 27. / (BANDCOUNT - 1);
   static constexpr double GAMMA = 0.84971762641205;
   static const double lower_spreading;
-  static const double lower_spreading_exponantiated;
+  static const double lower_spreading_exponentiated;
   static const std::array<double, FRAME_SIZE> hann_window;
   static const std::array<double, BANDCOUNT> masking_difference;
 
@@ -144,7 +143,7 @@ const double FFTEarModel<BANDCOUNT>::lower_spreading = std::pow(10.,
                                                                 -2.7 *
                                                                   DELTA_Z); /* 1 / a_L */
 template<std::size_t BANDCOUNT>
-const double FFTEarModel<BANDCOUNT>::lower_spreading_exponantiated =
+const double FFTEarModel<BANDCOUNT>::lower_spreading_exponentiated =
   std::pow(lower_spreading, 0.4);
 
 template<std::size_t BANDCOUNT>
@@ -231,13 +230,9 @@ template<std::size_t BANDCOUNT>
 template<typename InputIterator>
 void FFTEarModel<BANDCOUNT>::process_block(state_t& state, InputIterator samples) const
 {
-  std::array<double, FRAME_SIZE> windowed_data;
-  std::array<std::complex<double>, FRAME_SIZE / 2 + 1> fftoutput;
-  auto band_power = std::array<double, BANDCOUNT>{};
-  auto noisy_band_power = std::array<double, BANDCOUNT>{};
-
   /* apply a Hann window to the input data frame; (3) in [BS1387], part of (4)
      * in [Kabal03] */
+  auto windowed_data = std::array<double, FRAME_SIZE>{};
   std::transform(cbegin(hann_window),
                  cend(hann_window),
                  samples,
@@ -247,6 +242,7 @@ void FFTEarModel<BANDCOUNT>::process_block(state_t& state, InputIterator samples
   /* apply FFT to windowed data; (4) in [BS1387] and part of (4) in [Kabal03],
      * but without division by FRAME_SIZE, which is subsumed in the
      * level_factor applied next */
+  auto fftoutput = std::array<std::complex<double>, FRAME_SIZE / 2 + 1>{};
   gst_fft_f64_fft(gstfft.get(),
                   windowed_data.data(),
                   reinterpret_cast<GstFFTF64Complex*>(fftoutput.data()));
@@ -265,10 +261,11 @@ void FFTEarModel<BANDCOUNT>::process_block(state_t& state, InputIterator samples
 
   /* group the outer ear weighted FFT outputs into critical bands according to
      * section 2.1.5 of [BS1387] / section 2.6 of [Kabal03] */
-  group_into_bands(state.weighted_power_spectrum, band_power);
+  auto band_power = group_into_bands(state.weighted_power_spectrum);
 
   /* add the internal noise to obtain the pitch patters; (14) in [BS1387], (17)
      * in [Kabal03] */
+  auto noisy_band_power = std::array<double, BANDCOUNT>{};
   for (std::size_t i = 0; i < BANDCOUNT; i++) {
     noisy_band_power[i] = band_power[i] + this->get_internal_noise(i);
   }
@@ -296,11 +293,7 @@ void FFTEarModel<BANDCOUNT>::process_block(state_t& state, InputIterator samples
                                 samples + FRAME_SIZE,
                                 0.0,
                                 [](auto e, auto x) { return e + x * x; });
-  if (energy >= 8000. / (32768. * 32768.)) {
-    state.energy_threshold_reached = true;
-  } else {
-    state.energy_threshold_reached = false;
-  }
+  state.energy_threshold_reached = energy >= 8000. / (32768. * 32768.);
 }
 
 template<std::size_t BANDCOUNT>
@@ -323,7 +316,7 @@ auto FFTEarModel<BANDCOUNT>::do_spreading(std::array<double, BANDCOUNT> const& P
    */
   auto aUCEe = std::array<double, BANDCOUNT>{};
   auto Ene = std::array<double, BANDCOUNT>{};
-  const auto aLe = lower_spreading_exponantiated;
+  const auto aLe = lower_spreading_exponentiated;
 
   for (std::size_t i = 0; i < BANDCOUNT; i++) {
     /* from (23) in [Kabal03] */
