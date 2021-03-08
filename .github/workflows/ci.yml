@@ -64,6 +64,12 @@ jobs:
         GSTREAMER_1_0_ROOT_MSVC_X86_64: c:\gstreamer\1.0\msvc_x86_64
         GSTREAMER_1_0_ROOT_MSVC_X86: c:\gstreamer\1.0\msvc_x86
       run: msbuild vs/gstpeaq.sln -property:Configuration=Release -property:Platform=${{ matrix.platform }}
+    - name: Run tests
+      env:
+        GSTREAMER_1_0_ROOT_MSVC_X86_64: c:\gstreamer\1.0\msvc_x86_64
+        GSTREAMER_1_0_ROOT_MSVC_X86: c:\gstreamer\1.0\msvc_x86
+      shell: powershell
+      run: .\vs\runtest-${{ matrix.platform }}.ps1
     - uses: actions/upload-artifact@v2.2.1
       with:
         name: binaries-win-${{ matrix.arch }}
