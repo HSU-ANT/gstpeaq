@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gstpeaq", "gstpeaq.vcxproj"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "peaq", "peaq.vcxproj", "{BD343B91-3BAE-46B1-B004-C2D91C58BECC}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "testpeaq", "testpeaq.vcxproj", "{A33AF093-A856-4470-9465-37044E8D5A43}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -31,6 +33,10 @@ Global
 		{BD343B91-3BAE-46B1-B004-C2D91C58BECC}.Release|Win32.Build.0 = Release|Win32
 		{BD343B91-3BAE-46B1-B004-C2D91C58BECC}.Release|x64.ActiveCfg = Release|x64
 		{BD343B91-3BAE-46B1-B004-C2D91C58BECC}.Release|x64.Build.0 = Release|x64
+		{A33AF093-A856-4470-9465-37044E8D5A43}.Debug|Win32.ActiveCfg = Debug|Win32
+		{A33AF093-A856-4470-9465-37044E8D5A43}.Debug|x64.ActiveCfg = Debug|x64
+		{A33AF093-A856-4470-9465-37044E8D5A43}.Release|Win32.ActiveCfg = Release|Win32
+		{A33AF093-A856-4470-9465-37044E8D5A43}.Release|x64.ActiveCfg = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
