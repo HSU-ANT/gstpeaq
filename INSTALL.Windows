@@ -10,10 +10,9 @@ Prerequisites:
 
 Compilation:
 If using Microsoft Visual Studio 2013 (or newer), the easiest way to compile
-GstPEAQ is to use the solutions/projects in the vs directory, where the
-trailing version number in the file names indicates the GStreamer version to
-build against. Provided the GStreamer development files have been properly
-installed, compilation should work out of the box.
+GstPEAQ is to use the solutions/projects in the vs directory. Provided the
+GStreamer development files have been properly installed, compilation should
+work out of the box.
 
 Installation:
 The created gstpeaq.dll has to be placed in one of the directories where

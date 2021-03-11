@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  linux-build:
     strategy:
       matrix:
         cc: [ gcc, clang ]
@@ -36,3 +36,51 @@ jobs:
       with:
         name: tarball
         path: gstpeaq-*.tar.gz
+
+  windows-build:
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            platform: x64
+          - arch: x86
+            platform: win32
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install prerequisites
+      shell: cmd
+      run: |
+        curl --location https://gstreamer.freedesktop.org/data/pkg/windows/1.18.3/msvc/gstreamer-1.0-msvc-${{ matrix.arch }}-1.18.3.msi --output gstreamer.msi
+        curl --location https://gstreamer.freedesktop.org/data/pkg/windows/1.18.3/msvc/gstreamer-1.0-devel-msvc-${{ matrix.arch }}-1.18.3.msi --output gstreamer-devel.msi
+        msiexec /quiet /i gstreamer.msi
+        msiexec /quiet /i gstreamer-devel.msi
+        del gstreamer.msi
+        del gstreamer-devel.msi
+    - name: Add msbuild to PATH
+      uses: microsoft/setup-msbuild@v1.0.2
+    - name: Build
+      env:
+        GSTREAMER_1_0_ROOT_MSVC_X86_64: c:\gstreamer\1.0\msvc_x86_64
+        GSTREAMER_1_0_ROOT_MSVC_X86: c:\gstreamer\1.0\msvc_x86
+      run: |
+        msbuild vs/gstpeaq.sln -property:Configuration=Release -property:Platform=${{ matrix.platform }}
+        msbuild vs/testpeaq.vcxproj -property:Configuration=Release -property:Platform=${{ matrix.platform }}
+    - name: Run tests
+      env:
+        GSTREAMER_1_0_ROOT_MSVC_X86_64: c:\gstreamer\1.0\msvc_x86_64
+        GSTREAMER_1_0_ROOT_MSVC_X86: c:\gstreamer\1.0\msvc_x86
+      shell: powershell
+      run: |
+        $Env:Path = "$Env:Path;c:\gstreamer\1.0\msvc_${{ matrix.arch }}\bin;"
+        .\vs\${{ matrix.platform }}\Release\testpeaq
+        if ($LASTEXITCODE -ne 0) {
+          throw "test failure"
+        }
+        .\vs\runtest-${{ matrix.platform }}.ps1
+    - uses: actions/upload-artifact@v2.2.1
+      with:
+        name: binaries-win-${{ matrix.arch }}
+        path: |
+          vs/${{ matrix.platform }}/Release/peaq.exe
+          vs/${{ matrix.platform }}/Release/gstpeaq.dll
