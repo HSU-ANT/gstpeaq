@@ -98,4 +98,4 @@ jobs:
         rm gstreamer.pkg
         rm gstreamer-devel.pkg
     - name: Build
-      run: xcodebuild -project xcode/GstPEAQ.xcodeproj -alltargets
+      run: xcodebuild -project xcode/GstPEAQ.xcodeproj -alltargets -arch x86_64
