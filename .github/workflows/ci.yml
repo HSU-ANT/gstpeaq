@@ -84,3 +84,18 @@ jobs:
         path: |
           vs/${{ matrix.platform }}/Release/peaq.exe
           vs/${{ matrix.platform }}/Release/gstpeaq.dll
+
+  macos-build:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install prerequisites
+      run: |
+        curl --location https://gstreamer.freedesktop.org/data/pkg/osx/1.18.4/gstreamer-1.0-1.18.4-x86_64.pkg --output gstreamer.pkg
+        curl --location https://gstreamer.freedesktop.org/data/pkg/osx/1.18.4/gstreamer-1.0-devel-1.18.4-x86_64.pkg --output gstreamer-devel.pkg
+        installer -pkg gstreamer.pkg
+        installer -pkg gstreamer-devel.pkg
+        rm gstreamer.pkg
+        rm gstreamer-devel.pkg
+    - name: Build
+      run: xcodebuild -project xcode/GstPEAQ.xcodeproj -alltargets
