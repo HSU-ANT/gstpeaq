@@ -101,3 +101,9 @@ jobs:
         rm gstreamer-devel.pkg
     - name: Build
       run: xcodebuild -project xcode/GstPEAQ.xcodeproj -alltargets -arch x86_64
+    - uses: actions/upload-artifact@v2.2.1
+      with:
+        name: binaries-macos
+        path: |
+          xcode/build/Release/peaq
+          xcode/build/Release/libgstpeaq.dylib
