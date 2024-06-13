@@ -74,6 +74,13 @@ my_bus_callback (GstBus * bus, GstMessage * message, gpointer data)
   return TRUE;
 }
 
+static void on_pad_added(GstElement *element, GstPad *pad, gpointer data) {
+    GstElement *sink = (GstElement *)data;
+    GstPad *sinkpad = gst_element_get_static_pad(sink, "sink");
+    gst_pad_link(pad, sinkpad);
+    gst_object_unref(sinkpad);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -81,8 +88,8 @@ main(int argc, char *argv[])
   GError *error = NULL;
   GOptionContext *context;
   GOptionGroup *option_group;
-  GstElement *pipeline, *ref_source, *ref_parser, *ref_converter, *ref_resample,
-             *test_source, *test_parser, *test_converter, *test_resample, *peaq;
+  GstElement *pipeline, *ref_source, *ref_decodebin, *ref_converter, *ref_resample,
+             *test_source, *test_decodebin, *test_converter, *test_resample, *peaq;
   gchar *reffilename;
   gchar *testfilename;
 
@@ -156,11 +163,6 @@ main(int argc, char *argv[])
     puts ("Error: filesrc element could not be instantiated");
     exit (2);
   }
-  ref_parser = gst_element_factory_make ("wavparse", "ref_wav-parser");
-  if (!ref_parser) {
-    puts ("Error: wavparse element could not be instantiated");
-    exit (2);
-  }
   g_object_set (G_OBJECT (ref_source), "location", reffilename, NULL);
   ref_converter = gst_element_factory_make ("audioconvert", "ref-converter");
   if (!ref_converter) {
@@ -172,14 +174,16 @@ main(int argc, char *argv[])
     puts ("Error: audioresample element could not be instantiated");
     exit (2);
   }
+  ref_decodebin = gst_element_factory_make("decodebin", "ref_decodebin");
+  if (!ref_decodebin) {
+      puts("Error: decodebin element could not be instantiated");
+      return 2;
+  }
+  g_signal_connect(ref_decodebin, "pad-added", G_CALLBACK(on_pad_added), ref_converter);
+
   test_source = gst_element_factory_make ("filesrc", "test_file-source");
   if (!test_source) {
     puts ("Error: filesrc element could not be instantiated");
-    exit (2);
-  }
-  test_parser = gst_element_factory_make ("wavparse", "test_wav-parser");
-  if (!test_parser) {
-    puts ("Error: wavparse element could not be instantiated");
     exit (2);
   }
   g_object_set (G_OBJECT (test_source), "location", testfilename, NULL);
@@ -193,18 +197,22 @@ main(int argc, char *argv[])
     puts ("Error: audioresample element could not be instantiated");
     exit (2);
   }
+  test_decodebin = gst_element_factory_make("decodebin", "test_decodebin");
+  if (!test_decodebin) {
+      puts("Error: decodebin element could not be instantiated");
+      return 2;
+  }
+  g_signal_connect(test_decodebin, "pad-added", G_CALLBACK(on_pad_added), test_converter);
 
   gst_bin_add_many (GST_BIN (pipeline), 
-                    ref_source, ref_parser, ref_converter, ref_resample,
-                    test_source, test_parser, test_converter, test_resample,
+                    ref_source, ref_decodebin, ref_converter, ref_resample,
+                    test_source, test_decodebin, test_converter, test_resample,
                     peaq,
                     NULL);
-  gst_element_link (ref_source, ref_parser);
-  gst_element_link (ref_parser, ref_converter);
+  gst_element_link(ref_source, ref_decodebin);
   gst_element_link (ref_converter, ref_resample);
   gst_element_link_pads (ref_resample, "src", peaq, "ref");
-  gst_element_link (test_source, test_parser);
-  gst_element_link (test_parser, test_converter);
+  gst_element_link(test_source, test_decodebin);
   gst_element_link (test_converter, test_resample);
   gst_element_link_pads (test_resample, "src", peaq, "test");
 
@@ -220,12 +228,8 @@ main(int argc, char *argv[])
   g_printf ("Distortion Index: %.3f\n", di);
 
   gst_object_unref (peaq);
-
   g_main_loop_unref (loop);
-
   gst_deinit ();
 
   return 0;
 }
-
-
