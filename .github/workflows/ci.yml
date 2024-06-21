@@ -18,7 +18,7 @@ jobs:
       CC: ${{ matrix.cc }}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
     - name: install prerequisites
@@ -47,7 +47,7 @@ jobs:
             platform: win32
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Install prerequisites
       shell: cmd
       run: |
