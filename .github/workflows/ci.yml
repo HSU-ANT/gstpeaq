@@ -32,7 +32,7 @@ jobs:
     - name: make distcheck
       run: make distcheck
     - if: ${{ matrix.cc == 'gcc' }}
-      uses: actions/upload-artifact@v2.2.1
+      uses: actions/upload-artifact@v4
       with:
         name: tarball
         path: gstpeaq-*.tar.gz
@@ -78,7 +78,7 @@ jobs:
           throw "test failure"
         }
         .\vs\runtest-${{ matrix.platform }}.ps1
-    - uses: actions/upload-artifact@v2.2.1
+    - uses: actions/upload-artifact@v4
       with:
         name: binaries-win-${{ matrix.arch }}
         path: |
