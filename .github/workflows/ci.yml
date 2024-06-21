@@ -51,8 +51,8 @@ jobs:
     - name: Install prerequisites
       shell: cmd
       run: |
-        curl --location https://gstreamer.freedesktop.org/data/pkg/windows/1.18.3/msvc/gstreamer-1.0-msvc-${{ matrix.arch }}-1.18.3.msi --output gstreamer.msi
-        curl --location https://gstreamer.freedesktop.org/data/pkg/windows/1.18.3/msvc/gstreamer-1.0-devel-msvc-${{ matrix.arch }}-1.18.3.msi --output gstreamer-devel.msi
+        curl --location https://gstreamer.freedesktop.org/data/pkg/windows/1.24.5/msvc/gstreamer-1.0-msvc-${{ matrix.arch }}-1.24.5.msi --output gstreamer.msi
+        curl --location https://gstreamer.freedesktop.org/data/pkg/windows/1.24.5/msvc/gstreamer-1.0-devel-msvc-${{ matrix.arch }}-1.24.5.msi --output gstreamer-devel.msi
         msiexec /quiet /i gstreamer.msi
         msiexec /quiet /i gstreamer-devel.msi
         del gstreamer.msi
