@@ -58,7 +58,7 @@ jobs:
         del gstreamer.msi
         del gstreamer-devel.msi
     - name: Add msbuild to PATH
-      uses: microsoft/setup-msbuild@v1.0.2
+      uses: microsoft/setup-msbuild@v2
     - name: Build
       env:
         GSTREAMER_1_0_ROOT_MSVC_X86_64: d:\gstreamer\1.0\msvc_x86_64
