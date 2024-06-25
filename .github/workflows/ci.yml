@@ -61,18 +61,18 @@ jobs:
       uses: microsoft/setup-msbuild@v1.0.2
     - name: Build
       env:
-        GSTREAMER_1_0_ROOT_MSVC_X86_64: c:\gstreamer\1.0\msvc_x86_64
-        GSTREAMER_1_0_ROOT_MSVC_X86: c:\gstreamer\1.0\msvc_x86
+        GSTREAMER_1_0_ROOT_MSVC_X86_64: d:\gstreamer\1.0\msvc_x86_64
+        GSTREAMER_1_0_ROOT_MSVC_X86: d:\gstreamer\1.0\msvc_x86
       run: |
         msbuild vs/gstpeaq.sln -property:Configuration=Release -property:Platform=${{ matrix.platform }}
         msbuild vs/testpeaq.vcxproj -property:Configuration=Release -property:Platform=${{ matrix.platform }}
     - name: Run tests
       env:
-        GSTREAMER_1_0_ROOT_MSVC_X86_64: c:\gstreamer\1.0\msvc_x86_64
-        GSTREAMER_1_0_ROOT_MSVC_X86: c:\gstreamer\1.0\msvc_x86
+        GSTREAMER_1_0_ROOT_MSVC_X86_64: d:\gstreamer\1.0\msvc_x86_64
+        GSTREAMER_1_0_ROOT_MSVC_X86: d:\gstreamer\1.0\msvc_x86
       shell: powershell
       run: |
-        $Env:Path = "$Env:Path;c:\gstreamer\1.0\msvc_${{ matrix.arch }}\bin;"
+        $Env:Path = "$Env:Path;d:\gstreamer\1.0\msvc_${{ matrix.arch }}\bin;"
         .\vs\${{ matrix.platform }}\Release\testpeaq
         if ($LASTEXITCODE -ne 0) {
           throw "test failure"
