@@ -27,8 +27,9 @@ for details.
 GstPEAQ comes as a GStreamer plugin providing an element named "peaq". The
 element has two sink pads, "ref" and "test" for reference and test signal,
 respectively. The computed ODG can be obtained by reading the "odg" property.
-For the common case that reference and test signal are available as WAV files,
-a command line utility "peaq" is provided that can simply be invoked as
+For the common case that reference and test signal are available as WAV files
+(or in another format readable by GStreamer), a command line utility "peaq" is
+provided that can simply be invoked as
   peaq [--advanced] {REFFILE} {TESTFILE}
 where --advanced chooses the advanced version of the algorithm (the basic
 version is used by default), and {REFFILE} and {TESTFILE} give the reference
