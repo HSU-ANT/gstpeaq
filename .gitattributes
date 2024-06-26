@@ -1,2 +1,2 @@
-test/stimulus_ref.wav filter=lfs diff=lfs merge=lfs -text
+test/stimulus_ref.flac filter=lfs diff=lfs merge=lfs -text
 test/stimulus_test.wav filter=lfs diff=lfs merge=lfs -text

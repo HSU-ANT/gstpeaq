@@ -4,4 +4,4 @@ SUBDIRS = src doc
 EXTRA_DIST=INSTALL.Windows vs/gstpeaq.props \
 	   vs/gstpeaq.vcxproj vs/peaq.vcxproj vs/gstpeaq.sln \
 	   INSTALL.OSX xcode/GstPEAQ.xcodeproj/project.pbxproj \
-	   test/stimulus_ref.wav test/stimulus_test.wav
+	   test/stimulus_ref.flac test/stimulus_test.wav
