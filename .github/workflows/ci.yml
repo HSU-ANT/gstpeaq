@@ -21,8 +21,9 @@ jobs:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
+        lfs: true
     - name: install prerequisites
-      run: sudo apt-get install -y ${{ matrix.cc }} git2cl gtk-doc-tools w3-dtd-mathml libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-tools gstreamer1.0-plugins-base
+      run: sudo apt-get install -y ${{ matrix.cc }} git2cl gtk-doc-tools w3-dtd-mathml libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good
     - name: autogen
       run: ./autogen.sh
     - name: make
@@ -48,6 +49,8 @@ jobs:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
+      with:
+        lfs: true
     - name: Install prerequisites
       shell: cmd
       run: |

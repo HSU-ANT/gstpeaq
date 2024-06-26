@@ -48,4 +48,12 @@ echo $ODG
 if [ x$ODG != x-2.007 ]; then
 	exit 1
 fi
+
+ODG=`LC_ALL=C ./peaq --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=.libs/libgstpeaq.so \
+	${srcdir}/../test/stimulus_ref.wav ${srcdir}/../test/stimulus_test.wav \
+| grep "Objective Difference Grade:" | cut -d " " -f4`
+echo $ODG
+if [ x$ODG != x-1.077 ]; then
+	exit 1
+fi
 exit 0
