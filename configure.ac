@@ -28,7 +28,6 @@ GST_API_VERSION=1.0
 gstreamer_1_0_packages="gstreamer-1.0 gstreamer-base-1.0 gstreamer-fft-1.0"
 PKG_CHECK_MODULES(PKGCONF, [$gstreamer_1_0_packages])
 AC_SUBST(GST_API_VERSION)
-PKG_CHECK_MODULES(PKGCONF_BIN, [gstreamer-$GST_API_VERSION])
 
 GST_SET_PLUGINDIR
 

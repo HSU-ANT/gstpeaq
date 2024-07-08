@@ -53,21 +53,29 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="$(GSTREAMER_1_0_ROOT_MSVC_X86)\share\vs\2010\libs\gstreamer-1.0.props" Condition="exists('$(GSTREAMER_1_0_ROOT_MSVC_X86)\share\vs\2010\libs\gstreamer-1.0.props')" />
+    <Import Project="$(GSTREAMER_1_0_ROOT_MSVC_X86)\share\vs\2010\libs\gstreamer-base-1.0.props" Condition="exists('$(GSTREAMER_1_0_ROOT_MSVC_X86)\share\vs\2010\libs\gstreamer-base-1.0.props')" />
+    <Import Project="$(GSTREAMER_1_0_ROOT_MSVC_X86)\share\vs\2010\libs\gstreamer-fft-1.0.props" Condition="exists('$(GSTREAMER_1_0_ROOT_MSVC_X86)\share\vs\2010\libs\gstreamer-base-1.0.props')" />
     <Import Project="gstpeaq.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="$(GSTREAMER_1_0_ROOT_MSVC_X86_64)\share\vs\2010\libs\gstreamer-1.0.props" Condition="exists('$(GSTREAMER_1_0_ROOT_MSVC_X86_64)\share\vs\2010\libs\gstreamer-1.0.props')" />
+    <Import Project="$(GSTREAMER_1_0_ROOT_MSVC_X86_64)\share\vs\2010\libs\gstreamer-base-1.0.props" Condition="exists('$(GSTREAMER_1_0_ROOT_MSVC_X86_64)\share\vs\2010\libs\gstreamer-base-1.0.props')" />
+    <Import Project="$(GSTREAMER_1_0_ROOT_MSVC_X86_64)\share\vs\2010\libs\gstreamer-fft-1.0.props" Condition="exists('$(GSTREAMER_1_0_ROOT_MSVC_X86_64)\share\vs\2010\libs\gstreamer-base-1.0.props')" />
     <Import Project="gstpeaq.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="$(GSTREAMER_1_0_ROOT_MSVC_X86)\share\vs\2010\libs\gstreamer-1.0.props" Condition="exists('$(GSTREAMER_1_0_ROOT_MSVC_X86)\share\vs\2010\libs\gstreamer-1.0.props')" />
+    <Import Project="$(GSTREAMER_1_0_ROOT_MSVC_X86)\share\vs\2010\libs\gstreamer-base-1.0.props" Condition="exists('$(GSTREAMER_1_0_ROOT_MSVC_X86)\share\vs\2010\libs\gstreamer-base-1.0.props')" />
+    <Import Project="$(GSTREAMER_1_0_ROOT_MSVC_X86)\share\vs\2010\libs\gstreamer-fft-1.0.props" Condition="exists('$(GSTREAMER_1_0_ROOT_MSVC_X86)\share\vs\2010\libs\gstreamer-base-1.0.props')" />
     <Import Project="gstpeaq.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="$(GSTREAMER_1_0_ROOT_MSVC_X86_64)\share\vs\2010\libs\gstreamer-1.0.props" Condition="exists('$(GSTREAMER_1_0_ROOT_MSVC_X86_64)\share\vs\2010\libs\gstreamer-1.0.props')" />
+    <Import Project="$(GSTREAMER_1_0_ROOT_MSVC_X86_64)\share\vs\2010\libs\gstreamer-base-1.0.props" Condition="exists('$(GSTREAMER_1_0_ROOT_MSVC_X86_64)\share\vs\2010\libs\gstreamer-base-1.0.props')" />
+    <Import Project="$(GSTREAMER_1_0_ROOT_MSVC_X86_64)\share\vs\2010\libs\gstreamer-fft-1.0.props" Condition="exists('$(GSTREAMER_1_0_ROOT_MSVC_X86_64)\share\vs\2010\libs\gstreamer-base-1.0.props')" />
     <Import Project="gstpeaq.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
@@ -95,6 +103,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>_USE_MATH_DEFINES;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -108,6 +117,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>_USE_MATH_DEFINES;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -123,6 +133,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>_USE_MATH_DEFINES;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -140,6 +151,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>_USE_MATH_DEFINES;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -150,6 +162,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\src\earmodel.c" />
+    <ClCompile Include="..\src\fbearmodel.c" />
+    <ClCompile Include="..\src\fftearmodel.c" />
+    <ClCompile Include="..\src\gstpeaq.c" />
+    <ClCompile Include="..\src\gstpeaqplugin.c" />
+    <ClCompile Include="..\src\leveladapter.c" />
+    <ClCompile Include="..\src\modpatt.c" />
+    <ClCompile Include="..\src\movaccum.c" />
+    <ClCompile Include="..\src\movs.c" />
+    <ClCompile Include="..\src\nn.c" />
     <ClCompile Include="..\src\peaq.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

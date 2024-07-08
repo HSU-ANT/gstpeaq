@@ -49,14 +49,14 @@ if ($ODG -ne -2.007) {
 }
 
 $ODG = [convert]::ToDouble(( `
-  Invoke-Expression ("$PSScriptRoot\win32\Release\peaq.exe --gst-plugin-load=$PSScriptRoot\win32\Release\gstpeaq.dll " + `
+  Invoke-Expression ("$PSScriptRoot\win32\Release\peaq.exe " + `
 	"$PSScriptRoot\..\test\stimulus_ref.flac $PSScriptRoot\..\test\stimulus_test.wav") `
  | Select-String -Pattern 'Objective Difference Grade: (.*)').Matches.Groups[1].Value)
 if ($ODG -ne -1.077) {
     throw "$ODG -ne -1.077"
 }
 $ODG = [convert]::ToDouble(( `
-  Invoke-Expression ("$PSScriptRoot\win32\Release\peaq.exe --gst-plugin-load=$PSScriptRoot\win32\Release\gstpeaq.dll " + `
+  Invoke-Expression ("$PSScriptRoot\win32\Release\peaq.exe " + `
 	"$PSScriptRoot\..\test\stimulus_test.wav $PSScriptRoot\..\test\stimulus_ref.flac ") `
  | Select-String -Pattern 'Objective Difference Grade: (.*)').Matches.Groups[1].Value)
 if ($ODG -ne -3.096) {

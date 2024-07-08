@@ -24,6 +24,8 @@
 #include <glib/gprintf.h>
 #include <stdlib.h>
 
+#include <gst/gstplugin.h>
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -80,6 +82,8 @@ static void on_pad_added(GstElement *element, GstPad *pad, gpointer data) {
     gst_pad_link(pad, sinkpad);
     gst_object_unref(sinkpad);
 }
+
+GST_PLUGIN_STATIC_DECLARE(peaq);
 
 int
 main(int argc, char *argv[])
@@ -152,9 +156,16 @@ main(int argc, char *argv[])
 
   peaq = gst_element_factory_make ("peaq", "peaq");
   if (!peaq) {
-    puts ("Error: peaq element could not be instantiated - is the plugin installed correctly?");
+    puts ("Warning: peaq plugin is not installed - registering statically");
+    GST_PLUGIN_STATIC_REGISTER(peaq);
+  }
+
+  peaq = gst_element_factory_make ("peaq", "peaq");
+  if (!peaq) {
+    puts ("Error: peaq element could not be instantiated");
     exit (2);
   }
+
   gst_object_ref_sink (peaq);
   g_object_set (G_OBJECT (peaq), "advanced", advanced,
                 "console_output", FALSE, NULL);

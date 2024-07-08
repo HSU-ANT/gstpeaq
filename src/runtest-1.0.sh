@@ -49,14 +49,14 @@ if [ x$ODG != x-2.007 ]; then
 	exit 1
 fi
 
-ODG=`LC_ALL=C ./peaq --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=.libs/libgstpeaq.so \
+ODG=`LC_ALL=C ./peaq --gst-disable-segtrap --gst-debug-level=2 \
 	${srcdir}/../test/stimulus_ref.flac ${srcdir}/../test/stimulus_test.wav \
 | grep "Objective Difference Grade:" | cut -d " " -f4`
 echo $ODG
 if [ x$ODG != x-1.077 ]; then
 	exit 1
 fi
-ODG=`LC_ALL=C ./peaq --gst-disable-segtrap --gst-debug-level=2 --gst-plugin-load=.libs/libgstpeaq.so \
+ODG=`LC_ALL=C ./peaq --gst-disable-segtrap --gst-debug-level=2 \
 	${srcdir}/../test/stimulus_test.wav ${srcdir}/../test/stimulus_ref.flac \
 | grep "Objective Difference Grade:" | cut -d " " -f4`
 echo $ODG
