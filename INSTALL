@@ -1,8 +1,29 @@
 GstPEAQ - Installation Instructions
 -----------------------------------
+Prerequisites:
+* To build from releases tarball
+libgstreamer-plugins-base1.0-dev
+make
+clang or gcc
 
-GstPEAQ uses the autotools infrastructure for building, so ideally
+* To build from git (additional to those mentioned earlier):
+automake 
+git
+git2cl
+libtool
 
+* For running (all) tests, one additionally needs:
+gstreamer1.0-plugins-base
+gstreamer1.0-plugins-good
+gstreamer1.0-tools
+
+* For building the documentation, one needs:
+gtk-doc-tools
+w3c-sgml-lib (formerly w3-dtd-mathml)
+
+Build:
+GstPEAQ uses the autotools infrastructure for building, so ideally:
+./autogen.sh # when building from git only, not required for release tarball
 ./configure
 make
 make install
